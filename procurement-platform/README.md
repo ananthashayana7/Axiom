@@ -1,36 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Axiom Procurement Platform
 
-## Getting Started
+A Tacto-like procurement intelligence platform for managing suppliers, orders, and spend analytics.
 
-First, run the development server:
+---
+
+## 🚀 Quick Access (Current Local Setup)
+
+The platform is running on your machine. Your colleagues on the same network can access it at:
+
+**Link:** `http://10.210.147.40:3000`
+
+### Access Steps for Colleagues:
+1. Open Chrome or Edge on their computer.
+2. Enter the link above.
+3. Log in with the credentials you provided (created in Admin → User Management).
+4. **Desktop Icon:** Click the "Install" icon in the address bar to add the app to their desktop.
+
+---
+
+## 👥 Platform Features
+
+| Feature | What You Can Do |
+|---------|-----------------|
+| **Dashboard** | View total spend (in ₹), active suppliers, and AI insights |
+| **Sourcing → Orders** | Create new itemized RFQs and orders |
+| **Suppliers** | Track vendors, risk scores, and full order history |
+| **User Management** | (Admin Only) Create and manage colleague accounts |
+
+### User Roles
+- **Admins**: Can access everything, including creating/deleting users.
+- **Users**: Can access Dashboard, Sourcing, and Suppliers, but not User Management.
+
+---
+
+## ☁️ Cloud Hosting Guide (Production Deployment)
+
+When you are ready to move the platform to the cloud (AWS, DigitalOcean, etc.), follow these steps.
+
+### 1. Prerequisites
+- A Linux Virtual Private Server (VPS) - Ubuntu 22.04 recommended.
+- Docker and Docker Compose installed on the server.
+
+### 2. Deployment Steps
+
+```bash
+# 1. SSH into your server
+ssh root@your-server-ip
+
+# 2. Clone the repository
+git clone <your-repo-url>
+cd procurement-platform
+
+# 3. Create a production environment file
+# IMPORTANT: Generate a secure secret
+nano .env.local
+# Add: AUTH_SECRET=$(openssl rand -base64 32)
+# Add: DATABASE_URL=postgres://postgres:admin@db:5432/procurement_db
+
+# 4. Build and start the production containers
+docker compose -f docker-compose.yml up -d --build
+
+# 5. Push the database schema (first time only)
+docker compose exec app npm run db:push
+
+# 6. Seed initial admin data (one time)
+docker compose exec app npm run db:seed
+```
+
+### 3. Domain & SSL (Recommended)
+To use a real domain (e.g., `procure.company.com`) and HTTPS, use **Nginx** or **Caddy** as a reverse proxy.
+
+**Example Caddyfile (easiest setup):**
+```
+procure.yourcompany.com {
+    reverse_proxy localhost:3000
+}
+```
+
+---
+
+## 🛠️ Development & Local Commands
+
+### Start Platform Locally
+```bash
+docker compose up -d
+```
+
+### Local Node.js development (optional — run without Docker)
+
+1. Create a local environment file from the example and edit values:
+
+```bash
+cp .env.example .env.local
+# On Windows PowerShell:
+# Copy-Item .env.example .env.local
+```
+
+Edit `.env.local` and set at minimum `DATABASE_URL` and `NEXTAUTH_SECRET` (or `AUTH_SECRET`).
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Push schema and seed the DB (requires a running Postgres instance reachable via `DATABASE_URL`):
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
+4. Start the Next.js dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit `http://localhost:3000` to open the Axiom dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Database Management
+```bash
+npm run db:push     # Update schema
+npm run db:seed     # Reset/Seed data
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## ⚠️ Important Security
+1. **Change Default Admin Password**: After deployment, log in and change the password for `admin@example.com`.
+2. **Backups**: Ensure you back up the Docker volume `procurement_db_data` regularly.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📞 Support
+Contact your IT Lead for server access or issues.
