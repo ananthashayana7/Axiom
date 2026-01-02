@@ -31,12 +31,12 @@ AUTH_SECRET=change_this_to_a_secure_secret_in_production
 }
 
 Write-Host ""
-Write-Host "Starting Docker containers..." -ForegroundColor Yellow
+Write-Host "Starting Docker containers (Development Mode)..." -ForegroundColor Yellow
 Write-Host "This may take a few minutes on first run..." -ForegroundColor Gray
 Write-Host ""
 
 # Start containers
-docker-compose up --build -d
+docker-compose -f docker-compose.dev.yml up --build -d
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ ERROR: Failed to start containers." -ForegroundColor Red
@@ -44,13 +44,16 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host ""
-Write-Host "Waiting for database to be ready..." -ForegroundColor Yellow
-Start-Sleep -Seconds 10
+Write-Host "Waiting for containers to start..." -ForegroundColor Yellow
+Start-Sleep -Seconds 15
 
 Write-Host ""
-Write-Host "Seeding database..." -ForegroundColor Yellow
-docker-compose exec -T app node -r tsx/cjs src/db/seed.ts
+Write-Host "Setting up database schema..." -ForegroundColor Yellow
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:push
+
+Write-Host ""
+Write-Host "Seeding database with sample data..." -ForegroundColor Yellow
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:seed
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
@@ -62,9 +65,9 @@ Write-Host "Login: admin@example.com" -ForegroundColor Cyan
 Write-Host "Password: password" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Commands:" -ForegroundColor Yellow
-Write-Host "  Stop:    docker-compose down" -ForegroundColor Gray
-Write-Host "  Restart: docker-compose up -d" -ForegroundColor Gray
-Write-Host "  Logs:    docker-compose logs -f" -ForegroundColor Gray
+Write-Host "  Stop:    docker-compose -f docker-compose.dev.yml down" -ForegroundColor Gray
+Write-Host "  Restart: docker-compose -f docker-compose.dev.yml up -d" -ForegroundColor Gray
+Write-Host "  Logs:    docker-compose -f docker-compose.dev.yml logs -f" -ForegroundColor Gray
 Write-Host ""
 
 # Ask to open browser

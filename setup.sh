@@ -27,12 +27,12 @@ else
 fi
 
 echo
-echo "Starting Docker containers..."
+echo "Starting Docker containers (Development Mode)..."
 echo "This may take a few minutes on first run..."
 echo
 
 # Start containers
-docker-compose up --build -d
+docker-compose -f docker-compose.dev.yml up --build -d
 
 if [ $? -ne 0 ]; then
     echo "❌ ERROR: Failed to start containers."
@@ -40,12 +40,16 @@ if [ $? -ne 0 ]; then
 fi
 
 echo
-echo "Waiting for database to be ready..."
-sleep 10
+echo "Waiting for containers to start..."
+sleep 15
 
 echo
-echo "Seeding database..."
-docker-compose exec -T app node -r tsx/cjs src/db/seed.ts
+echo "Setting up database schema..."
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:push
+
+echo
+echo "Seeding database with sample data..."
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:seed
 
 echo
 echo "========================================"
@@ -57,9 +61,9 @@ echo "Login: admin@example.com"
 echo "Password: password"
 echo
 echo "Commands:"
-echo "  Stop:    docker-compose down"
-echo "  Restart: docker-compose up -d"
-echo "  Logs:    docker-compose logs -f"
+echo "  Stop:    docker-compose -f docker-compose.dev.yml down"
+echo "  Restart: docker-compose -f docker-compose.dev.yml up -d"
+echo "  Logs:    docker-compose -f docker-compose.dev.yml logs -f"
 echo
 
 # Ask to open browser

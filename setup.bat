@@ -29,11 +29,11 @@ if not exist .env.local (
 )
 
 echo.
-echo Starting Docker containers...
+echo Starting Docker containers (Development Mode)...
 echo This may take a few minutes on first run...
 echo.
 
-docker-compose up --build -d
+docker-compose -f docker-compose.dev.yml up --build -d
 
 if %errorlevel% neq 0 (
     echo ERROR: Failed to start containers.
@@ -42,12 +42,16 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo Waiting for database to be ready...
-timeout /t 10 /nobreak >nul
+echo Waiting for containers to start...
+timeout /t 15 /nobreak >nul
 
 echo.
-echo Seeding database...
-docker-compose exec -T app node -r tsx/cjs src/db/seed.ts
+echo Setting up database schema...
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:push
+
+echo.
+echo Seeding database with sample data...
+docker-compose -f docker-compose.dev.yml exec -T app npm run db:seed
 
 echo.
 echo ========================================
@@ -58,9 +62,9 @@ echo Portal URL: http://localhost:3000
 echo Login: admin@example.com
 echo Password: password
 echo.
-echo To stop the portal: docker-compose down
-echo To restart: docker-compose up -d
-echo To view logs: docker-compose logs -f
+echo To stop the portal: docker-compose -f docker-compose.dev.yml down
+echo To restart: docker-compose -f docker-compose.dev.yml up -d
+echo To view logs: docker-compose -f docker-compose.dev.yml logs -f
 echo.
 echo Press any key to open the portal in your browser...
 pause >nul
