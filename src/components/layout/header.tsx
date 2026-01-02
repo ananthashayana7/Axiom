@@ -1,5 +1,8 @@
 import { NotificationBell } from "./notification-bell";
 import { auth } from "@/auth";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { User, Settings } from "lucide-react";
 
 export async function Header() {
     const session = await auth();
@@ -14,6 +17,12 @@ export async function Header() {
 
             <div className="flex items-center gap-4">
                 <NotificationBell />
+                <Link href="/profile">
+                    <Button variant="ghost" size="sm" className="gap-2">
+                        <Settings className="h-4 w-4" />
+                        Profile
+                    </Button>
+                </Link>
             </div>
         </header>
     );

@@ -1,0 +1,74 @@
+# Axiom Portal Quick Setup (Docker Method)
+Write-Host "Axiom Portal Quick Setup (Docker Method)" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+
+# Check if Docker is running
+try {
+    docker version | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker not running"
+    }
+    Write-Host "✓ Docker is running..." -ForegroundColor Green
+} catch {
+    Write-Host "❌ ERROR: Docker is not running or not installed." -ForegroundColor Red
+    Write-Host "Please install Docker Desktop and start it." -ForegroundColor Yellow
+    Write-Host "Download from: https://www.docker.com/products/docker-desktop" -ForegroundColor Cyan
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+# Create environment file if it doesn't exist
+if (-not (Test-Path ".env.local")) {
+    Write-Host "Creating .env.local file..." -ForegroundColor Yellow
+    @"
+DATABASE_URL=postgres://postgres:admin@localhost:5432/procurement_db
+AUTH_SECRET=change_this_to_a_secure_secret_in_production
+"@ | Out-File -FilePath ".env.local" -Encoding UTF8
+    Write-Host "✓ .env.local created successfully!" -ForegroundColor Green
+} else {
+    Write-Host "✓ .env.local already exists." -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Starting Docker containers..." -ForegroundColor Yellow
+Write-Host "This may take a few minutes on first run..." -ForegroundColor Gray
+Write-Host ""
+
+# Start containers
+docker-compose up --build -d
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ ERROR: Failed to start containers." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+Write-Host ""
+Write-Host "Waiting for database to be ready..." -ForegroundColor Yellow
+Start-Sleep -Seconds 10
+
+Write-Host ""
+Write-Host "Seeding database..." -ForegroundColor Yellow
+docker-compose exec -T app node -r tsx/cjs src/db/seed.ts
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "Setup Complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Portal URL: http://localhost:3000" -ForegroundColor Cyan
+Write-Host "Login: admin@example.com" -ForegroundColor Cyan
+Write-Host "Password: password" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Commands:" -ForegroundColor Yellow
+Write-Host "  Stop:    docker-compose down" -ForegroundColor Gray
+Write-Host "  Restart: docker-compose up -d" -ForegroundColor Gray
+Write-Host "  Logs:    docker-compose logs -f" -ForegroundColor Gray
+Write-Host ""
+
+# Ask to open browser
+$openBrowser = Read-Host "Press Enter to open the portal in your browser (or type 'n' to skip)"
+if ($openBrowser -ne "n") {
+    Start-Process "http://localhost:3000"
+}

@@ -16,7 +16,7 @@ export default function LoginPage() {
 
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
-        alert("Please contact your administrator (admin@example.com) to reset your password.");
+        alert("Please log in first, then go to Profile > Change Password to reset your password. If you can't log in, contact your administrator (admin@example.com).");
     };
 
     return (
