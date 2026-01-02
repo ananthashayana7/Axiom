@@ -41,14 +41,14 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
                             paddingAngle={5}
                             dataKey="value"
                             nameKey="name"
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : '0'}%`}
                         >
                             {categoryData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                         </Pie>
                         <Tooltip
-                            formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Spend']}
+                            formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Spend']}
                         />
                         <Legend />
                     </PieChart>
@@ -63,7 +63,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                         <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Total Spend']} />
+                        <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} />
                         <Line type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: "#2563eb" }} activeDot={{ r: 6 }} />
                     </LineChart>
                 </ResponsiveContainer>
@@ -83,7 +83,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                         <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Total Spend']} />
+                        <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} />
                         <Area type="monotone" dataKey="total" stroke="#2563eb" fillOpacity={1} fill="url(#colorTotal)" />
                     </AreaChart>
                 </ResponsiveContainer>
@@ -96,7 +96,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                    <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Total Spend']} cursor={{ fill: '#f1f5f9' }} />
+                    <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} cursor={{ fill: '#f1f5f9' }} />
                     <Bar dataKey={yKey} fill="#2563eb" radius={[4, 4, 0, 0]} className="fill-primary" />
                 </BarChart>
             </ResponsiveContainer>

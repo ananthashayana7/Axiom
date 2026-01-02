@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
-    container_name: procurement_db
+    container_name: procurement_db_dev
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -22,17 +20,21 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: procurement_app
+      dockerfile: Dockerfile.dev
+    container_name: procurement_app_dev
     restart: always
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgres://postgres:admin@db:5432/procurement_db
-      AUTH_SECRET: change_this_to_a_secure_secret_in_production
+      AUTH_SECRET: 2f8b4c9d3e7a1f6c5b8a2d9e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
 
 volumes:
   db_data:

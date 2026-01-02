@@ -18,5 +18,11 @@ export default async function ProfilePage() {
         redirect("/login");
     }
 
-    return <ProfileClient user={user} />;
+    // Ensure role is not null
+    const userWithRole = {
+        ...user,
+        role: user.role || 'user' as const
+    };
+
+    return <ProfileClient user={userWithRole} />;
 }
