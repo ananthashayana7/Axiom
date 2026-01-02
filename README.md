@@ -1,6 +1,6 @@
 # Axiom Procurement Platform
 
-A Tacto-like procurement intelligence platform for managing suppliers, orders, and spend analytics.
+A procurement intelligence platform for managing suppliers, orders, and spend analytics.
 
 ---
 
