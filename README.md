@@ -4,7 +4,7 @@ A procurement intelligence platform for managing suppliers, orders, and spend an
 
 ---
 
-## 🚀 Quick Start for New Users
+## Quick Start for New Users
 
 ### Option 1: Automated Setup (Recommended)
 **Windows:** Double-click `setup.bat` or run `setup.ps1` in PowerShell  
@@ -40,7 +40,7 @@ docker-compose exec app node -r tsx/cjs src/db/seed.ts
 
 ---
 
-## 🚀 Quick Access (Current Local Setup)
+##  Quick Access (Current Local Setup)
 
 The platform is running on your machine. Your colleagues on same network can access it at:
 
