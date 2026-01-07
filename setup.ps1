@@ -9,7 +9,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Docker not running"
     }
-    Write-Host "✓ Docker is running..." -ForegroundColor Green
+    Write-Host "✓ Docker is running..." -ForegroundColor Green 
 } catch {
     Write-Host "❌ ERROR: Docker is not running or not installed." -ForegroundColor Red
     Write-Host "Please install Docker Desktop and start it." -ForegroundColor Yellow
