@@ -2,6 +2,7 @@
 
 # Stage 1: Dependencies
 FROM node:20-slim AS deps
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
