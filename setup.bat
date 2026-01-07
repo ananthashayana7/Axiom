@@ -1,7 +1,7 @@
 @echo off
 echo Axiom Portal Quick Setup (Docker Method)
 echo ========================================
-echo.
+echo. 
 
 REM Check if Docker is running
 docker version >nul 2>&1
