@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Shield, User, Edit2, Loader2 } from "lucide-react";
+
 import { createUser, deleteUser, updateUser } from "@/app/actions/users";
 
 export const dynamic = 'force-dynamic';
 
-interface User {
+interface AppUser {
     id: string;
     name: string;
     email: string;
@@ -20,13 +20,13 @@ interface User {
 }
 
 interface UsersClientProps {
-    users: User[];
+    users: AppUser[];
     currentUserRole: string;
 }
 
 export default function UsersClient({ users, currentUserRole }: UsersClientProps) {
     const [open, setOpen] = useState(false);
-    const [editUser, setEditUser] = useState<User | null>(null);
+    const [editUser, setEditUser] = useState<AppUser | null>(null);
     const [isPending, startTransition] = useTransition();
 
     const handleCreateUser = async (formData: FormData) => {
@@ -67,7 +67,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                     <Dialog open={open} onOpenChange={setOpen}>
                         <DialogTrigger asChild>
                             <Button className="gap-2">
-                                <Plus className="h-4 w-4" />
+                                <span className="mr-1">+</span>
                                 Add User
                             </Button>
                         </DialogTrigger>
@@ -105,7 +105,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                 </div>
                                 <div className="flex justify-end mt-4">
                                     <Button type="submit" disabled={isPending}>
-                                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        {isPending && <span className="mr-2 h-4 w-4 animate-spin inline-block border-2 border-current border-t-transparent rounded-full" />}
                                         Create User
                                     </Button>
                                 </div>
@@ -140,9 +140,9 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                         <tr key={user.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle font-medium flex items-center gap-2">
                                                 {user.role === 'admin' ? (
-                                                    <Shield className="h-4 w-4 text-amber-500" />
+                                                    <span className="text-amber-500 mr-2">🛡️</span>
                                                 ) : (
-                                                    <User className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-muted-foreground mr-2">👤</span>
                                                 )}
                                                 {user.name}
                                             </td>
@@ -165,7 +165,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                             onClick={() => setEditUser(user)}
                                                             className="text-blue-500 hover:text-blue-700"
                                                         >
-                                                            <Edit2 className="h-4 w-4" />
+                                                            <span>Edit</span>
                                                         </Button>
                                                         <Button
                                                             variant="ghost"
@@ -174,7 +174,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                             disabled={isPending}
                                                             className="text-red-500 hover:text-red-700"
                                                         >
-                                                            <Trash2 className="h-4 w-4" />
+                                                            <span>Delete</span>
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -229,7 +229,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                             </div>
                             <div className="flex justify-end mt-4">
                                 <Button type="submit" disabled={isPending}>
-                                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isPending && <span className="mr-2 h-4 w-4 animate-spin inline-block border-2 border-current border-t-transparent rounded-full" />}
                                     Update User
                                 </Button>
                             </div>

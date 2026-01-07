@@ -5,6 +5,10 @@ import { Activity, CreditCard, Users, DollarSign, Package } from "lucide-react";
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
 import { RecentSales } from "@/components/dashboard/recent-sales";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend } from "@/app/actions/dashboard";
+import { getSuppliers } from "@/app/actions/suppliers";
+import { getParts } from "@/app/actions/parts";
+import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
+import { DownloadDataButton } from "@/components/dashboard/download-data-button";
 
 import { AiInsights } from "@/components/dashboard/ai-insights";
 
@@ -13,14 +17,23 @@ export default async function Home() {
   const recentOrders = await getRecentOrders();
   const monthlySpend = await getMonthlySpend();
   const categorySpend = await getCategorySpend();
+  const suppliers = await getSuppliers();
+  const parts = await getParts();
+
+  const allData = {
+    stats,
+    recentOrders,
+    monthlySpend,
+    categorySpend
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40 p-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">Download Data</Button>
-          <Button>Create RFQ</Button>
+          <DownloadDataButton data={allData} />
+          <CreateOrderDialog suppliers={suppliers} parts={parts} />
         </div>
       </div>
 

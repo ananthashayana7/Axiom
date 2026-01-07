@@ -1,12 +1,11 @@
-
 import NextAuth from "next-auth"
+import { authConfig } from "./auth.config"
 import Credentials from "next-auth/providers/credentials"
 import { z } from "zod"
-import bcrypt from "bcryptjs"
-import { authConfig } from "./auth.config"
 import { db } from "@/db"
 import { users } from "@/db/schema"
 import { eq } from "drizzle-orm"
+import bcrypt from "bcryptjs"
 
 async function getUser(email: string) {
     try {
@@ -52,7 +51,6 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                         }
                     }
                 }
-                console.log('Invalid credentials')
                 return null
             },
         }),

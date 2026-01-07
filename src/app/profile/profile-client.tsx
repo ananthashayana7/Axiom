@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Shield, Loader2, Eye, EyeOff } from "lucide-react";
+import { User, Shield, Loader, Eye, EyeOff } from "lucide-react";
 import { changePassword, updateProfile } from "@/app/actions/auth";
 
 interface User {
@@ -107,8 +107,8 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                 <Label className="text-sm font-medium text-muted-foreground">Role</Label>
                                 <div className="mt-1">
                                     <Badge className={
-                                        user.role === 'admin' 
-                                            ? 'bg-amber-50 text-amber-700 hover:bg-amber-50' 
+                                        user.role === 'admin'
+                                            ? 'bg-amber-50 text-amber-700 hover:bg-amber-50'
                                             : 'bg-blue-50 text-blue-700 hover:bg-blue-50'
                                     }>
                                         {user.role}
@@ -142,17 +142,16 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                 <Input id="email" name="email" type="email" defaultValue={user.email} required />
                             </div>
                             {profileMessage && (
-                                <div className={`p-3 rounded-md text-sm ${
-                                    profileMessage.type === 'success' 
-                                        ? 'bg-green-50 text-green-700 border border-green-200' 
-                                        : 'bg-red-50 text-red-700 border border-red-200'
-                                }`}>
+                                <div className={`p-3 rounded-md text-sm ${profileMessage.type === 'success'
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                    }`}>
                                     {profileMessage.text}
                                 </div>
                             )}
                             <div className="flex justify-end">
                                 <Button type="submit" disabled={isPending}>
-                                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isPending && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                                     Update Profile
                                 </Button>
                             </div>
@@ -218,17 +217,16 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                 />
                             </div>
                             {passwordMessage && (
-                                <div className={`p-3 rounded-md text-sm ${
-                                    passwordMessage.type === 'success' 
-                                        ? 'bg-green-50 text-green-700 border border-green-200' 
-                                        : 'bg-red-50 text-red-700 border border-red-200'
-                                }`}>
+                                <div className={`p-3 rounded-md text-sm ${passwordMessage.type === 'success'
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                    }`}>
                                     {passwordMessage.text}
                                 </div>
                             )}
                             <div className="flex justify-end">
                                 <Button type="submit" disabled={isPending}>
-                                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isPending && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                                     Change Password
                                 </Button>
                             </div>

@@ -17,11 +17,12 @@ export async function Header() {
 
             <div className="flex items-center gap-4">
                 <NotificationBell />
-                <Link href="/profile">
-                    <Button variant="ghost" size="sm" className="gap-2">
-                        <Settings className="h-4 w-4" />
-                        Profile
-                    </Button>
+                <Link
+                    href="/profile"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                    <User className="h-4 w-4" />
+                    Profile
                 </Link>
             </div>
         </header>

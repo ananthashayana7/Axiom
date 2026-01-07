@@ -2,6 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, procurementOrders } from "@/db/schema";
+// @ts-ignore
 import { count, eq, sum, sql } from "drizzle-orm";
 
 export async function getDashboardStats() {
@@ -35,7 +36,7 @@ export async function getRecentOrders() {
     try {
         const recentOrders = await db.query.procurementOrders.findMany({
             limit: 5,
-            orderBy: (procurementOrders, { desc }) => [desc(procurementOrders.createdAt)],
+            orderBy: (procurementOrders: any, { desc }: any) => [desc(procurementOrders.createdAt)],
             with: {
                 supplier: true,
             }
@@ -89,7 +90,7 @@ export async function getCategorySpend() {
             .innerJoin(parts, eq(orderItems.partId, parts.id))
             .groupBy(parts.category);
 
-        return result.map(r => ({
+        return result.map((r: { category: string | null, total: number | unknown }) => ({
             name: r.category || "Other",
             value: Number(r.total || 0)
         }));

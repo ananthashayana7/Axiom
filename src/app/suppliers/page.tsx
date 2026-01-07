@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSuppliers, addSupplier } from "@/app/actions/suppliers";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader } from "lucide-react";
 import Link from "next/link";
 
 export default function SuppliersPage() {
@@ -74,7 +74,7 @@ export default function SuppliersPage() {
                             </div>
                             <div className="flex justify-end mt-4">
                                 <Button type="submit" disabled={isPending}>
-                                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isPending && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                                     Add Supplier
                                 </Button>
                             </div>
@@ -108,18 +108,17 @@ export default function SuppliersPage() {
                                             <td className="p-4 align-medium">{supplier.contactEmail}</td>
                                             <td className="p-4 align-medium">
                                                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
-                                                    ${supplier.status === 'active' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-                                                      supplier.status === 'inactive' ? 'bg-gray-50 text-gray-700 ring-gray-600/20' : 
-                                                      'bg-red-50 text-red-700 ring-red-600/20'}`}>
+                                                    ${supplier.status === 'active' ? 'bg-green-50 text-green-700 ring-green-600/20' :
+                                                        supplier.status === 'inactive' ? 'bg-gray-50 text-gray-700 ring-gray-600/20' :
+                                                            'bg-red-50 text-red-700 ring-red-600/20'}`}>
                                                     {supplier.status}
                                                 </span>
                                             </td>
                                             <td className="p-4 align-medium">
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${
-                                                        supplier.riskScore < 30 ? 'bg-green-500' : 
+                                                    <div className={`w-2 h-2 rounded-full ${supplier.riskScore < 30 ? 'bg-green-500' :
                                                         supplier.riskScore < 70 ? 'bg-yellow-500' : 'bg-red-500'
-                                                    }`} />
+                                                        }`} />
                                                     <span>{supplier.riskScore}</span>
                                                 </div>
                                             </td>

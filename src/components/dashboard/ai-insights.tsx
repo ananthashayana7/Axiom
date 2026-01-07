@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Sparkles, Loader2 } from "lucide-react"
+import { Sparkles, Loader } from "lucide-react"
 import { analyzeSpend } from "@/app/actions/ai"
 
 export function AiInsights() {
@@ -35,7 +35,7 @@ export function AiInsights() {
                             Generate insights to identify savings and optimize supplier performance.
                         </p>
                         <Button onClick={handleAnalyze} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {loading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                             Analyze Spend Data
                         </Button>
                     </div>

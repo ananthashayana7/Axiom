@@ -16,10 +16,16 @@ export const authConfig = {
                 return true;
             }
 
-            if (!isLoggedIn) return false;
+            if (!isLoggedIn) {
+                return Response.redirect(new URL('/login', nextUrl))
+            };
 
             const userRole = (auth.user as any)?.role;
             if (isOnAdminPage && userRole !== 'admin') {
+                // Redirect non-admins to dashboard
+                // return Response.redirect(new URL('/', nextUrl));
+                // Or maybe just let them stay but show 403? 
+                // Let's redirect to dashboard for now.
                 return Response.redirect(new URL('/', nextUrl));
             }
 
@@ -38,5 +44,5 @@ export const authConfig = {
             return session;
         },
     },
-    providers: [], // Add providers with an empty array for now
+    providers: [], // Providers added in auth.ts
 } satisfies NextAuthConfig;

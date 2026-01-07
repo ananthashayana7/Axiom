@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, User, Send, Sparkles, Loader2 } from "lucide-react";
+import { Bot, User, Send, Sparkles, Loader } from "lucide-react";
 import { processCopilotQuery } from "@/app/actions/ai";
 
 interface Message {
@@ -76,7 +76,7 @@ export default function CopilotPage() {
                                     <Bot size={18} />
                                 </div>
                                 <div className="bg-muted border rounded-lg p-4 flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    <Loader className="h-4 w-4 animate-spin text-muted-foreground" />
                                     <span className="text-xs text-muted-foreground italic">Thinking...</span>
                                 </div>
                             </div>

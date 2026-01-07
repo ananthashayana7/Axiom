@@ -25,6 +25,7 @@ export const viewport: Viewport = {
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { auth } from "@/auth";
+import { Toaster } from "sonner";
 
 export default async function RootLayout({
   children,
@@ -54,6 +55,7 @@ export default async function RootLayout({
             {children}
           </main>
         )}
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

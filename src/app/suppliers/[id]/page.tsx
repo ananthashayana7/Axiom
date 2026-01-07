@@ -104,7 +104,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ₹{orders.reduce((sum, o) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            ₹{orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                     </CardContent>
                 </Card>
@@ -128,7 +128,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {orders.map((order) => (
+                                    {orders.map((order: any) => (
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle font-mono text-xs">{order.id.slice(0, 8)}...</td>
                                             <td className="p-4 align-middle font-medium">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>

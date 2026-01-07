@@ -77,11 +77,11 @@ export const notifications = pgTable('notifications', {
 });
 
 // Relations
-export const suppliersRelations = relations(suppliers, ({ many }) => ({
+export const suppliersRelations = relations(suppliers, ({ many }: any) => ({
     orders: many(procurementOrders),
 }));
 
-export const ordersRelations = relations(procurementOrders, ({ one, many }) => ({
+export const ordersRelations = relations(procurementOrders, ({ one, many }: any) => ({
     supplier: one(suppliers, {
         fields: [procurementOrders.supplierId],
         references: [suppliers.id],
@@ -89,7 +89,7 @@ export const ordersRelations = relations(procurementOrders, ({ one, many }) => (
     items: many(orderItems),
 }));
 
-export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+export const orderItemsRelations = relations(orderItems, ({ one }: any) => ({
     order: one(procurementOrders, {
         fields: [orderItems.orderId],
         references: [procurementOrders.id],
@@ -100,21 +100,21 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     }),
 }));
 
-export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+export const auditLogsRelations = relations(auditLogs, ({ one }: any) => ({
     user: one(users, {
         fields: [auditLogs.userId],
         references: [users.id],
     }),
 }));
 
-export const commentsRelations = relations(comments, ({ one }) => ({
+export const commentsRelations = relations(comments, ({ one }: any) => ({
     user: one(users, {
         fields: [comments.userId],
         references: [users.id],
     }),
 }));
 
-export const notificationsRelations = relations(notifications, ({ one }) => ({
+export const notificationsRelations = relations(notifications, ({ one }: any) => ({
     user: one(users, {
         fields: [notifications.userId],
         references: [users.id],

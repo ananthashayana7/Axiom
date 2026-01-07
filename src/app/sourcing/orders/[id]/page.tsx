@@ -119,7 +119,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                 </tr>
                             </thead>
                             <tbody>
-                                {order.items.map((item) => (
+                                {order.items.map((item: any) => (
                                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                                         <td className="p-4">{item.part.name}</td>
                                         <td className="p-4 font-mono text-xs text-muted-foreground">{item.part.sku}</td>
