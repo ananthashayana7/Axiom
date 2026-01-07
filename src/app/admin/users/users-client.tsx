@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 import { createUser, deleteUser, updateUser } from "@/app/actions/users";
 
@@ -146,12 +147,11 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                 )}
                                                 {user.name}
                                             </td>
-                                            <td className="p-4 align-middle">{user.email}</td>
+                                            <td className="p-4 align-middle font-mono text-xs">{user.email}</td>
                                             <td className="p-4 align-middle capitalize">
-                                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
-                                                    ${user.role === 'admin' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' : 'bg-blue-50 text-blue-700 ring-blue-600/20'}`}>
+                                                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                                                     {user.role}
-                                                </span>
+                                                </Badge>
                                             </td>
                                             <td className="p-4 align-middle text-muted-foreground">
                                                 {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}

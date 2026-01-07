@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CreditCard, Users, DollarSign, Package } from "lucide-react";
+import { Activity, CreditCard, Users, IndianRupee, Package } from "lucide-react";
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
 import { RecentSales } from "@/components/dashboard/recent-sales";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend } from "@/app/actions/dashboard";
@@ -43,7 +43,7 @@ export default async function Home() {
         <Card className="border-l-4 border-l-primary shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Tracked Spend</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
+            <IndianRupee className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{stats.totalSpend}</div>
@@ -82,8 +82,8 @@ export default async function Home() {
             <Package className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">128</div>
-            <p className="text-xs text-muted-foreground mt-1">Across 12 categories</p>
+            <div className="text-2xl font-bold">{stats.partCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Across {categorySpend.length} categories</p>
           </CardContent>
         </Card>
       </div>

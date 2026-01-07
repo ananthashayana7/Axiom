@@ -13,6 +13,11 @@ import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
+import { OrderStatusStepper } from "@/components/sourcing/order-status-stepper";
+
+import { getDocuments } from "@/app/actions/documents";
+import { DocumentList } from "@/components/shared/document-list";
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
@@ -34,6 +39,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         notFound();
     }
 
+    const docs = await getDocuments('order', id);
     const initialComments = await getComments('order', id);
     const auditLogs = isAdmin ? await getAuditLogs('order', id) : [];
 
@@ -46,7 +52,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </Link>
             </div>
 
-            <div className="flex items-start justify-between mb-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
                         <ShoppingCart className="h-8 w-8 text-primary" />
@@ -56,9 +62,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         ID: {order.id}
                     </p>
                 </div>
-                <Badge variant={order.status === 'fulfilled' ? 'default' : 'secondary'} className="text-sm px-4 py-1">
-                    {order.status?.toUpperCase()}
-                </Badge>
+
+                <Card className="w-full md:w-[400px] p-6 bg-background shadow-sm border-accent/50">
+                    <OrderStatusStepper
+                        orderId={id}
+                        currentStatus={order.status as any}
+                        isAdmin={isAdmin}
+                    />
+                </Card>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -136,7 +147,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <DocumentList
+                    supplierId={order.supplierId}
+                    orderId={id}
+                    documents={docs as any}
+                    isAdmin={isAdmin}
+                />
                 <CommentsSection
                     entityType="order"
                     entityId={id}

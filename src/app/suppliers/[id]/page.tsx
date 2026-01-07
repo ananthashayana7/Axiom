@@ -2,15 +2,21 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getSupplierById, getSupplierOrders, updateSupplier } from "@/app/actions/suppliers";
+import { getSupplierById, getSupplierOrders, updateSupplier, getSupplierPerformanceMetrics } from "@/app/actions/suppliers";
 import { getAuditLogs, getComments } from "@/app/actions/activity";
 import { CommentsSection } from "@/components/shared/comments";
 import { AuditLogList } from "@/components/shared/audit-log";
 import { auth } from "@/auth";
-import { ArrowLeft, Building2, Mail, AlertTriangle, Calendar } from "lucide-react";
+import { ArrowLeft, Building2, Mail, AlertTriangle, Calendar, Star, Trophy, Target, Activity } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
+
+import { SupplierLifecycleStepper } from "@/components/suppliers/supplier-lifecycle-stepper";
+import { SupplierScorecard } from "@/components/suppliers/supplier-scorecard";
+import { RecordPerformanceModal } from "@/components/suppliers/record-performance-modal";
+import { getDocuments } from "@/app/actions/documents";
+import { DocumentList } from "@/components/shared/document-list";
 
 export default async function SupplierPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -19,95 +25,110 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
     const supplier = await getSupplierById(id);
     const orders = await getSupplierOrders(id);
+    const docs = await getDocuments('supplier', id);
     const initialComments = await getComments('supplier', id);
     const auditLogs = isAdmin ? await getAuditLogs('supplier', id) : [];
+
+    const performanceData = await getSupplierPerformanceMetrics(id);
 
     if (!supplier) {
         return <div className="p-8">Supplier not found.</div>;
     }
 
-    const handleStatusChange = async (formData: FormData) => {
-        'use server';
-        const newStatus = formData.get('status') as 'active' | 'inactive' | 'blacklisted';
-        await updateSupplier(id, { status: newStatus });
-    };
-
     return (
         <div className="flex min-h-screen flex-col bg-muted/40 p-8">
-            <div className="mb-6">
+            <div className="mb-6 flex items-center justify-between">
                 <Link href="/suppliers" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Suppliers
                 </Link>
+                {isAdmin && <RecordPerformanceModal supplierId={id} />}
             </div>
 
-            <div className="flex items-start justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-                        <Building2 className="h-8 w-8" />
-                        {supplier.name}
-                    </h1>
-                    <p className="text-muted-foreground mt-1 flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        {supplier.contactEmail}
-                    </p>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-10">
+                <div className="flex items-start gap-5">
+                    <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                        <Building2 size={32} />
+                    </div>
+                    <div>
+                        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+                            {supplier.name}
+                        </h1>
+                        <div className="flex items-center gap-4 mt-2 text-muted-foreground">
+                            <span className="flex items-center gap-1.5 text-sm">
+                                <Mail className="h-4 w-4" />
+                                {supplier.contactEmail}
+                            </span>
+                            <Badge variant={supplier.status === 'active' ? 'default' : 'destructive'}>
+                                {supplier.status?.toUpperCase()}
+                            </Badge>
+                        </div>
+                    </div>
                 </div>
 
-                <form action={handleStatusChange}>
-                    <div className="flex items-center gap-2">
-                        <select
-                            name="status"
-                            defaultValue={supplier.status || 'active'}
-                            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="blacklisted">Blacklisted</option>
-                        </select>
-                        <Button type="submit" variant="outline">Update Status</Button>
-                    </div>
-                </form>
+                <Card className="w-full lg:w-[450px] p-6 bg-background shadow-sm border-accent/50">
+                    <SupplierLifecycleStepper
+                        supplierId={id}
+                        currentStatus={supplier.lifecycleStatus as any}
+                        isAdmin={isAdmin}
+                    />
+                </Card>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3 mb-8">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Risk Score</CardTitle>
-                        <AlertTriangle className={`h-4 w-4 ${supplier.riskScore! > 50 ? 'text-red-500' : 'text-muted-foreground'}`} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-3">
-                            <div className="text-2xl font-bold">{supplier.riskScore}%</div>
-                            <div className="flex-1 h-2 rounded-full bg-slate-100">
+            <div className="grid gap-8 grid-cols-1 lg:grid-cols-3 mb-10">
+                <div className="lg:col-span-2">
+                    <SupplierScorecard metrics={performanceData as any} />
+                </div>
+
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Total Spend</CardTitle>
+                            <Target className="h-5 w-5 text-primary" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-bold">
+                                ₹{orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-2 italic">Across {orders.length} orders</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Operational Risk</CardTitle>
+                            <AlertTriangle className={`h-5 w-5 ${supplier.riskScore! > 50 ? 'text-red-500' : 'text-yellow-500'}`} />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col gap-2">
+                                <div className="text-3xl font-bold">{supplier.riskScore}%</div>
+                                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                        className={`h-full transition-all ${supplier.riskScore! > 50 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                                        style={{ width: `${supplier.riskScore}%` }}
+                                    />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground italic">System-wide weighted score</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">ESG Rating</CardTitle>
+                            <Activity className="h-5 w-5 text-blue-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{supplier.esgScore || 0}%</div>
+                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden mt-2">
                                 <div
-                                    className={`h-2 rounded-full ${supplier.riskScore! > 50 ? 'bg-red-500' : 'bg-blue-500'}`}
-                                    style={{ width: `${supplier.riskScore}%` }}
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${supplier.esgScore || 0}%` }}
                                 />
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{orders.length}</div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Spend</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            ₹{orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
             <Card>
@@ -157,7 +178,12 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+                <DocumentList
+                    supplierId={id}
+                    documents={docs as any}
+                    isAdmin={isAdmin}
+                />
                 <CommentsSection
                     entityType="supplier"
                     entityId={id}

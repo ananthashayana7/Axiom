@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { suppliers, procurementOrders } from "@/db/schema";
+import { suppliers, procurementOrders, parts, orderItems } from "@/db/schema";
 // @ts-ignore
 import { count, eq, sum, sql } from "drizzle-orm";
 
@@ -9,6 +9,7 @@ export async function getDashboardStats() {
     try {
         const [supplierCount] = await db.select({ count: count() }).from(suppliers);
         const [orderCount] = await db.select({ count: count() }).from(procurementOrders);
+        const [partCount] = await db.select({ count: count() }).from(parts);
 
         // Calculate total spend
         const result = await db.select({
@@ -20,6 +21,7 @@ export async function getDashboardStats() {
         return {
             supplierCount: supplierCount.count,
             orderCount: orderCount.count,
+            partCount: partCount.count,
             totalSpend: Number(totalSpend).toFixed(2),
         };
     } catch (error) {
@@ -27,6 +29,7 @@ export async function getDashboardStats() {
         return {
             supplierCount: 0,
             orderCount: 0,
+            partCount: 0,
             totalSpend: "0.00",
         };
     }
@@ -77,8 +80,6 @@ export async function getMonthlySpend() {
         return [];
     }
 }
-
-import { orderItems, parts } from "@/db/schema";
 
 export async function getCategorySpend() {
     try {

@@ -35,7 +35,7 @@ export default function CopilotPage() {
         setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
         startTransition(async () => {
-            const response = await processCopilotQuery(userMessage);
+            const response = await processCopilotQuery(userMessage, messages);
             setMessages(prev => [...prev, { role: 'assistant', content: response }]);
         });
     };

@@ -7,12 +7,19 @@ async function seed() {
     console.log("Seeding database...");
 
     try {
-        // Clear existing data (order matters due to FKs)
-        await db.delete(orderItems);
-        await db.delete(procurementOrders);
-        await db.delete(parts);
-        await db.delete(suppliers);
-        await db.delete(users);
+        // Check if we already have users. If so, don't re-seed
+        const existingUsers = await db.select().from(users).limit(1);
+        if (existingUsers.length > 0) {
+            console.log("Database already contains data. Skipping seeding...");
+            process.exit(0);
+            return;
+        }
+
+        console.log("Empty database detected. Starting non-destructive seeding...");
+
+        // Clear existing data (only if empty check failed above, though redundant here)
+        // await db.delete(orderItems);
+        // ... (rest omitted)
 
         // 0. Create Default Admin
         const hashedPassword = await bcrypt.hash("password", 10);

@@ -10,6 +10,9 @@ export const authConfig = {
             const isLoggedIn = !!auth?.user;
             const isOnLoginPage = nextUrl.pathname.startsWith('/login');
             const isOnAdminPage = nextUrl.pathname.startsWith('/admin');
+            const isOnPortalPage = nextUrl.pathname.startsWith('/portal');
+            const isOnSuppliersPage = nextUrl.pathname.startsWith('/suppliers');
+            const isOnSourcingPage = nextUrl.pathname.startsWith('/sourcing');
 
             if (isOnLoginPage) {
                 if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
@@ -21,11 +24,20 @@ export const authConfig = {
             };
 
             const userRole = (auth.user as any)?.role;
+
+            // Redirect suppliers to portal if they land on admin or procurement pages
+            if (userRole === 'supplier') {
+                if (isOnAdminPage || isOnSuppliersPage || isOnSourcingPage || nextUrl.pathname === '/') {
+                    return Response.redirect(new URL('/portal', nextUrl));
+                }
+            }
+
+            // Prevent portal access for non-suppliers
+            if (isOnPortalPage && userRole !== 'supplier') {
+                return Response.redirect(new URL('/', nextUrl));
+            }
+
             if (isOnAdminPage && userRole !== 'admin') {
-                // Redirect non-admins to dashboard
-                // return Response.redirect(new URL('/', nextUrl));
-                // Or maybe just let them stay but show 403? 
-                // Let's redirect to dashboard for now.
                 return Response.redirect(new URL('/', nextUrl));
             }
 
@@ -33,12 +45,14 @@ export const authConfig = {
         },
         async jwt({ token, user }) {
             if (user) {
+                token.id = user.id;
                 token.role = (user as any).role;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
+                (session.user as any).id = token.id;
                 (session.user as any).role = token.role;
             }
             return session;

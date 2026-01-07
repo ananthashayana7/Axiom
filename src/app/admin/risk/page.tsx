@@ -1,0 +1,201 @@
+import { db } from "@/db";
+import { suppliers } from "@/db/schema";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+    AlertTriangle,
+    ShieldAlert,
+    Globe,
+    Wallet,
+    ArrowUpRight,
+    ArrowDownRight,
+    Search,
+    Filter,
+    Activity,
+    CloudRainCombined
+} from "lucide-react";
+import Link from "next/link";
+import { Progress } from "@/components/ui/progress";
+
+export const dynamic = 'force-dynamic';
+
+export default async function RiskDashboardPage() {
+    const allSuppliers = await db.query.suppliers.findMany();
+
+    const highRiskSuppliers = allSuppliers.filter((s: any) => (s.riskScore || 0) > 60);
+    const lowESGSuppliers = allSuppliers.filter((s: any) => (s.esgScore || 0) < 40);
+    const financialWatchlist = allSuppliers.filter((s: any) => (s.financialScore || 0) < 50);
+
+    const avgRisk = allSuppliers.length > 0 ? Math.round(allSuppliers.reduce((acc: number, s: any) => acc + (s.riskScore || 0), 0) / allSuppliers.length) : 0;
+    const avgESG = allSuppliers.length > 0 ? Math.round(allSuppliers.reduce((acc: number, s: any) => acc + (s.esgScore || 0), 0) / allSuppliers.length) : 0;
+
+    return (
+        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Risk & Compliance Command Center</h1>
+                    <p className="text-muted-foreground mt-1">Real-time monitoring of ESG, financial, and operational supply chain risks.</p>
+                </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+                <Card className="border-red-200 bg-red-50/30 shadow-none">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Critical Risks</CardTitle>
+                        <ShieldAlert className="h-4 w-4 text-red-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-red-600">{highRiskSuppliers.length}</div>
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <span className="text-red-600 font-bold">↑ 12%</span> vs last month
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-green-200 bg-green-50/30 shadow-none">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Network Health Score</CardTitle>
+                        <Activity className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">{100 - avgRisk}%</div>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">Stable</p>
+                    </CardContent>
+                </Card>
+                <Card className="border-blue-200 bg-blue-50/30 shadow-none">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Avg ESG Performance</CardTitle>
+                        <Globe className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">{avgESG}/100</div>
+                        <p className="text-xs text-muted-foreground mt-1">Industry Standard: 62</p>
+                    </CardContent>
+                </Card>
+                <Card className="border-purple-200 bg-purple-50/30 shadow-none">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Compliance Rate</CardTitle>
+                        <Search className="h-4 w-4 text-purple-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-purple-600">98.2%</div>
+                        <p className="text-xs text-muted-foreground mt-1">Active Certifications</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+                {/* ESG Monitoring */}
+                <Card className="shadow-sm border-accent/20">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <Globe className="h-5 w-5 text-blue-600" />
+                                    ESG Tracking (Sustainability)
+                                </CardTitle>
+                                <CardDescription>Monitoring environmental and social impact scores.</CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-blue-600">Active Monitoring</Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {lowESGSuppliers.slice(0, 4).map((s: any) => (
+                            <div key={s.id} className="space-y-2">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="font-semibold">{s.name}</span>
+                                    <span className="text-red-500 font-bold">{s.esgScore}/100</span>
+                                </div>
+                                <Progress value={s.esgScore || 0} className="h-2 bg-muted transition-all [&>div]:bg-red-500" />
+                                <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                                    <AlertTriangle size={10} />
+                                    Environmental compliance audit pending since last quarter.
+                                </p>
+                            </div>
+                        ))}
+                        {lowESGSuppliers.length === 0 && (
+                            <div className="py-10 text-center text-muted-foreground">
+                                All suppliers meet ESG benchmarks.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Financial Health Monitoring */}
+                <Card className="shadow-sm border-accent/20">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <Wallet className="h-5 w-5 text-purple-600" />
+                                    Financial Health Watchlist
+                                </CardTitle>
+                                <CardDescription>Live credit monitoring and liquidity risk assessment.</CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-purple-600">Credit Active</Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {financialWatchlist.slice(0, 5).map((s: any) => (
+                            <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border bg-background hover:bg-muted/50 transition-colors">
+                                <div className="flex flex-col gap-1">
+                                    <span className="font-bold text-foreground">{s.name}</span>
+                                    <span className="text-xs text-muted-foreground">Dun & Bradstreet Rating: <strong>B-</strong></span>
+                                </div>
+                                <div className="text-right flex flex-col items-end gap-1">
+                                    <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-none px-3">
+                                        Score: {s.financialScore}
+                                    </Badge>
+                                    <span className="text-[10px] flex items-center gap-1 text-red-500">
+                                        <ArrowDownRight size={12} />
+                                        -5pts this week
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* AI Risk Alerts Section */}
+            <div className="mt-8">
+                <Card className="bg-gradient-to-r from-background to-accent/5 border-primary/20">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <ShieldAlert className="h-6 w-6 text-primary" />
+                                AI-Driven Risk Intelligence
+                            </CardTitle>
+                            <Badge className="bg-primary hover:bg-primary shadow-none">Active Analysis</Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
+                            <Badge variant="outline" className="text-red-500 border-red-200 mb-3 uppercase text-[10px]">Critical Alert</Badge>
+                            <h4 className="font-bold mb-2">Supply Disruption in Asia-Pac</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-2">Recent climate events may affect 3 of your Tier 1 electronics suppliers. Probability of delay: 78%.</p>
+                            <Link href="#" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
+                                Action Mitigation Plan <ArrowUpRight size={14} />
+                            </Link>
+                        </div>
+                        <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
+                            <Badge variant="outline" className="text-orange-500 border-orange-200 mb-3 uppercase text-[10px]">Opportunity</Badge>
+                            <h4 className="font-bold mb-2">Category Benchmarking Insight</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-2">Market rates for 'Aluminium Casting' have dropped by 8.5%. Potential savings: ₹12.5L / year.</p>
+                            <Link href="/sourcing/rfqs" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
+                                Run New RFP <ArrowUpRight size={14} />
+                            </Link>
+                        </div>
+                        <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
+                            <Badge variant="outline" className="text-blue-500 border-blue-200 mb-3 uppercase text-[10px]">Compliance</Badge>
+                            <h4 className="font-bold mb-2">Social Governance Review</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-2">New EU Sustainability directives apply to your German suppliers by Q3. 4 audits required.</p>
+                            <Link href="#" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
+                                View Compliance Docs <ArrowUpRight size={14} />
+                            </Link>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}

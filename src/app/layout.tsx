@@ -26,6 +26,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { auth } from "@/auth";
 import { Toaster } from "sonner";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 export default async function RootLayout({
   children,
@@ -48,6 +49,7 @@ export default async function RootLayout({
               <main className="flex-1 overflow-y-auto">
                 {children}
               </main>
+              <CommandPalette />
             </div>
           </>
         ) : (

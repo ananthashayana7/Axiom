@@ -2,84 +2,134 @@
 
 import { db } from "@/db";
 import { procurementOrders, orderItems, parts, suppliers } from "@/db/schema";
-// @ts-ignore
-import { eq, sum, desc, sql } from "drizzle-orm";
+import { eq, sum, desc, sql, count } from "drizzle-orm";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+async function getDatabaseContext() {
+    try {
+        // Fetch High Level Stats
+        const [supCount] = await db.select({ count: count() }).from(suppliers);
+        const [pCount] = await db.select({ count: count() }).from(parts);
+        const [ordCount] = await db.select({ count: count() }).from(procurementOrders);
+
+        const totalSpendResult = await db.select({ total: sum(procurementOrders.totalAmount) }).from(procurementOrders);
+        const totalSpend = totalSpendResult[0]?.total || 0;
+
+        // Fetch Top Categories
+        const categorySpend = await db.select({
+            category: parts.category,
+            total: sql<number>`sum(${orderItems.quantity} * ${orderItems.unitPrice})`
+        })
+            .from(orderItems)
+            .innerJoin(parts, eq(orderItems.partId, parts.id))
+            .groupBy(parts.category)
+            .orderBy(sql`sum(${orderItems.quantity} * ${orderItems.unitPrice}) desc`)
+            .limit(3);
+
+        // Fetch Risky Suppliers
+        const riskySuppliers = await db.select({ name: suppliers.name, score: suppliers.riskScore })
+            .from(suppliers)
+            .where(sql`${suppliers.riskScore} > 50`)
+            .limit(5);
+
+        // Fetch Recent Orders
+        const recentOrders = await db.select({
+            id: procurementOrders.id,
+            amount: procurementOrders.totalAmount,
+            status: procurementOrders.status
+        })
+            .from(procurementOrders)
+            .orderBy(desc(procurementOrders.createdAt))
+            .limit(5);
+
+        return {
+            stats: {
+                suppliers: supCount.count,
+                parts: pCount.count,
+                orders: ordCount.count,
+                totalSpend: `₹${Number(totalSpend).toLocaleString()}`
+            },
+            topCategories: categorySpend,
+            riskySuppliers,
+            recentOrders,
+            timestamp: new Date().toISOString()
+        };
+    } catch (error: any) {
+        console.error("Context fetch failed:", error);
+        return null;
+    }
+}
 
 export async function analyzeSpend() {
-    // 1. Calculate top spending category
-    const categorySpend = await db.select({
-        category: parts.category,
-        total: sql<number>`sum(${orderItems.quantity} * ${orderItems.unitPrice})`
-    })
-        .from(orderItems)
-        .innerJoin(parts, eq(orderItems.partId, parts.id))
-        .groupBy(parts.category)
-        .orderBy(sql`sum(${orderItems.quantity} * ${orderItems.unitPrice}) desc`)
-        .limit(1);
+    console.log("Starting analyzeSpend...");
+    const context = await getDatabaseContext();
+    if (!context) return { summary: "Unable to access database for analysis.", recommendations: [], savingsPotential: 0 };
 
-    const topCategory = categorySpend[0];
-    const topCategoryName = topCategory?.category || "Unknown";
-    const topCategoryAmount = Number(topCategory?.total || 0);
+    const topCategory = context.topCategories[0]?.category || "Unknown";
+    const topCategoryAmount = Number(context.topCategories[0]?.total || 0);
 
-    // 2. Risk analysis (suppliers with high risk score)
-    const riskySuppliers = await db.select()
-        .from(suppliers)
-        .where(sql`${suppliers.riskScore} > 50`);
-
-    // Construct sentences
     const recommendations = [];
-    if (riskySuppliers.length > 0) {
-        recommendations.push(`Monitor ${riskySuppliers.length} high-risk suppliers (` + riskySuppliers.map((s: { name: string }) => s.name).join(", ") + ").");
+    if (context.riskySuppliers.length > 0) {
+        recommendations.push(`Monitor ${context.riskySuppliers.length} high-risk suppliers like ${context.riskySuppliers[0].name}.`);
     }
-    recommendations.push(`Optimize procurement in '${topCategoryName}' which accounts for the highest spend.`);
-    recommendations.push("Consider consolidating tail-spend suppliers.");
+    recommendations.push(`Consolidate spending in '${topCategory}' to negotiate better volume discounts.`);
+    recommendations.push("Review 'sent' orders that haven't moved to 'fulfilled' status.");
 
     return {
-        summary: `Total tracked spend is dominated by ${topCategoryName} (₹${topCategoryAmount.toFixed(2)}). Database indicates ${riskySuppliers.length} high-risk suppliers active.`,
+        summary: `Total tracked spend is ${context.stats.totalSpend}, primarily driven by ${topCategory}. There are ${context.riskySuppliers.length} suppliers with risk scores above 50.`,
         recommendations,
-        savingsPotential: topCategoryAmount * 0.1, // Mock heuristic 10%
+        savingsPotential: topCategoryAmount * 0.1,
     };
 }
 
-export async function processCopilotQuery(query: string) {
-    const q = query.toLowerCase();
-
-    // 1. Identity & Role
-    if (q.includes("who are you") || q.includes("what are you") || q.includes("who r u")) {
-        return "I am Axiom Copilot, your specialized AI assistant for procurement intelligence. I can analyze your spending patterns, track supplier risks, and help you find savings across your organization.";
+export async function processCopilotQuery(query: string, history: { role: 'user' | 'assistant', content: string }[] = []) {
+    console.log("Processing Copilot Query:", query);
+    if (!process.env.GEMINI_API_KEY) {
+        console.error("GEMINI_API_KEY is missing from environment!");
+        return "Gemini API key is not configured. Please add GEMINI_API_KEY to your environment.";
     }
 
-    if (q.includes("how are you") || q.includes("what's up") || q.includes("what are you up to")) {
-        return "I'm doing great! I just finished scanning your latest procurement orders and supplier risk profiles. Is there something specific you'd like me to look into?";
+    try {
+        console.log("Fetching database context for AI...");
+        const context = await getDatabaseContext();
+
+        console.log("Calling Gemini API with Gemma 3...");
+        const model = genAI.getGenerativeModel({ model: "gemma-3-4b-it" });
+
+        // Convert messages to a string block for the prompt
+        const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+
+        const prompt = `
+            You are Axiom Copilot, an analytical and efficient procurement AI. 
+            Your role is to help users manage their supply chain, analyze spend, and mitigate risk using the provided data.
+            
+            Database State (Current Snapshot):
+            ${JSON.stringify(context, null, 2)}
+            
+            Conversation History:
+            ${historyContext || "No previous messages."}
+            
+            Current User Message: "${query}"
+            
+            RULES:
+            1. PERSONALITY: Be direct, professional, and data-driven. Avoid "fluff".
+            2. REPETITION: Do NOT say "I am Axiom Copilot" or "I am an AI assistant" if there is existing history. Only introduce yourself if the history is empty.
+            3. CONTEXT: If the user refers to "it", "this", or "that", use the Conversation History to understand what they mean.
+            4. DATA: Use the Database State to answer. If names/details aren't there, say you don't have that specific data but can provide general insights.
+            5. FORMATTING: Use Indian Rupee (₹) symbols. Keep responses concise (under 3 sentences) unless asked for a deep dive.
+            6. GREETING: If the user says "hi" or "hello" and there is history, just reply naturally without a full re-introduction.
+        `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        console.log("Gemma Response received:", text.substring(0, 50) + "...");
+        return text;
+    } catch (error: any) {
+        console.error("DEBUG - processCopilotQuery failure:", error);
+        return `I encountered an error while processing your request: ${error.message || 'Unknown error'}.`;
     }
-
-    // 2. Help/Capabilities
-    if (q.includes("help") || q.includes("what can you do") || q.includes("capabilities")) {
-        return "I can help with several things:\n- **Spend Analysis**: Ask 'What is our total spend?'\n- **Risk Assessment**: Ask 'Which suppliers are high risk?'\n- **Supplier Info**: Ask 'List our active suppliers.'\n- **Savings**: Ask 'Where can we save money?'";
-    }
-
-    // 3. Supplier Listing
-    if (q.includes("list suppliers") || q.includes("show suppliers") || q.includes("who are our suppliers")) {
-        const allSuppliers = await db.select().from(suppliers).limit(10);
-        const names = allSuppliers.map((s: { name: string }) => s.name).join(", ");
-        return `We currently have ${allSuppliers.length} suppliers registered. Some of them are: ${names}. You can view the full list in the Suppliers page.`;
-    }
-
-    // 4. Detailed Data Analysis (using existing logic)
-    const analysis = await analyzeSpend();
-
-    if (q.includes("spend") || q.includes("cost") || q.includes("money") || q.includes("raw material")) {
-        return analysis.summary;
-    }
-
-    if (q.includes("risk") || q.includes("dangerous") || q.includes("blacklist")) {
-        return analysis.recommendations[0] || "I don't see any immediate high-risk suppliers flagged in the system right now.";
-    }
-
-    if (q.includes("saving") || q.includes("optimize") || q.includes("cheap")) {
-        return `We've identified a potential saving of ₹${analysis.savingsPotential.toLocaleString()} (approx 10%). I recommend focusing on ${analysis.summary.split('by ')[1].split(' (')[0]} category for better deals.`;
-    }
-
-    // 5. Default Response
-    return "I've analyzed your procurement data, and here's a quick summary: " + analysis.summary + " What else would you like to know?";
 }
