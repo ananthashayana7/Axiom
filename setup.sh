@@ -12,7 +12,7 @@ if ! docker version > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "✓ Docker is running..."
+echo "✓ Docker is running..." 
 
 # Create environment file if it doesn't exist
 if [ ! -f .env.local ]; then
