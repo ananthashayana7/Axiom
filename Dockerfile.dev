@@ -9,6 +9,7 @@ RUN npm ci --legacy-peer-deps
 # Copy source code
 COPY . .
 
+
 # Expose port
 EXPOSE 3000
 
