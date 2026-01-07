@@ -12,10 +12,12 @@ import {
     Search,
     Filter,
     Activity,
-    CloudRainCombined
+    CloudRainCombined,
+    CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
+import { MitigationAction } from "@/components/admin/mitigation-action";
 
 export const dynamic = 'force-dynamic';
 
@@ -169,28 +171,32 @@ export default async function RiskDashboardPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {highRiskSuppliers.slice(0, 3).map((s: any) => (
+                            <div key={s.id} className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
+                                <Badge variant="outline" className="text-red-500 border-red-200 mb-3 uppercase text-[10px]">Critical Alert</Badge>
+                                <h4 className="font-bold mb-2">{s.name} - Risk Elevation</h4>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                    AI indicates a high risk score of {s.riskScore}. Recent performance data correlates with broader supply chain disruption signals.
+                                </p>
+                                <MitigationAction
+                                    supplierId={s.id}
+                                    supplierName={s.name}
+                                    currentRisk={s.riskScore}
+                                />
+                            </div>
+                        ))}
+                        {highRiskSuppliers.length === 0 && (
+                            <div className="col-span-3 py-10 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-primary/20">
+                                <CheckCircle2 className="h-8 w-8 text-primary mx-auto mb-2 opacity-50" />
+                                <p className="font-medium">No critical risk disruptions detected in the active supplier network.</p>
+                            </div>
+                        )}
                         <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
-                            <Badge variant="outline" className="text-red-500 border-red-200 mb-3 uppercase text-[10px]">Critical Alert</Badge>
-                            <h4 className="font-bold mb-2">Supply Disruption in Asia-Pac</h4>
-                            <p className="text-sm text-muted-foreground line-clamp-2">Recent climate events may affect 3 of your Tier 1 electronics suppliers. Probability of delay: 78%.</p>
-                            <Link href="#" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
-                                Action Mitigation Plan <ArrowUpRight size={14} />
-                            </Link>
-                        </div>
-                        <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
-                            <Badge variant="outline" className="text-orange-500 border-orange-200 mb-3 uppercase text-[10px]">Opportunity</Badge>
-                            <h4 className="font-bold mb-2">Category Benchmarking Insight</h4>
-                            <p className="text-sm text-muted-foreground line-clamp-2">Market rates for 'Aluminium Casting' have dropped by 8.5%. Potential savings: ₹12.5L / year.</p>
+                            <Badge variant="outline" className="text-orange-500 border-orange-200 mb-3 uppercase text-[10px]">Market Insight</Badge>
+                            <h4 className="font-bold mb-2">Category Benchmarking</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-2">Market rates for electronics components have shifted by 4.2%. Axiom suggests reviewing open RFQs.</p>
                             <Link href="/sourcing/rfqs" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
                                 Run New RFP <ArrowUpRight size={14} />
-                            </Link>
-                        </div>
-                        <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
-                            <Badge variant="outline" className="text-blue-500 border-blue-200 mb-3 uppercase text-[10px]">Compliance</Badge>
-                            <h4 className="font-bold mb-2">Social Governance Review</h4>
-                            <p className="text-sm text-muted-foreground line-clamp-2">New EU Sustainability directives apply to your German suppliers by Q3. 4 audits required.</p>
-                            <Link href="#" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
-                                View Compliance Docs <ArrowUpRight size={14} />
                             </Link>
                         </div>
                     </CardContent>

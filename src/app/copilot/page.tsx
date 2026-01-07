@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, User, Send, Sparkles, Loader } from "lucide-react";
 import { processCopilotQuery } from "@/app/actions/ai";
+import { ChatMarkdown } from "@/components/copilot/chat-markdown";
 
 interface Message {
     role: 'user' | 'assistant';
@@ -64,9 +65,13 @@ export default function CopilotPage() {
                                 </div>
                                 <div className={`max-w-[80%] rounded-lg p-4 text-sm ${m.role === 'assistant'
                                     ? 'bg-muted border'
-                                    : 'bg-primary text-primary-foreground'
+                                    : 'bg-primary text-primary-foreground text-white'
                                     }`}>
-                                    {m.content}
+                                    {m.role === 'assistant' ? (
+                                        <ChatMarkdown content={m.content} />
+                                    ) : (
+                                        m.content
+                                    )}
                                 </div>
                             </div>
                         ))}
