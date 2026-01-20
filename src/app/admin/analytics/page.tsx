@@ -22,20 +22,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { SpendAnalysisView } from "@/components/admin/spend-analysis-view";
+import { getOrders } from "@/app/actions/orders";
+import { getSuppliers } from "@/app/actions/suppliers";
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#0088FE', '#00C49F', '#FFBB28'];
 
 export default function AnalyticsPage() {
     const [stats, setStats] = useState<any>(null);
+    const [orders, setOrders] = useState<any[]>([]);
+    const [suppliers, setSuppliers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchStats = async () => {
-            const data = await getSpendStats();
-            setStats(data);
+        const fetchData = async () => {
+            const [statsData, ordersData, suppliersData] = await Promise.all([
+                getSpendStats(),
+                getOrders(),
+                getSuppliers()
+            ]);
+            setStats(statsData);
+            setOrders(ordersData);
+            setSuppliers(suppliersData);
             setLoading(false);
         };
-        fetchStats();
+        fetchData();
     }, []);
 
     const exportToCSV = () => {
@@ -238,37 +249,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* AI Strategic Advice Section */}
-            <Card className="bg-primary text-primary-foreground overflow-hidden shadow-xl border-none">
-                <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                        <TrendingDown className="h-6 w-6" />
-                        AI Strategic Savings Opportunities
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="grid md:grid-cols-3 gap-6 pt-4">
-                    <div className="bg-white/10 p-5 rounded-2xl backdrop-blur-sm border border-white/10 hover:bg-white/15 transition-all">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Badge className="bg-orange-500 hover:bg-orange-600 text-[10px] uppercase font-bold border-none shadow-none">High Impact</Badge>
-                        </div>
-                        <h4 className="font-bold text-lg mb-2 underline decoration-orange-400">Consolidated Logistics</h4>
-                        <p className="text-sm opacity-90 leading-relaxed">3 suppliers in Pune are shipping separately. AI identified a consolidation opportunity that could save ₹45k / month.</p>
-                    </div>
-                    <div className="bg-white/10 p-5 rounded-2xl backdrop-blur-sm border border-white/10 hover:bg-white/15 transition-all">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Badge className="bg-blue-500 hover:bg-blue-600 text-[10px] uppercase font-bold border-none shadow-none">Intelligence</Badge>
-                        </div>
-                        <h4 className="font-bold text-lg mb-2 underline decoration-blue-400">Market Price Gap</h4>
-                        <p className="text-sm opacity-90 leading-relaxed">'Powder Coating' contracts are 8% higher than current market indices. AI suggests renegotiation at next renewal.</p>
-                    </div>
-                    <div className="bg-white/10 p-5 rounded-2xl backdrop-blur-sm border border-white/10 hover:bg-white/15 transition-all">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Badge className="bg-green-500 hover:bg-green-600 text-[10px] uppercase font-bold border-none shadow-none">Compliance</Badge>
-                        </div>
-                        <h4 className="font-bold text-lg mb-2 underline decoration-green-400">Risk Mitigation</h4>
-                        <p className="text-sm opacity-90 leading-relaxed">Single-source dependency for 'Micro-controllers' identified. Recommend qualifying backup from the Risk Dashboard picks.</p>
-                    </div>
-                </CardContent>
-            </Card>
+            <SpendAnalysisView orders={orders} suppliers={suppliers} />
         </div>
     );
 }

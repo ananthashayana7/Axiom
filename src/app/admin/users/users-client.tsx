@@ -16,6 +16,7 @@ interface AppUser {
     id: string;
     name: string;
     email: string;
+    employeeId: string | null;
     role: 'admin' | 'user' | null;
     createdAt: Date | null;
 }
@@ -89,6 +90,10 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     <Input id="email" name="email" type="email" placeholder="john@company.com" required />
                                 </div>
                                 <div className="grid gap-2">
+                                    <Label htmlFor="employeeId">Employee ID</Label>
+                                    <Input id="employeeId" name="employeeId" placeholder="EMP001" />
+                                </div>
+                                <div className="grid gap-2">
                                     <Label htmlFor="password">Password</Label>
                                     <Input id="password" name="password" type="password" placeholder="Minimum 6 characters" required minLength={6} />
                                 </div>
@@ -129,6 +134,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     <tr className="border-b transition-colors hover:bg-muted/50">
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Name</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Emp ID</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Role</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Created</th>
                                         {currentUserRole === 'admin' && (
@@ -148,13 +154,14 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                 {user.name}
                                             </td>
                                             <td className="p-4 align-middle font-mono text-xs">{user.email}</td>
+                                            <td className="p-4 align-middle font-mono text-xs">{user.employeeId || '-'}</td>
                                             <td className="p-4 align-middle capitalize">
                                                 <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                                                     {user.role}
                                                 </Badge>
                                             </td>
                                             <td className="p-4 align-middle text-muted-foreground">
-                                                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                                                {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-GB') : 'N/A'}
                                             </td>
                                             {currentUserRole === 'admin' && (
                                                 <td className="p-4 align-middle text-right px-8">
@@ -210,6 +217,10 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-email">Email</Label>
                                 <Input id="edit-email" name="email" type="email" defaultValue={editUser.email} required />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-employeeId">Employee ID</Label>
+                                <Input id="edit-employeeId" name="employeeId" defaultValue={editUser.employeeId || ''} />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-password">New Password (leave blank to keep current)</Label>

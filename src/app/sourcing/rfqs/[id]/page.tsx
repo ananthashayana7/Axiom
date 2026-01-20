@@ -21,32 +21,67 @@ import {
 import { AnalyzeQuoteButton } from "@/components/sourcing/analyze-quote-button";
 import { ApproveOrderButton } from "@/components/sourcing/approve-order-button";
 import { getAuditLogs, getComments } from "@/app/actions/activity";
+import { ComplianceStatus } from "@/components/sourcing/compliance-status";
+import { CostIntelligence } from "@/components/sourcing/cost-intelligence";
+import { getParts } from "@/app/actions/parts";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import type { Supplier, Part } from "@/db/schema";
 
 export const dynamic = 'force-dynamic';
+
+// Define types for the RFQ with relations
+type RFQItem = {
+    id: string;
+    rfqId: string;
+    partId: string;
+    quantity: number;
+    part: Part;
+};
+
+type RFQSupplier = {
+    id: string;
+    rfqId: string;
+    supplierId: string;
+    status: string | null;
+    quoteAmount: string | null;
+    aiAnalysis: string | null;
+    createdAt: Date | null;
+    supplier: Supplier;
+};
+
+type RFQWithRelations = {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string | null;
+    createdAt: Date | null;
+    items: RFQItem[];
+    suppliers: RFQSupplier[];
+};
 
 export default async function RFQDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
     const isAdmin = (session?.user as any)?.role === 'admin';
 
-    const rfq = await getRFQById(id);
+    const rfq = await getRFQById(id) as RFQWithRelations | null;
 
     if (!rfq) {
         notFound();
     }
 
-    const sortedSuppliers = [...rfq.suppliers].sort((a: any, b: any) => {
+    const sortedSuppliers = [...rfq.suppliers].sort((a, b) => {
         const scoreA = (a.supplier.performanceScore || 0) * 0.7 + (100 - (a.supplier.riskScore || 0)) * 0.3;
         const scoreB = (b.supplier.performanceScore || 0) * 0.7 + (100 - (b.supplier.riskScore || 0)) * 0.3;
         return scoreB - scoreA;
     });
     const topSupplierId = sortedSuppliers[0]?.id;
-    const quotedSuppliers = sortedSuppliers.filter((s: any) => s.aiAnalysis);
+    const quotedSuppliers = sortedSuppliers.filter((s) => s.aiAnalysis);
 
     const initialComments = await getComments('rfq' as any, id);
     const auditLogs = isAdmin ? await getAuditLogs('rfq' as any, id) : [];
+    const allParts = await getParts();
 
     const handleStatusChange = async (formData: FormData) => {
         'use server';
@@ -115,7 +150,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {rfq.items.map((item: any) => (
+                                {rfq.items.map((item) => (
                                     <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
                                         <div>
                                             <p className="font-semibold text-sm">{item.part.name}</p>
@@ -148,7 +183,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {sortedSuppliers.map((s: any) => {
+                            {sortedSuppliers.map((s) => {
                                 const analysis = s.aiAnalysis ? JSON.parse(s.aiAnalysis) : null;
                                 const isTop = s.id === topSupplierId;
                                 const performance = s.supplier.performanceScore || 0;
@@ -265,20 +300,19 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             <CardTitle className="text-lg">Sourcing Intelligence Insights</CardTitle>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-4">
-                            <div className="p-4 rounded-lg bg-muted/30 border border-muted flex items-start gap-3">
-                                <TrendingUp className="h-5 w-5 text-blue-500 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-bold">Should-Cost Estimate</p>
-                                    <p className="text-xs text-muted-foreground mt-1">Based on category benchmarks, total cost should range between ₹4,50,000 - ₹5,20,000.</p>
-                                </div>
-                            </div>
-                            <div className="p-4 rounded-lg bg-muted/30 border border-muted flex items-start gap-3">
-                                <ShieldCheck className="h-5 w-5 text-green-500 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-bold">Compliance Status</p>
-                                    <p className="text-xs text-muted-foreground mt-1">All recommended suppliers have active ISO certifications and valid contracts.</p>
-                                </div>
-                            </div>
+                            <CostIntelligence
+                                quoteItems={quotedSuppliers.map(s => ({
+                                    sku: "multiple", // Simplified for this component
+                                    price: parseFloat(s.quoteAmount || '0'),
+                                    supplier: s.supplier.name
+                                }))}
+                                historicalParts={rfq.items.map(i => i.part)}
+                            />
+                            <ComplianceStatus
+                                rfqId={rfq.id}
+                                rfqRequirements={rfq.description || ""}
+                                initialDocuments={(rfq as any).documents || []}
+                            />
                         </CardContent>
                     </Card>
 

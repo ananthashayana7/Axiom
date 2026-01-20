@@ -127,7 +127,9 @@ export default function SuppliersPage() {
                                             <td className="p-4 align-middle">
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-foreground text-base">{supplier.name}</span>
-                                                    <span className="text-xs text-muted-foreground">{supplier.contactEmail}</span>
+                                                    <a href={`mailto:${supplier.contactEmail}`} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                                                        {supplier.contactEmail}
+                                                    </a>
                                                 </div>
                                             </td>
                                             <td className="p-4 align-middle">

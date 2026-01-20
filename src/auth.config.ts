@@ -59,4 +59,5 @@ export const authConfig = {
         },
     },
     providers: [], // Providers added in auth.ts
+    secret: "2f8b4c9d3e7a1f6c5b8a2d9e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
 } satisfies NextAuthConfig;

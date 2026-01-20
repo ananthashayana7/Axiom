@@ -46,6 +46,8 @@ interface Part {
     name: string;
     category: string;
     stockLevel: number;
+    price: string | null;
+    marketTrend: string | null;
 }
 
 export function PartMenuActions({ part }: { part: Part }) {
@@ -174,6 +176,37 @@ export function PartMenuActions({ part }: { part: Part }) {
                                     min="0"
                                     required
                                 />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="price" className="text-right">
+                                    Price (₹)
+                                </Label>
+                                <Input
+                                    id="price"
+                                    name="price"
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={part.price || '0.00'}
+                                    className="col-span-3 font-bold"
+                                    min="0"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="marketTrend" className="text-right">
+                                    Trend
+                                </Label>
+                                <Select name="marketTrend" defaultValue={part.marketTrend || 'stable'}>
+                                    <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Select trend" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="stable">Stable</SelectItem>
+                                        <SelectItem value="up">Rising</SelectItem>
+                                        <SelectItem value="down">Falling</SelectItem>
+                                        <SelectItem value="volatile">Volatile</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                         <DialogFooter>

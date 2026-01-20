@@ -1,13 +1,13 @@
 'use server'
 
 import { db } from "@/db";
-import { suppliers, procurementOrders, supplierPerformanceLogs } from "@/db/schema";
+import { suppliers, procurementOrders, supplierPerformanceLogs, type Supplier } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 
-export async function getSuppliers() {
+export async function getSuppliers(): Promise<Supplier[]> {
     const session = await auth();
     if (!session) return [];
 
@@ -20,7 +20,7 @@ export async function getSuppliers() {
     }
 }
 
-export async function getSupplierById(id: string) {
+export async function getSupplierById(id: string): Promise<Supplier | null> {
     const session = await auth();
     if (!session) return null;
 

@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { MitigationAction } from "@/components/admin/mitigation-action";
+import { RiskIntelligenceView } from "@/components/admin/risk-intelligence-view";
 
 export const dynamic = 'force-dynamic';
 
@@ -172,18 +173,7 @@ export default async function RiskDashboardPage() {
                     </CardHeader>
                     <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {highRiskSuppliers.slice(0, 3).map((s: any) => (
-                            <div key={s.id} className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
-                                <Badge variant="outline" className="text-red-500 border-red-200 mb-3 uppercase text-[10px]">Critical Alert</Badge>
-                                <h4 className="font-bold mb-2">{s.name} - Risk Elevation</h4>
-                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                    AI indicates a high risk score of {s.riskScore}. Recent performance data correlates with broader supply chain disruption signals.
-                                </p>
-                                <MitigationAction
-                                    supplierId={s.id}
-                                    supplierName={s.name}
-                                    currentRisk={s.riskScore}
-                                />
-                            </div>
+                            <RiskIntelligenceView key={s.id} supplier={s} />
                         ))}
                         {highRiskSuppliers.length === 0 && (
                             <div className="col-span-3 py-10 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-primary/20">

@@ -1,12 +1,13 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, parts, suppliers } from "@/db/schema";
-import { eq, sum, desc, sql, count } from "drizzle-orm";
+import { procurementOrders, orderItems, parts, suppliers, chatHistory } from "@/db/schema";
+import { eq, sum, desc, sql, count, asc } from "drizzle-orm";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { auth } from "@/auth";
 
 // Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI("AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0");
 
 async function getDatabaseContext() {
     try {
@@ -63,6 +64,42 @@ async function getDatabaseContext() {
     }
 }
 
+export async function getChatHistory() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
+
+    try {
+        const history = await db.select()
+            .from(chatHistory)
+            .where(eq(chatHistory.userId, session.user.id))
+            .orderBy(asc(chatHistory.timestamp));
+
+        return history.map(h => ({
+            role: h.role as 'user' | 'assistant',
+            content: h.content,
+            timestamp: h.timestamp
+        }));
+    } catch (error) {
+        console.error("Failed to fetch chat history:", error);
+        return [];
+    }
+}
+
+export async function saveChatMessage(role: 'user' | 'assistant', content: string) {
+    const session = await auth();
+    if (!session?.user?.id) return;
+
+    try {
+        await db.insert(chatHistory).values({
+            userId: session.user.id,
+            role,
+            content,
+        });
+    } catch (error) {
+        console.error("Failed to save chat message:", error);
+    }
+}
+
 export async function analyzeSpend() {
     console.log("Starting analyzeSpend...");
     const context = await getDatabaseContext();
@@ -87,10 +124,8 @@ export async function analyzeSpend() {
 
 export async function processCopilotQuery(query: string, history: { role: 'user' | 'assistant', content: string }[] = []) {
     console.log("Processing Copilot Query:", query);
-    if (!process.env.GEMINI_API_KEY) {
-        console.error("GEMINI_API_KEY is missing from environment!");
-        return "Gemini API key is not configured. Please add GEMINI_API_KEY to your environment.";
-    }
+    // Key is hardcoded, skipping env check
+    // if (!process.env.GEMINI_API_KEY) { ... }
 
     try {
         console.log("Fetching database context for AI...");
@@ -135,12 +170,20 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
                  "insight": "Short technical insight."
                }
             5. FORMATTING: Use Indian Rupee (₹) symbols for currency.
-            6. DATA INTEGRITY: Use only provided Database State. If data is missing, state it clearly.
+            6. DATA INTEGRITY & GROUNDING: 
+               - Use ONLY the provided Database State. 
+               - If the user asks about ANYTHING outside the portal (general knowledge, news, unrelated topics), you MUST respond with: "I am a procurement-specialized AI and I am not aware of information outside this portal."
+               - Do not attempt to guess or use your internal training data for facts not present in the Database State.
         `;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
+
+        // Save both messages
+        await saveChatMessage('user', query);
+        await saveChatMessage('assistant', text);
+
         console.log("Gemma Response received:", text.substring(0, 50) + "...");
         return text;
     } catch (error: any) {

@@ -77,6 +77,7 @@ export async function getUserProfile() {
             id: users.id,
             name: users.name,
             email: users.email,
+            employeeId: users.employeeId,
             role: users.role,
             createdAt: users.createdAt,
         }).from(users).where(eq(users.id, session.user.id));
@@ -97,9 +98,10 @@ export async function updateProfile(formData: FormData) {
     try {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
+        const employeeId = formData.get("employeeId") as string;
 
         await db.update(users)
-            .set({ name, email })
+            .set({ name, email, employeeId })
             .where(eq(users.id, session.user.id));
 
         revalidatePath("/profile");

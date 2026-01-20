@@ -27,6 +27,8 @@ import { Header } from "@/components/layout/header";
 import { auth } from "@/auth";
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { SessionProvider } from "@/components/shared/session-provider";
+import { InactivityTracker } from "@/components/shared/inactivity-tracker";
 
 export default async function RootLayout({
   children,
@@ -41,23 +43,26 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen`}
         suppressHydrationWarning
       >
-        {session ? (
-          <>
-            <Sidebar className="hidden lg:block sticky top-0 h-screen" />
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <Header />
-              <main className="flex-1 overflow-y-auto">
-                {children}
-              </main>
-              <CommandPalette />
-            </div>
-          </>
-        ) : (
-          <main className="flex-1">
-            {children}
-          </main>
-        )}
-        <Toaster position="top-right" richColors />
+        <SessionProvider>
+          {session ? (
+            <>
+              <Sidebar className="hidden lg:block sticky top-0 h-screen" />
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <Header />
+                <main className="flex-1 overflow-y-auto">
+                  {children}
+                </main>
+                <CommandPalette />
+              </div>
+              <InactivityTracker />
+            </>
+          ) : (
+            <main className="flex-1">
+              {children}
+            </main>
+          )}
+          <Toaster position="top-right" richColors />
+        </SessionProvider>
       </body>
     </html>
   );

@@ -95,7 +95,20 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                    onClick={() => {
+                                        if (doc.url) {
+                                            window.open(doc.url, '_blank');
+                                        } else {
+                                            toast.info("Mock Document View", {
+                                                description: `This is a mock view for '${doc.name}'. Real document viewing will be available after cloud storage integration.`
+                                            });
+                                        }
+                                    }}
+                                >
                                     <Eye className="h-4 w-4" />
                                 </Button>
                                 {isAdmin && (

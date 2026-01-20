@@ -55,10 +55,10 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                             {supplier.name}
                         </h1>
                         <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-                            <span className="flex items-center gap-1.5 text-sm">
+                            <a href={`mailto:${supplier.contactEmail}`} className="flex items-center gap-1.5 text-sm hover:text-primary transition-colors">
                                 <Mail className="h-4 w-4" />
                                 {supplier.contactEmail}
-                            </span>
+                            </a>
                             <Badge variant={supplier.status === 'active' ? 'default' : 'destructive'}>
                                 {supplier.status?.toUpperCase()}
                             </Badge>

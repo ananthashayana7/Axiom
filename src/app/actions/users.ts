@@ -2,10 +2,12 @@
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
+import { sendEmail, generateWelcomeEmail } from "@/lib/services/email";
+import { logActivity } from "./activity";
 
 export async function getUsers() {
     try {
@@ -13,6 +15,7 @@ export async function getUsers() {
             id: users.id,
             name: users.name,
             email: users.email,
+            employeeId: users.employeeId,
             role: users.role,
             createdAt: users.createdAt,
         }).from(users).orderBy(users.createdAt);
@@ -32,16 +35,28 @@ export async function createUser(formData: FormData) {
     try {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
+        const employeeId = formData.get("employeeId") as string;
         const password = formData.get("password") as string;
         const role = (formData.get("role") as 'admin' | 'user') || 'user';
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        await db.insert(users).values({
+        const [newUser] = await db.insert(users).values({
             name,
             email,
+            employeeId,
             password: hashedPassword,
             role,
+        }).returning();
+
+        await logActivity('CREATE', 'user', newUser.id, `Created new user: ${name} (${email}) with role: ${role}`);
+
+        // Trigger Welcome Email
+        const welcome = generateWelcomeEmail(name, email || employeeId, password);
+        await sendEmail({
+            to: email,
+            subject: welcome.subject,
+            body: welcome.body,
         });
 
         revalidatePath("/admin/users");
@@ -64,10 +79,11 @@ export async function updateUser(id: string, formData: FormData) {
     try {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
+        const employeeId = formData.get("employeeId") as string;
         const password = formData.get("password") as string;
         const role = formData.get("role") as 'admin' | 'user';
 
-        const updateData: any = { name, email };
+        const updateData: any = { name, email, employeeId };
 
         // Only admins can change roles
         if (currentUser?.role === 'admin' && role) {
@@ -81,6 +97,8 @@ export async function updateUser(id: string, formData: FormData) {
         await db.update(users)
             .set(updateData)
             .where(eq(users.id, id));
+
+        await logActivity('UPDATE', 'user', id, `Updated user: ${name || 'unknown'} (${email || 'unknown'})`);
 
         revalidatePath("/admin/users");
         return { success: true };
@@ -104,7 +122,11 @@ export async function deleteUser(id: string) {
     }
 
     try {
-        await db.delete(users).where(eq(users.id, id));
+        const [user] = await db.select().from(users).where(eq(users.id, id));
+        if (user) {
+            await db.delete(users).where(eq(users.id, id));
+            await logActivity('DELETE', 'user', id, `Deleted user: ${user.name} (${user.email})`);
+        }
         revalidatePath("/admin/users");
         return { success: true };
     } catch (error) {

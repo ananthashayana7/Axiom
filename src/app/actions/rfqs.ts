@@ -6,6 +6,7 @@ import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
+import { parseOffer } from "./ai-agents";
 
 export async function getRFQs() {
     const session = await auth();
@@ -71,7 +72,8 @@ export async function getRFQById(id: string) {
                     with: {
                         part: true
                     }
-                }
+                },
+                documents: true
             }
         });
 
@@ -211,21 +213,56 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
             return { success: false, error: "Unauthorized" };
         }
 
-        // Simulate AI Parsing (Gemma would normally do this)
-        const mockAnalysis = {
-            totalAmount: 480000,
-            deliveryWeeks: 4,
-            terms: "Net 30, EXW",
-            highlights: ["Includes 2-year warranty", "ROHS compliant"],
-            aiConfidence: 94
-        };
+        // Use AI to parse the quotation
+        let analysis;
+        try {
+            // We use the same prompt logic but for text
+            const { GoogleGenerativeAI } = await import("@google/generative-ai");
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const analysisString = JSON.stringify(mockAnalysis);
+            const prompt = `
+                Analyze this quotation text and extract structured data:
+                "${quoteText}"
+
+                Return JSON format:
+                {
+                    "totalAmount": number,
+                    "deliveryWeeks": number,
+                    "terms": string,
+                    "highlights": string[],
+                    "aiConfidence": number
+                }
+                Return ONLY the JSON.
+            `;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+            if (jsonMatch) {
+                analysis = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error("No JSON found");
+            }
+        } catch (aiError) {
+            console.error("AI Quotation Parsing failed, using fallback:", aiError);
+            analysis = {
+                totalAmount: 0,
+                deliveryWeeks: 0,
+                terms: "Error parsing quote",
+                highlights: ["AI parsing failed"],
+                aiConfidence: 0
+            };
+        }
+
+        const analysisString = JSON.stringify(analysis);
 
         await db.update(rfqSuppliers)
             .set({
                 aiAnalysis: analysisString,
-                quoteAmount: mockAnalysis.totalAmount.toString(),
+                quoteAmount: (analysis.totalAmount || 0).toString(),
                 status: 'quoted'
             })
             .where(eq(rfqSuppliers.id, rfqSupplierId));
@@ -234,11 +271,55 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
         revalidatePath(`/portal/rfqs/${rs.rfqId}`);
         revalidatePath("/portal/rfqs");
 
-        await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed quotation for RFQ. Amount: ₹${mockAnalysis.totalAmount.toLocaleString()}`);
+        await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed quotation for RFQ. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
 
-        return { success: true, analysis: mockAnalysis };
+        return { success: true, analysis: analysis };
     } catch (error) {
         console.error("Failed to process quotation:", error);
         return { success: false, error: "Failed to process quotation" };
+    }
+}
+
+export async function processQuotationFile(rfqSupplierId: string, fileData: string, fileName: string) {
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
+
+    try {
+        const [rs] = await db.select().from(rfqSuppliers).where(eq(rfqSuppliers.id, rfqSupplierId));
+        if (!rs) return { success: false, error: "Record not found" };
+
+        const result = await parseOffer(fileData, fileName);
+        if (!result.success) return { success: false, error: result.error };
+
+        const analysis = {
+            totalAmount: result.data.totalAmount,
+            deliveryWeeks: parseInt(result.data.deliveryLeadTime) || 4,
+            terms: result.data.paymentTerms || "Standard",
+            highlights: [
+                `Validity: ${result.data.validityPeriod}`,
+                `Supplier Identified: ${result.data.supplierName}`
+            ],
+            aiConfidence: 90
+        };
+
+        const analysisString = JSON.stringify(analysis);
+
+        await db.update(rfqSuppliers)
+            .set({
+                aiAnalysis: analysisString,
+                quoteAmount: (analysis.totalAmount || 0).toString(),
+                status: 'quoted'
+            })
+            .where(eq(rfqSuppliers.id, rfqSupplierId));
+
+        revalidatePath(`/sourcing/rfqs/${rs.rfqId}`);
+        revalidatePath("/portal/rfqs");
+
+        await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed file quotation '${fileName}'. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
+
+        return { success: true, analysis };
+    } catch (error) {
+        console.error("Failed to process quotation file:", error);
+        return { success: false, error: "Failed to process quotation file" };
     }
 }

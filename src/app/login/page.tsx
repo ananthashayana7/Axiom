@@ -26,8 +26,8 @@ export default function LoginPage() {
                 <p className="mb-6 text-center text-sm text-muted-foreground">Log in to your account</p>
                 <form action={formAction} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" name="email" type="email" placeholder="admin@example.com" required />
+                        <Label htmlFor="identifier">Email or Employee ID</Label>
+                        <Input id="identifier" name="identifier" type="text" placeholder="admin@example.com or ADMIN001" required />
                     </div>
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">

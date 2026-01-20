@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { procurementOrders } from "@/db/schema";
+import { procurementOrders, type Supplier, type OrderItem, type Part } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,6 +18,17 @@ import { OrderStatusStepper } from "@/components/sourcing/order-status-stepper";
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
 
+// Define the type for the order with relations
+type OrderWithRelations = {
+    id: string;
+    supplierId: string;
+    status: string | null;
+    totalAmount: string | null;
+    createdAt: Date | null;
+    supplier: Supplier;
+    items: Array<OrderItem & { part: Part }>;
+};
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
@@ -33,7 +44,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 }
             }
         }
-    });
+    }) as OrderWithRelations | undefined;
 
     if (!order) {
         notFound();
@@ -130,7 +141,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                 </tr>
                             </thead>
                             <tbody>
-                                {order.items.map((item: any) => (
+                                {order.items.map((item) => (
                                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                                         <td className="p-4">{item.part.name}</td>
                                         <td className="p-4 font-mono text-xs text-muted-foreground">{item.part.sku}</td>
