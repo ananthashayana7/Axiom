@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { suppliers, procurementOrders, supplierPerformanceLogs, type Supplier } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { suppliers, procurementOrders, supplierPerformanceLogs, documents, rfqSuppliers, type Supplier } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -178,5 +178,48 @@ export async function recordPerformanceLog(data: {
     } catch (error) {
         console.error("Failed to record performance:", error);
         return { success: false, error: "Failed to save log" };
+    }
+}
+
+export async function deleteSupplier(id: string) {
+    const session = await auth();
+    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        // 1. Check for blocking dependencies
+        const existingOrders = await db.select().from(procurementOrders).where(eq(procurementOrders.supplierId, id)).limit(1);
+        if (existingOrders.length > 0) {
+            return {
+                success: false,
+                error: "Cannot delete supplier with existing orders. Please mark as Inactive instead."
+            };
+        }
+
+        const existingRfqs = await db.select().from(rfqSuppliers).where(eq(rfqSuppliers.supplierId, id)).limit(1);
+        if (existingRfqs.length > 0) {
+            return {
+                success: false,
+                error: "Cannot delete supplier involved in active RFQs."
+            };
+        }
+
+        // 2. Delete Safe Dependencies
+        // Delete documents
+        await db.delete(documents).where(eq(documents.supplierId, id));
+        // Delete performance logs
+        await db.delete(supplierPerformanceLogs).where(eq(supplierPerformanceLogs.supplierId, id));
+
+        // 3. Delete Supplier
+        const [deleted] = await db.delete(suppliers).where(eq(suppliers.id, id)).returning();
+
+        if (deleted) {
+            await logActivity('DELETE', 'supplier', id, `Supplier deleted: ${deleted.name}`);
+        }
+
+        revalidatePath("/suppliers");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete supplier:", error);
+        return { success: false, error: "Failed to delete supplier" };
     }
 }

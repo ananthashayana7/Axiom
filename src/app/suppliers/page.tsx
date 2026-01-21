@@ -4,17 +4,22 @@ import React, { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getSuppliers, addSupplier } from "@/app/actions/suppliers";
-import { Plus, Search, Loader, Globe, Wallet, Activity, ShieldAlert, FileText, BarChart3 } from "lucide-react";
+import { getSuppliers, addSupplier, updateSupplier, deleteSupplier } from "@/app/actions/suppliers";
+import { Plus, Search, Loader, Globe, Wallet, Activity, ShieldAlert, FileText, BarChart3, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
 export default function SuppliersPage() {
     const [isPending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
     const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
+    const [supplierToDelete, setSupplierToDelete] = useState<any | null>(null);
 
     // Load suppliers on mount
     React.useEffect(() => {
@@ -24,18 +29,61 @@ export default function SuppliersPage() {
         });
     }, []);
 
-    const handleAddSupplier = async (formData: FormData) => {
+    const handleSaveSupplier = async (formData: FormData) => {
         startTransition(async () => {
-            const result = await addSupplier(formData);
+            let result;
+            if (selectedSupplier) {
+                // Formatting data for update
+                const data = {
+                    name: formData.get("name") as string,
+                    contactEmail: formData.get("email") as string,
+                    riskScore: parseInt(formData.get("risk") as string) || 0,
+                    performanceScore: parseInt(formData.get("performance") as string) || 0,
+                    esgScore: parseInt(formData.get("esg") as string) || 0,
+                    financialScore: parseInt(formData.get("financial") as string) || 0,
+                };
+                result = await updateSupplier(selectedSupplier.id, data);
+            } else {
+                result = await addSupplier(formData);
+            }
+
             if (result.success) {
                 setOpen(false);
-                // Refresh suppliers list
+                setSelectedSupplier(null);
                 const suppliersList = await getSuppliers();
                 setSuppliers(suppliersList);
+                toast.success(selectedSupplier ? "Supplier updated" : "Supplier added");
             } else {
-                alert(result.error || "Failed to add supplier");
+                toast.error(result.error || "Operation failed");
             }
         });
+    };
+
+    const confirmDelete = async () => {
+        if (!supplierToDelete) return;
+
+        startTransition(async () => {
+            const result = await deleteSupplier(supplierToDelete.id);
+            if (result.success) {
+                const suppliersList = await getSuppliers();
+                setSuppliers(suppliersList);
+                toast.success("Supplier deleted successfully");
+                setDeleteOpen(false);
+            } else {
+                toast.error(result.error || "Failed to delete supplier");
+                setDeleteOpen(false); // Close dialog even on error to let user read toast
+            }
+        });
+    };
+
+    const openEdit = (supplier: any) => {
+        setSelectedSupplier(supplier);
+        setOpen(true);
+    };
+
+    const openDelete = (supplier: any) => {
+        setSupplierToDelete(supplier);
+        setDeleteOpen(true);
     };
 
     return (
@@ -46,55 +94,58 @@ export default function SuppliersPage() {
                     <p className="text-muted-foreground mt-1">Manage your vendor relationships and risk.</p>
                 </div>
 
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog open={open} onOpenChange={(val) => {
+                    if (!val) setSelectedSupplier(null); // Clear selection on close
+                    setOpen(val);
+                }}>
                     <DialogTrigger asChild>
-                        <Button className="gap-2">
+                        <Button className="gap-2" onClick={() => setSelectedSupplier(null)}>
                             <Plus className="h-4 w-4" />
                             Add Supplier
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Add New Supplier</DialogTitle>
+                            <DialogTitle>{selectedSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
                             <DialogDescription>
-                                Enter the details of the new supplier to track in the system.
+                                {selectedSupplier ? "Update supplier details and scores." : "Enter the details of the new supplier to track in the system."}
                             </DialogDescription>
                         </DialogHeader>
-                        <form action={handleAddSupplier} className="grid gap-4 py-4">
+                        <form action={handleSaveSupplier} className="grid gap-4 py-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="name">Company Name</Label>
-                                    <Input id="name" name="name" placeholder="Acme Corp" required />
+                                    <Input id="name" name="name" placeholder="Acme Corp" defaultValue={selectedSupplier?.name} required />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="email">Contact Email</Label>
-                                    <Input id="email" name="email" type="email" placeholder="contact@acme.com" required />
+                                    <Input id="email" name="email" type="email" placeholder="contact@acme.com" defaultValue={selectedSupplier?.contactEmail} required />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="risk" className="flex items-center gap-1.5"><ShieldAlert size={14} /> Risk Score (0-100)</Label>
-                                    <Input id="risk" name="risk" type="number" min="0" max="100" defaultValue="15" />
+                                    <Input id="risk" name="risk" type="number" min="0" max="100" defaultValue={selectedSupplier?.riskScore ?? 15} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="performance" className="flex items-center gap-1.5"><Activity size={14} /> Performance (0-100)</Label>
-                                    <Input id="performance" name="performance" type="number" min="0" max="100" defaultValue="85" />
+                                    <Input id="performance" name="performance" type="number" min="0" max="100" defaultValue={selectedSupplier?.performanceScore ?? 85} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="esg" className="flex items-center gap-1.5"><Globe size={14} /> ESG Score (0-100)</Label>
-                                    <Input id="esg" name="esg" type="number" min="0" max="100" defaultValue="70" />
+                                    <Input id="esg" name="esg" type="number" min="0" max="100" defaultValue={selectedSupplier?.esgScore ?? 70} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="financial" className="flex items-center gap-1.5"><Wallet size={14} /> Financial Health (0-100)</Label>
-                                    <Input id="financial" name="financial" type="number" min="0" max="100" defaultValue="75" />
+                                    <Input id="financial" name="financial" type="number" min="0" max="100" defaultValue={selectedSupplier?.financialScore ?? 75} />
                                 </div>
                             </div>
                             <div className="flex justify-end mt-4">
                                 <Button type="submit" disabled={isPending}>
                                     {isPending && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-                                    Onboard Supplier
+                                    {selectedSupplier ? "Update Supplier" : "Onboard Supplier"}
                                 </Button>
                             </div>
                         </form>
@@ -166,9 +217,17 @@ export default function SuppliersPage() {
                                                 </div>
                                             </td>
                                             <td className="p-4 align-middle text-right">
-                                                <Link href={`/suppliers/${supplier.id}`}>
-                                                    <Button variant="outline" size="sm" className="h-8">Details</Button>
-                                                </Link>
+                                                <div className="flex justify-end items-center gap-2">
+                                                    <Link href={`/suppliers/${supplier.id}`}>
+                                                        <Button variant="outline" size="sm" className="h-8">Details</Button>
+                                                    </Link>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(supplier)}>
+                                                        <Pencil size={14} />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10" onClick={() => openDelete(supplier)}>
+                                                        <Trash2 size={14} />
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -183,6 +242,25 @@ export default function SuppliersPage() {
                     </div>
                 </CardContent>
             </Card>
-        </div>
+
+
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete {supplierToDelete?.name}.
+                            Checking for active orders and RFQs before deletion.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isPending ? <Loader className="animate-spin h-4 w-4" /> : "Delete Supplier"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div >
     );
 }
