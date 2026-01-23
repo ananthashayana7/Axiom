@@ -7,6 +7,51 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 
+export async function calculateABCAnalysis() {
+    const session = await auth();
+    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        const allSuppliers = await db.select().from(suppliers);
+        const allOrders = await db.select().from(procurementOrders);
+
+        // Group spend by supplier
+        const spendMap = new Map<string, number>();
+        allOrders.forEach(order => {
+            const amount = parseFloat(order.totalAmount || "0");
+            spendMap.set(order.supplierId, (spendMap.get(order.supplierId) || 0) + amount);
+        });
+
+        const sortedSuppliers = allSuppliers
+            .map(s => ({ id: s.id, spend: spendMap.get(s.id) || 0 }))
+            .sort((a, b) => b.spend - a.spend);
+
+        const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
+        if (totalSpend === 0) return { success: true, message: "No spend data found." };
+
+        let cumulativeSpend = 0;
+
+        for (const s of sortedSuppliers) {
+            cumulativeSpend += s.spend;
+            const percentage = (cumulativeSpend / totalSpend) * 100;
+
+            let classification: 'A' | 'B' | 'C' = 'C';
+            if (percentage <= 70) classification = 'A';
+            else if (percentage <= 90) classification = 'B';
+
+            await db.update(suppliers)
+                .set({ abcClassification: classification })
+                .where(eq(suppliers.id, s.id));
+        }
+
+        revalidatePath("/suppliers");
+        return { success: true };
+    } catch (error) {
+        console.error("ABC Analysis failed:", error);
+        return { success: false, error: "Analysis failed" };
+    }
+}
+
 export async function getSuppliers(): Promise<Supplier[]> {
     const session = await auth();
     if (!session) return [];
@@ -57,6 +102,18 @@ interface UpdateSupplierData {
     financialScore?: number;
     lifecycleStatus?: 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated';
     status?: 'active' | 'inactive' | 'blacklisted';
+    abcClassification?: 'A' | 'B' | 'C' | 'X' | 'Y' | 'Z' | 'None';
+    carbonFootprintScope1?: number;
+    carbonFootprintScope2?: number;
+    carbonFootprintScope3?: number;
+    conflictMineralsStatus?: 'compliant' | 'non_compliant' | 'unknown';
+    isoCertifications?: string[];
+    esgEnvironmentScore?: number;
+    esgSocialScore?: number;
+    esgGovernanceScore?: number;
+    financialHealthRating?: string;
+    tierLevel?: 'tier_1' | 'tier_2' | 'tier_3' | 'critical';
+    modernSlaveryStatement?: string;
 }
 
 export async function updateSupplier(id: string, data: Partial<UpdateSupplierData>) {
@@ -67,7 +124,10 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
         await db.update(suppliers)
             .set({
                 ...data,
-                lastAuditDate: data.performanceScore !== undefined ? new Date() : undefined
+                carbonFootprintScope1: data.carbonFootprintScope1?.toString(),
+                carbonFootprintScope2: data.carbonFootprintScope2?.toString(),
+                carbonFootprintScope3: data.carbonFootprintScope3?.toString(),
+                lastAuditDate: data.performanceScore !== undefined ? new Date() : (data as any).lastAuditDate
             })
             .where(eq(suppliers.id, id));
 
@@ -105,6 +165,14 @@ export async function addSupplier(formData: FormData) {
             performanceScore,
             status: "active",
             lifecycleStatus: "prospect",
+            abcClassification: "None",
+            conflictMineralsStatus: "unknown",
+            tierLevel: (formData.get("tier") as any) || "tier_3",
+            isoCertifications: formData.getAll("iso") as string[],
+            esgEnvironmentScore: parseInt(formData.get("esg_env") as string) || 0,
+            esgSocialScore: parseInt(formData.get("esg_soc") as string) || 0,
+            esgGovernanceScore: parseInt(formData.get("esg_gov") as string) || 0,
+            modernSlaveryStatement: formData.get("modern_slavery") === "on" ? "yes" : "no",
         }).returning();
 
         await logActivity('CREATE', 'supplier', newSupplier.id, `New supplier onboarded: ${name}`);

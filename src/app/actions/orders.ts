@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts } from "@/db/schema";
+import { eq, and, sql, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -36,6 +36,8 @@ interface CreateOrderInput {
         quantity: number;
         unitPrice: number;
     }[];
+    incoterms?: string;
+    asnNumber?: string;
 }
 
 export async function createOrder(data: CreateOrderInput) { // Use simpler type for direct call
@@ -45,14 +47,43 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
     try {
         const { supplierId, totalAmount, items } = data;
 
+        // 0. Check for Active Framework Agreement
+        const today = new Date();
+        const [activeContract] = await db.select()
+            .from(contracts)
+            .where(and(
+                eq(contracts.supplierId, supplierId),
+                eq(contracts.status, 'active'),
+                eq(contracts.type, 'framework_agreement'),
+                lte(contracts.validFrom, today),
+                gte(contracts.validTo, today)
+            ))
+            .limit(1);
+
+        const contractId = activeContract?.id || null;
+        const effectiveIncoterms = data.incoterms || activeContract?.incoterms || null;
+
         // 1. Create Order
         const [newOrder] = await db.insert(procurementOrders).values({
             supplierId,
             totalAmount: totalAmount.toString(),
-            status: 'draft'
+            status: 'draft',
+            contractId,
+            incoterms: effectiveIncoterms,
+            asnNumber: data.asnNumber
         }).returning({ insertedId: procurementOrders.id });
 
         const orderId = newOrder.insertedId;
+
+        if (contractId) {
+            await db.insert(auditLogs).values({
+                userId: (session.user as any).id,
+                action: 'LINK',
+                entityType: 'order',
+                entityId: orderId,
+                details: `Order auto-linked to Framework Agreement ${activeContract.title}`
+            });
+        }
 
         // 2. Create Items
         if (items.length > 0) {
@@ -161,5 +192,103 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     } catch (error) {
         console.error("Conversion error:", error);
         return { success: false, error: "Failed to convert RFQ to Order." };
+    }
+}
+
+export async function recordGoodsReceipt(orderId: string, notes?: string) {
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
+
+    try {
+        await db.insert(goodsReceipts).values({
+            orderId,
+            receivedById: (session.user as any).id,
+            notes
+        });
+
+        await db.update(procurementOrders)
+            .set({ status: 'fulfilled' })
+            .where(eq(procurementOrders.id, orderId));
+
+        revalidatePath(`/sourcing/orders/${orderId}`);
+        return { success: true };
+    } catch (error) {
+        console.error("Goods receipt recording failed:", error);
+        return { success: false };
+    }
+}
+
+export async function addInvoice(data: { orderId: string, supplierId: string, invoiceNumber: string, amount: number }) {
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
+
+    try {
+        const [invoice] = await db.insert(invoices).values({
+            orderId: data.orderId,
+            supplierId: data.supplierId,
+            invoiceNumber: data.invoiceNumber,
+            amount: data.amount.toString(),
+            status: 'pending'
+        }).returning();
+
+        // Auto-trigger Three-Way Match validation
+        await validateThreeWayMatch(data.orderId);
+
+        revalidatePath(`/sourcing/orders/${data.orderId}`);
+        return { success: true, data: invoice };
+    } catch (error) {
+        console.error("Invoice addition failed:", error);
+        return { success: false };
+    }
+}
+
+export async function validateThreeWayMatch(orderId: string) {
+    try {
+        // Fetch original PO
+        const [po] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
+        if (!po) return { success: false, error: "Order not found" };
+
+        // Check for Goods Receipt
+        const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
+        const hasReceipt = receipts.length > 0;
+
+        // Check for Invoices
+        const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+        const totalInvoiceAmount = orderInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
+
+        const poAmount = parseFloat(po.totalAmount || "0");
+        const isPriceMatched = Math.abs(totalInvoiceAmount - poAmount) < 0.01;
+
+        if (hasReceipt && isPriceMatched) {
+            await db.update(invoices)
+                .set({ status: 'matched', matchedAt: new Date() })
+                .where(eq(invoices.orderId, orderId));
+
+            return { success: true, status: 'MATCHED' };
+        }
+
+        return { success: true, status: 'PENDING_MATCH' };
+    } catch (error) {
+        console.error("3-Way Match validation failed:", error);
+        return { success: false };
+    }
+}
+
+export async function getOrderFinanceDetails(orderId: string) {
+    const session = await auth();
+    if (!session) return null;
+
+    try {
+        const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
+        const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+
+        return {
+            receipts,
+            invoices: orderInvoices,
+            isMatched: orderInvoices.some(inv => inv.status === 'matched')
+        };
+    } catch (error) {
+        console.error("Failed to fetch order finance details:", error);
+        return null;
     }
 }

@@ -35,6 +35,8 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
     const [open, setOpen] = useState(false)
     const [supplierId, setSupplierId] = useState("")
     const [items, setItems] = useState<OrderItem[]>([])
+    const [incoterms, setIncoterms] = useState("")
+    const [asnNumber, setAsnNumber] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     // Helper to add an empty item row
@@ -66,12 +68,16 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
             await createOrder({
                 supplierId,
                 totalAmount,
-                items
+                items,
+                incoterms,
+                asnNumber
             })
             setOpen(false)
             // Reset form
             setSupplierId("")
             setItems([])
+            setIncoterms("")
+            setAsnNumber("")
         } catch (error) {
             console.error("Failed to create order", error)
         } finally {
@@ -110,6 +116,27 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                                 <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
                         </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="incoterms">Incoterms</Label>
+                            <Input
+                                id="incoterms"
+                                placeholder="e.g. FOB, DAP"
+                                value={incoterms}
+                                onChange={(e) => setIncoterms(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="asn">ASN Number (Optional)</Label>
+                            <Input
+                                id="asn"
+                                placeholder="Advance Shipping Notice"
+                                value={asnNumber}
+                                onChange={(e) => setAsnNumber(e.target.value)}
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-4">

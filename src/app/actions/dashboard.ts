@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { suppliers, procurementOrders, parts, orderItems } from "@/db/schema";
 // @ts-ignore
-import { count, eq, sum, sql } from "drizzle-orm";
+import { count, eq, sum, sql, desc } from "drizzle-orm";
 
 export async function getDashboardStats() {
     try {
@@ -35,16 +35,31 @@ export async function getDashboardStats() {
     }
 }
 
+
+
+
 export async function getRecentOrders() {
     try {
-        const recentOrders = await db.query.procurementOrders.findMany({
-            limit: 5,
-            orderBy: (procurementOrders: any, { desc }: any) => [desc(procurementOrders.createdAt)],
-            with: {
-                supplier: true,
-            }
-        });
-        return recentOrders;
+        const recentOrders = await db
+            .select({
+                id: procurementOrders.id,
+                supplierId: procurementOrders.supplierId,
+                status: procurementOrders.status,
+                totalAmount: procurementOrders.totalAmount,
+                createdAt: procurementOrders.createdAt,
+                supplierName: suppliers.name,
+                supplierEmail: suppliers.contactEmail,
+            })
+            .from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .orderBy(desc(procurementOrders.createdAt))
+            .limit(5);
+        // Transform to match UI expectations
+        const formatted = recentOrders.map((o) => ({
+            ...o,
+            supplier: { name: o.supplierName, contact_email: o.supplierEmail },
+        }));
+        return formatted;
     } catch (error) {
         console.error("Failed to fetch recent orders:", error);
         return [];
@@ -97,6 +112,23 @@ export async function getCategorySpend() {
         }));
     } catch (error) {
         console.error("Failed to fetch category spend:", error);
+        return [];
+    }
+}
+
+export async function getHighRiskSuppliers() {
+    try {
+        const result = await db.select({
+            id: suppliers.id,
+            name: suppliers.name,
+            riskScore: suppliers.riskScore,
+        })
+            .from(suppliers)
+            .orderBy(desc(suppliers.riskScore))
+            .limit(3);
+        return result;
+    } catch (error) {
+        console.error("Failed to fetch high risk suppliers:", error);
         return [];
     }
 }

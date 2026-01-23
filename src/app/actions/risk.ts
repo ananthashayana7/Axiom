@@ -2,55 +2,76 @@
 
 import { db } from "@/db";
 import { suppliers, auditLogs } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { logActivity } from "./activity";
+import { count, avg, sql, eq } from "drizzle-orm";
 import { auth } from "@/auth";
+
+export async function getRiskComplianceStats() {
+    const session = await auth();
+    if (!session) return null;
+
+    try {
+        const allSuppliers = await db.select().from(suppliers);
+
+        // MCDA (Multi-Criteria Decision Analysis) weighting
+        // Risk = (0.4 * Operational) + (0.3 * Financial) + (0.3 * ESG)
+
+        const stats = {
+            totalSuppliers: allSuppliers.length,
+            avgRisk: Math.round(allSuppliers.reduce((acc, s) => acc + (s.riskScore || 0), 0) / allSuppliers.length) || 0,
+            highRiskCount: allSuppliers.filter(s => (s.riskScore || 0) > 60).length,
+            esgAvg: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgScore || 0), 0) / allSuppliers.length) || 0,
+            isoComplianceRate: Math.round((allSuppliers.filter(s => (s.isoCertifications?.length || 0) > 0).length / allSuppliers.length) * 100) || 0,
+
+            // ESG Breakdown
+            avgEnv: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgEnvironmentScore || 0), 0) / allSuppliers.length) || 0,
+            avgSoc: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgSocialScore || 0), 0) / allSuppliers.length) || 0,
+            avgGov: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgGovernanceScore || 0), 0) / allSuppliers.length) || 0,
+
+            // Tier Distribution
+            tiers: {
+                tier_1: allSuppliers.filter(s => s.tierLevel === 'tier_1' || s.tierLevel === 'critical').length,
+                tier_2: allSuppliers.filter(s => s.tierLevel === 'tier_2').length,
+                tier_3: allSuppliers.filter(s => s.tierLevel === 'tier_3' || !s.tierLevel).length,
+            }
+        };
+
+        return stats;
+    } catch (error) {
+        console.error("Risk stats fetch failed:", error);
+        return null;
+    }
+}
 
 export type MitigationPlanType = 'secondary_source' | 'audit_request' | 'stockpile' | 'suspend';
 
-export async function mitigateRisk(supplierId: string, planType: MitigationPlanType, reason: string) {
+export async function mitigateRisk(supplierId: string, plan: MitigationPlanType, reason: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') {
-        return { success: false, error: "Unauthorized. Admin privileges required." };
-    }
+    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
-        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
-        if (!supplier) return { success: false, error: "Supplier not found" };
+        // In a real app, this might trigger a workflow or emails
+        // Here we just log it for audit/compliance
+        await db.update(suppliers)
+            .set({
+                lifecycleStatus: plan === 'suspend' ? 'suspended' : 'onboarding',
+                lastRiskAudit: new Date()
+            })
+            .where(eq(suppliers.id, supplierId));
 
-        let actionDescription = "";
-
-        switch (planType) {
-            case 'secondary_source':
-                actionDescription = `Initiated secondary sourcing workflow for products tied to ${supplier.name} due to ${reason}.`;
-                break;
-            case 'audit_request':
-                actionDescription = `Requested urgent on-site risk audit for ${supplier.name}. Reason: ${reason}.`;
-                // Update last audit date
-                await db.update(suppliers).set({ lastAuditDate: new Date() }).where(eq(suppliers.id, supplierId));
-                break;
-            case 'stockpile':
-                actionDescription = `Increased safety stock buffers by 25% for components from ${supplier.name}.`;
-                break;
-            case 'suspend':
-                actionDescription = `TEMPORARILY SUSPENDED ${supplier.name} from new orders due to critical risk: ${reason}.`;
-                await db.update(suppliers).set({ status: 'inactive', lifecycleStatus: 'suspended' }).where(eq(suppliers.id, supplierId));
-                break;
-        }
-
-        await logActivity('UPDATE', 'supplier', supplierId, actionDescription);
-
-        revalidatePath('/admin/risk');
-        revalidatePath(`/suppliers/${supplierId}`);
-        revalidatePath('/suppliers');
+        await db.insert(auditLogs).values({
+            userId: (session.user as any).id,
+            action: 'MITIGATE',
+            entityType: 'supplier',
+            entityId: supplierId,
+            details: `Risk mitigation plan [${plan.toUpperCase()}] activated. Reason: ${reason}`
+        });
 
         return {
             success: true,
-            message: `Mitigation Plan [${planType.toUpperCase()}] successfully activated for ${supplier.name}.`
+            message: `Mitigation plan [${plan.toUpperCase()}] active. Audit trail recorded.`
         };
     } catch (error) {
-        console.error("Risk mitigation error:", error);
-        return { success: false, error: "Failed to activate mitigation plan." };
+        console.error("Mitigation activation failed:", error);
+        return { success: false, error: "System failure during mitigation activation" };
     }
 }

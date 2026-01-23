@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CreditCard, Users, IndianRupee, Package } from "lucide-react";
+import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert } from "lucide-react";
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
 import { RecentSales } from "@/components/dashboard/recent-sales";
-import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend } from "@/app/actions/dashboard";
+import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers } from "@/app/actions/dashboard";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
 import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
@@ -17,6 +17,7 @@ export default async function Home() {
   const recentOrders = await getRecentOrders();
   const monthlySpend = await getMonthlySpend();
   const categorySpend = await getCategorySpend();
+  const riskySuppliers = await getHighRiskSuppliers();
   const suppliers = await getSuppliers();
   const parts = await getParts();
 
@@ -28,8 +29,8 @@ export default async function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/40 p-10">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-10 space-y-8 bg-muted/40 min-h-full">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
         <div className="flex items-center space-x-2">
           <DownloadDataButton data={allData} />
@@ -88,25 +89,58 @@ export default async function Home() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7 mt-8">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
           <AnalyticsBoard monthlyData={monthlySpend} categoryData={categorySpend} />
           <AiInsights />
         </div>
-        <Card className="col-span-3 shadow-lg border-accent/50">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Activity className="h-5 w-5 text-primary" />
-              Recent Procurement
-            </CardTitle>
-            <CardDescription>
-              Latest purchase orders and status updates.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <RecentSales orders={recentOrders} />
-          </CardContent>
-        </Card>
+        <div className="col-span-3 space-y-6">
+          <Card className="shadow-lg border-accent/50 overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5 text-primary" />
+                Recent Procurement
+              </CardTitle>
+              <CardDescription>
+                Latest purchase orders and status updates.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <RecentSales orders={recentOrders} />
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-destructive/20 overflow-hidden">
+            <CardHeader className="border-b bg-destructive/5">
+              <CardTitle className="flex items-center gap-2 text-lg text-destructive">
+                <ShieldAlert className="h-5 w-5" />
+                Risk Watchlist
+              </CardTitle>
+              <CardDescription>
+                Suppliers requiring immediate attention.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {riskySuppliers.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <div>
+                      <p className="font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">ID: {s.id.slice(0, 8)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-destructive">{s.riskScore}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">Score</p>
+                    </div>
+                  </div>
+                ))}
+                {riskySuppliers.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">All suppliers within safe risk limits.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

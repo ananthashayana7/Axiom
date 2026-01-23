@@ -4,18 +4,16 @@ import {
     Users,
     Package,
     ShoppingCart,
-    LogOut,
     UserCog,
     Sparkles,
     ShieldAlert,
     BarChart3,
     FileText,
     Settings,
-    UserCircle,
     History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 
 const adminLinks = [
     { label: "User Management", icon: UserCog, href: "/admin/users" },
@@ -37,8 +35,8 @@ export async function Sidebar({ className }: { className?: string }) {
     const role = (session?.user as any)?.role;
 
     return (
-        <div className={cn("pb-12 w-64 border-r bg-background flex flex-col h-screen", className)}>
-            <div className="flex-1 space-y-4 py-4">
+        <div className={cn("w-64 border-r bg-background flex flex-col h-screen overflow-hidden", className)}>
+            <div className="flex-1 overflow-y-auto min-h-0 py-4 scrollbar-thin scrollbar-thumb-muted">
                 <div className="px-3 py-2">
                     <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
                         Axiom
@@ -66,6 +64,7 @@ export async function Sidebar({ className }: { className?: string }) {
                         </Link>
                     </div>
                 </div>
+
                 {role !== 'supplier' && (
                     <div className="px-3 py-2">
                         <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
@@ -84,17 +83,28 @@ export async function Sidebar({ className }: { className?: string }) {
                                     Sourcing Requests
                                 </span>
                             </Link>
+                            <Link href="/sourcing/requisitions">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                    <ShoppingCart className="mr-2 h-4 w-4" />
+                                    Internal Requisitions
+                                </span>
+                            </Link>
                             <Link href="/sourcing/orders">
                                 <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Orders
                                 </span>
                             </Link>
+                            <Link href="/sourcing/contracts">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Framework Agreements
+                                </span>
+                            </Link>
                         </div>
                     </div>
                 )}
 
-                {/* Supplier Specific Portal Navigation */}
                 {role === 'supplier' && (
                     <div className="px-3 py-2">
                         <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
@@ -136,19 +146,6 @@ export async function Sidebar({ className }: { className?: string }) {
                         </div>
                     </div>
                 )}
-            </div>
-            <div className="px-3 py-2 border-t">
-                <form
-                    action={async () => {
-                        "use server";
-                        await signOut();
-                    }}
-                >
-                    <button className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Logout
-                    </button>
-                </form>
             </div>
         </div>
     );

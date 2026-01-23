@@ -8,12 +8,13 @@ import { getComments, getAuditLogs } from "@/app/actions/activity";
 import { CommentsSection } from "@/components/shared/comments";
 import { AuditLogList } from "@/components/shared/audit-log";
 import { auth } from "@/auth";
-import { ArrowLeft, ShoppingCart, Package, Building2, Calendar } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Package, Building2, Calendar, FileText, Repeat } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
 import { OrderStatusStepper } from "@/components/sourcing/order-status-stepper";
+import { ThreeWayMatch } from "@/components/sourcing/three-way-match";
 
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
@@ -22,10 +23,14 @@ import { DocumentList } from "@/components/shared/document-list";
 type OrderWithRelations = {
     id: string;
     supplierId: string;
+    contractId: string | null;
+    requisitionId: string | null;
     status: string | null;
     totalAmount: string | null;
+    incoterms: string | null;
     createdAt: Date | null;
     supplier: Supplier;
+    contract: any;
     items: Array<OrderItem & { part: Part }>;
 };
 
@@ -38,6 +43,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         where: eq(procurementOrders.id, id),
         with: {
             supplier: true,
+            contract: true,
             items: {
                 with: {
                     part: true
@@ -69,9 +75,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         <ShoppingCart className="h-8 w-8 text-primary" />
                         Order Details
                     </h1>
-                    <p className="text-muted-foreground mt-1 font-mono text-sm">
-                        ID: {order.id}
-                    </p>
+                    <div className="flex items-center gap-3 mt-1">
+                        <p className="text-muted-foreground font-mono text-sm leading-none">
+                            ID: {order.id}
+                        </p>
+                        {order.incoterms && (
+                            <Badge variant="outline" className="text-[10px] font-black h-5 uppercase border-primary/20 text-primary">
+                                {order.incoterms}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
 
                 <Card className="w-full md:w-[400px] p-6 bg-background shadow-sm border-accent/50">
@@ -81,6 +94,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         isAdmin={isAdmin}
                     />
                 </Card>
+            </div>
+
+            <div className="mb-8">
+                <ThreeWayMatch
+                    orderId={id}
+                    poAmount={parseFloat(order.totalAmount || "0")}
+                />
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -95,6 +115,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         <div className="space-y-1">
                             <p className="font-semibold text-lg">{order.supplier.name}</p>
                             <p className="text-sm text-muted-foreground">{order.supplier.contactEmail}</p>
+                            {order.contract && (
+                                <div className="mt-4 pt-4 border-t">
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Framework Agreement</p>
+                                    <Link href="/sourcing/contracts" className="text-sm text-primary font-medium hover:underline flex items-center gap-1.5">
+                                        <FileText className="h-4 w-4" />
+                                        {order.contract.title}
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -111,6 +140,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                             <div className="space-y-1">
                                 <p className="text-sm text-muted-foreground">Placed On</p>
                                 <p className="font-semibold">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</p>
+                                {order.requisitionId && (
+                                    <div className="mt-2">
+                                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Source</p>
+                                        <Link href="/sourcing/requisitions" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                            <Repeat size={10} />
+                                            Requisition #{order.requisitionId.split('-')[0].toUpperCase()}
+                                        </Link>
+                                    </div>
+                                )}
+                                <div className="mt-2">
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Standard</p>
+                                    <p className="text-xs">Global Procurement Standard Compliant</p>
+                                </div>
                             </div>
                             <div className="text-right">
                                 <p className="text-sm text-muted-foreground">Total Amount</p>

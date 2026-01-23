@@ -8,6 +8,7 @@ import { CommentsSection } from "@/components/shared/comments";
 import { AuditLogList } from "@/components/shared/audit-log";
 import { auth } from "@/auth";
 import { ArrowLeft, Building2, Mail, AlertTriangle, Calendar, Star, Trophy, Target, Activity } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,16 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                             <Badge variant={supplier.status === 'active' ? 'default' : 'destructive'}>
                                 {supplier.status?.toUpperCase()}
                             </Badge>
+                            <Badge variant="outline" className={`font-bold border-2 ${supplier.tierLevel === 'tier_1' || supplier.tierLevel === 'critical' ? 'border-purple-500 text-purple-700 bg-purple-50' :
+                                supplier.tierLevel === 'tier_2' ? 'border-blue-500 text-blue-700 bg-blue-50' : 'border-slate-300 text-slate-600'
+                                }`}>
+                                {supplier.tierLevel?.replace('_', ' ').toUpperCase() || 'TIER 3'}
+                            </Badge>
+                            {supplier.abcClassification && supplier.abcClassification !== 'None' && (
+                                <Badge variant="outline" className="border-primary text-primary">
+                                    CLASS {supplier.abcClassification}
+                                </Badge>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -115,16 +126,65 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">ESG Rating</CardTitle>
+                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">ESG & Compliance</CardTitle>
                             <Activity className="h-5 w-5 text-blue-500" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{supplier.esgScore || 0}%</div>
-                            <div className="w-full h-2 rounded-full bg-muted overflow-hidden mt-2">
+                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden mt-2 mb-4">
                                 <div
                                     className="h-full bg-blue-500 transition-all"
                                     style={{ width: `${supplier.esgScore || 0}%` }}
                                 />
+                            </div>
+                            <div className="space-y-3 pt-2 border-t">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground">Scope 1,2,3</span>
+                                    <span className="font-mono text-[10px]">{parseFloat(supplier.carbonFootprintScope1 || '0') + parseFloat(supplier.carbonFootprintScope2 || '0') + parseFloat(supplier.carbonFootprintScope3 || '0')} tCO2e</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground">Conflict Minerals</span>
+                                    <Badge variant="outline" className="text-[10px] py-0 h-4 uppercase">
+                                        {(supplier as any).conflictMineralsStatus || 'Unknown'}
+                                    </Badge>
+                                </div>
+                                <div className="space-y-1.5 pt-1">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-muted-foreground font-medium uppercase">Environmental</span>
+                                        <span className="text-[10px] font-bold">{supplier.esgEnvironmentScore || 0}%</span>
+                                    </div>
+                                    <Progress value={supplier.esgEnvironmentScore || 0} className="h-1 bg-slate-100" />
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-muted-foreground font-medium uppercase">Social</span>
+                                        <span className="text-[10px] font-bold">{supplier.esgSocialScore || 0}%</span>
+                                    </div>
+                                    <Progress value={supplier.esgSocialScore || 0} className="h-1 bg-slate-100" />
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-muted-foreground font-medium uppercase">Governance</span>
+                                        <span className="text-[10px] font-bold">{supplier.esgGovernanceScore || 0}%</span>
+                                    </div>
+                                    <Progress value={supplier.esgGovernanceScore || 0} className="h-1 bg-slate-100" />
+                                </div>
+                                <div className="pt-3 border-t">
+                                    <div className="text-[10px] text-muted-foreground font-bold uppercase mb-2">Compliance Markers</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {supplier.isoCertifications?.map((iso: string) => (
+                                            <Badge key={iso} variant="secondary" className="text-[9px] px-1.5 h-4 bg-slate-100 text-slate-700 font-bold border-slate-200">
+                                                {iso}
+                                            </Badge>
+                                        ))}
+                                        {supplier.modernSlaveryStatement === 'yes' && (
+                                            <Badge className="text-[9px] px-1.5 h-4 bg-green-50 text-green-700 font-bold border-green-200" variant="outline">
+                                                MODERN SLAVERY ACT
+                                            </Badge>
+                                        )}
+                                        {supplier.isoCertifications?.length === 0 && supplier.modernSlaveryStatement !== 'yes' && (
+                                            <span className="text-[10px] text-muted-foreground italic">No certifications recorded.</span>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -144,6 +204,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                     <tr className="border-b transition-colors hover:bg-muted/50">
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order ID</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Amount</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Logistics</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Created</th>
                                     </tr>
@@ -153,6 +214,13 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle font-mono text-xs">{order.id.slice(0, 8)}...</td>
                                             <td className="p-4 align-middle font-medium">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                            <td className="p-4 align-middle">
+                                                <div className="flex flex-col gap-1">
+                                                    {order.incoterms && <span className="text-[10px] font-semibold text-primary">{order.incoterms}</span>}
+                                                    {order.asnNumber && <span className="text-[10px] text-muted-foreground">ASN: {order.asnNumber}</span>}
+                                                    {!order.incoterms && !order.asnNumber && <span className="text-[10px] text-muted-foreground italic">-</span>}
+                                                </div>
+                                            </td>
                                             <td className="p-4 align-middle capitalize">
                                                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
                                                     ${order.status === 'fulfilled' ? 'bg-green-50 text-green-700 ring-green-600/20' :

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, User, Send, Sparkles, Loader, Paperclip, FileText, X } from "lucide-react";
-import { processCopilotQuery, getChatHistory } from "@/app/actions/ai";
+import { processCopilotQuery, getChatHistory, clearChatHistory } from "@/app/actions/ai";
 import { ChatMarkdown } from "@/components/copilot/chat-markdown";
 import { toast } from "sonner";
 
@@ -89,7 +89,10 @@ export default function CopilotPage() {
                     <p className="text-muted-foreground mt-1 text-sm">AI-powered procurement insights and multi-format document analysis.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setMessages([{ role: 'assistant', content: "Hello! How can I help you today?" }])}>
+                    <Button variant="outline" size="sm" onClick={async () => {
+                        await clearChatHistory();
+                        setMessages([{ role: 'assistant', content: "Hello! How can I help you today?" }]);
+                    }}>
                         Clear Session
                     </Button>
                 </div>
@@ -109,14 +112,14 @@ export default function CopilotPage() {
                             messages.map((m, i) => (
                                 <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${m.role === 'assistant'
-                                            ? 'bg-primary text-primary-foreground border-primary/20'
-                                            : 'bg-background text-foreground border-accent'
+                                        ? 'bg-primary text-primary-foreground border-primary/20'
+                                        : 'bg-background text-foreground border-accent'
                                         }`}>
                                         {m.role === 'assistant' ? <Bot size={22} className="text-white" /> : <User size={22} />}
                                     </div>
                                     <div className={`max-w-[85%] rounded-2xl p-4 text-sm shadow-sm ${m.role === 'assistant'
-                                            ? 'bg-muted/50 border border-muted-foreground/10'
-                                            : 'bg-primary text-primary-foreground font-medium'
+                                        ? 'bg-muted/50 border border-muted-foreground/10'
+                                        : 'bg-primary text-primary-foreground font-medium'
                                         }`}>
                                         {m.role === 'assistant' ? (
                                             <ChatMarkdown content={m.content} />

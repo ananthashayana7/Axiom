@@ -19,18 +19,19 @@ import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { MitigationAction } from "@/components/admin/mitigation-action";
 import { RiskIntelligenceView } from "@/components/admin/risk-intelligence-view";
+import { getRiskComplianceStats } from "@/app/actions/risk";
 
 export const dynamic = 'force-dynamic';
 
 export default async function RiskDashboardPage() {
-    const allSuppliers = await db.query.suppliers.findMany();
+    const stats = await getRiskComplianceStats();
 
+    if (!stats) return <div className="p-8">Unable to load risk intelligence.</div>;
+
+    const allSuppliers = await db.query.suppliers.findMany();
     const highRiskSuppliers = allSuppliers.filter((s: any) => (s.riskScore || 0) > 60);
     const lowESGSuppliers = allSuppliers.filter((s: any) => (s.esgScore || 0) < 40);
     const financialWatchlist = allSuppliers.filter((s: any) => (s.financialScore || 0) < 50);
-
-    const avgRisk = allSuppliers.length > 0 ? Math.round(allSuppliers.reduce((acc: number, s: any) => acc + (s.riskScore || 0), 0) / allSuppliers.length) : 0;
-    const avgESG = allSuppliers.length > 0 ? Math.round(allSuppliers.reduce((acc: number, s: any) => acc + (s.esgScore || 0), 0) / allSuppliers.length) : 0;
 
     return (
         <div className="flex min-h-screen flex-col bg-muted/40 p-8">
@@ -60,7 +61,7 @@ export default async function RiskDashboardPage() {
                         <Activity className="h-4 w-4 text-green-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{100 - avgRisk}%</div>
+                        <div className="text-2xl font-bold text-green-600">{100 - stats.avgRisk}%</div>
                         <p className="text-xs text-muted-foreground mt-1 font-medium">Stable</p>
                     </CardContent>
                 </Card>
@@ -70,7 +71,7 @@ export default async function RiskDashboardPage() {
                         <Globe className="h-4 w-4 text-blue-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{avgESG}/100</div>
+                        <div className="text-2xl font-bold text-blue-600">{stats.esgAvg}/100</div>
                         <p className="text-xs text-muted-foreground mt-1">Industry Standard: 62</p>
                     </CardContent>
                 </Card>

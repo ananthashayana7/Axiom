@@ -8,6 +8,8 @@ import { ShieldAlert, Sparkles, Loader2, AlertCircle, CheckCircle2, Info } from 
 import { analyzeSupplierRisk } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
 
+import { MitigationAction } from "@/components/admin/mitigation-action";
+
 interface RiskResult {
     overallRiskLevel: "low" | "medium" | "high" | "critical";
     riskScore: number;
@@ -66,9 +68,17 @@ export function RiskIntelligenceView({ supplier }: { supplier: any }) {
             </div>
 
             <h4 className="font-bold mb-1">{supplier.name}</h4>
-            <p className="text-xs text-muted-foreground mb-4">
-                Current Risk Score: <strong>{supplier.riskScore || 0}</strong>
-            </p>
+            <div className="flex justify-between items-center mb-4">
+                <p className="text-xs text-muted-foreground">
+                    Current Risk Score: <strong>{supplier.riskScore || 0}</strong>
+                </p>
+                <MitigationAction
+                    supplierId={supplier.id}
+                    supplierName={supplier.name}
+                    currentRisk={supplier.riskScore}
+                    type="link"
+                />
+            </div>
 
             {result ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
@@ -111,3 +121,4 @@ export function RiskIntelligenceView({ supplier }: { supplier: any }) {
         </div>
     );
 }
+

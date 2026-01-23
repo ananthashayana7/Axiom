@@ -1,0 +1,80 @@
+:root {
+  /* Primary – deep teal */
+  --color-primary: #0d6efd;
+  --color-primary-dark: #0a58ca;
+  --color-primary-light: #3fa9ff;
+
+  /* Secondary – cool slate */
+  --color-secondary: #6c757d;
+  --color-secondary-dark: #5a6268;
+  --color-secondary-light: #adb5bd;
+
+  /* Accent – warm amber */
+  --color-accent: #ffb800;
+  --color-accent-dark: #cc9500;
+  --color-accent-light: #ffd966;
+
+  /* Neutrals */
+  --color-bg: #f8fafc;          /* very light gray */
+  --color-surface: #ffffff;     /* cards */
+  --color-text: #212529;        /* main text */
+  --color-muted: #6c757d;       /* secondary text */
+}
+
+/* Global page background */
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Glass-morphism card base */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Buttons */
+.axiom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.axiom-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.axiom-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+}
+
+.axiom-btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.axiom-btn-secondary {
+  background: var(--color-secondary);
+  color: #fff;
+  border: none;
+}
+
+.axiom-btn-secondary:hover {
+  background: var(--color-secondary-dark);
+}
