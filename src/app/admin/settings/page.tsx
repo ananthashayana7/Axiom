@@ -58,7 +58,7 @@ export default function AdminSettingsPage() {
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2">
-                                <SettingsIcon className="h-5 w-5 text-primary" />
+                                <SettingsIcon className="h-5 w-5 text-amber-600" />
                                 <CardTitle>General Configuration</CardTitle>
                             </div>
                             <CardDescription>Main system parameters and localization settings.</CardDescription>
@@ -74,7 +74,7 @@ export default function AdminSettingsPage() {
                                 name="isSettingsLocked"
                                 checked={isLocked}
                                 onChange={(e) => setIsLocked(e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
                             />
                         </div>
                     </CardHeader>
@@ -130,7 +130,7 @@ export default function AdminSettingsPage() {
                 <Card className="hover:shadow-md transition-shadow border-dashed">
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <Globe className="h-5 w-5 text-blue-500" />
+                            <Globe className="h-5 w-5 text-amber-600" />
                             <CardTitle>AI & Data Benchmarks</CardTitle>
                         </div>
                         <CardDescription>Configure AI model parameters and market intelligence thresholds.</CardDescription>
@@ -151,7 +151,7 @@ export default function AdminSettingsPage() {
 
                 <div className="flex justify-end gap-3 mt-4">
                     <Button type="button" variant="ghost">Reset Defaults</Button>
-                    <Button type="submit" disabled={isPending} className="min-w-[140px]">
+                    <Button type="submit" disabled={isPending} className="min-w-[140px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100">
                         {isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

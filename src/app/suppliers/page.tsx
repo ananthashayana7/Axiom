@@ -94,7 +94,7 @@ export default function SuppliersPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-screen flex-col bg-background p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
@@ -224,10 +224,10 @@ export default function SuppliersPage() {
                                             <td className="p-4 align-middle">
                                                 <div className="flex justify-center">
                                                     <div className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-all shadow-sm
-                                                        ${supplier.tierLevel === 'tier_1' ? 'bg-purple-100 border-purple-300 text-purple-700' :
-                                                            supplier.tierLevel === 'tier_2' ? 'bg-blue-100 border-blue-300 text-blue-700' :
-                                                                supplier.tierLevel === 'critical' ? 'bg-red-100 border-red-300 text-red-700 animate-pulse' :
-                                                                    'bg-slate-100 border-slate-300 text-slate-700'}`}>
+                                                        ${supplier.tierLevel === 'tier_1' ? 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400' :
+                                                            supplier.tierLevel === 'tier_2' ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400' :
+                                                                supplier.tierLevel === 'critical' ? 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400 animate-pulse' :
+                                                                    'bg-slate-500/10 border-slate-500/20 text-slate-600 dark:text-slate-400'}`}>
                                                         {supplier.tierLevel === 'tier_1' ? '1' :
                                                             supplier.tierLevel === 'tier_2' ? '2' :
                                                                 supplier.tierLevel === 'critical' ? 'C' : '3'}
@@ -245,7 +245,7 @@ export default function SuppliersPage() {
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`p-1.5 rounded-md ${supplier.financialScore > 70 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    <div className={`p-1.5 rounded-md ${supplier.financialScore > 70 ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'}`}>
                                                         <Wallet size={14} />
                                                     </div>
                                                     <span className="font-bold">{supplier.financialScore || 0}%</span>
@@ -253,7 +253,7 @@ export default function SuppliersPage() {
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="p-1.5 rounded-md bg-blue-100 text-blue-700">
+                                                    <div className="p-1.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
                                                         <Globe size={14} />
                                                     </div>
                                                     <span className="font-bold">{supplier.esgScore || 0}%</span>
@@ -262,12 +262,12 @@ export default function SuppliersPage() {
                                             <td className="p-4 align-middle text-center">
                                                 <div className="flex flex-wrap gap-1.5 justify-center">
                                                     {supplier.isoCertifications?.map((iso: string) => (
-                                                        <Badge key={iso} variant="outline" className="text-[9px] px-1 py-0 h-4 bg-white font-black border-slate-200 text-slate-600 uppercase">
+                                                        <Badge key={iso} variant="outline" className="text-[9px] px-1 py-0 h-4 bg-background border-border text-foreground uppercase tracking-wider font-bold">
                                                             {iso.split(' ')[1] || 'ISO'}
                                                         </Badge>
                                                     ))}
                                                     {supplier.modernSlaveryStatement === 'yes' && (
-                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-green-50 font-black border-green-200 text-green-700">
+                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-green-500/10 font-bold border-green-500/20 text-green-600 dark:text-green-400">
                                                             MSA
                                                         </Badge>
                                                     )}
@@ -314,30 +314,30 @@ export default function SuppliersPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex items-start gap-3">
-                            <div className="h-5 w-5 rounded-full bg-purple-100 border border-purple-300 text-purple-700 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">1</div>
+                            <div className="h-5 w-5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">1</div>
                             <div>
                                 <p className="text-xs font-bold">Strategic Partners</p>
                                 <p className="text-[10px] text-muted-foreground leading-tight">High spend, high importance. Critical to long-term innovation and company growth.</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-3">
-                            <div className="h-5 w-5 rounded-full bg-blue-100 border border-blue-300 text-blue-700 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">2</div>
+                            <div className="h-5 w-5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">2</div>
                             <div>
                                 <p className="text-xs font-bold">Core Suppliers</p>
                                 <p className="text-[10px] text-muted-foreground leading-tight">Essential operational items. Regular interactions and stable long-term agreements.</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-3">
-                            <div className="h-5 w-5 rounded-full bg-slate-100 border border-slate-300 text-slate-700 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">3</div>
+                            <div className="h-5 w-5 rounded-full bg-muted border border-border text-foreground text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5">3</div>
                             <div>
                                 <p className="text-xs font-bold">Transactional Suppliers</p>
                                 <p className="text-[10px] text-muted-foreground leading-tight">Ad-hoc or low-value purchases. Easily replaceable or commoditized services.</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-3">
-                            <div className="h-5 w-5 rounded-full bg-red-100 border border-red-300 text-red-700 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5 anim-pulse">C</div>
+                            <div className="h-5 w-5 rounded-full bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-[10px] flex items-center justify-center font-bold shrink-0 mt-0.5 anim-pulse">C</div>
                             <div>
-                                <p className="text-xs font-bold text-red-700">Critical Risks</p>
+                                <p className="text-xs font-bold text-red-600 dark:text-red-400">Critical Risks</p>
                                 <p className="text-[10px] text-muted-foreground leading-tight">High risk score (&gt;75) or critical failure point in the supply chain. Immediate focus.</p>
                             </div>
                         </div>
@@ -353,19 +353,19 @@ export default function SuppliersPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-white font-black border-slate-200 text-slate-600 uppercase">9001</Badge>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-background/50 border-border text-foreground uppercase tracking-wider font-bold">9001</Badge>
                             <span className="text-xs text-muted-foreground">ISO 9001: Quality Management Standards</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-white font-black border-slate-200 text-slate-600 uppercase">14001</Badge>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-background/50 border-border text-foreground uppercase tracking-wider font-bold">14001</Badge>
                             <span className="text-xs text-muted-foreground">ISO 14001: Environmental Management</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-white font-black border-slate-200 text-slate-600 uppercase">44001</Badge>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-background/50 border-border text-foreground uppercase tracking-wider font-bold">44001</Badge>
                             <span className="text-xs text-muted-foreground">ISO 44001: Collaborative Relationships</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 font-black border-green-200 text-green-700">MSA</Badge>
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-500/10 font-bold border-green-500/20 text-green-600 dark:text-green-400">MSA</Badge>
                             <span className="text-xs text-muted-foreground">Modern Slavery Act Statement Compliance</span>
                         </div>
                     </CardContent>

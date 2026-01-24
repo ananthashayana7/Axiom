@@ -82,7 +82,7 @@ export default function SupplierDocuments() {
 
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                     <DialogTrigger asChild>
-                        <Button className="gap-2 font-bold h-11 shadow-lg">
+                        <Button className="gap-2 font-bold h-11 shadow-lg bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100">
                             <Plus className="h-4 w-4" /> Upload New Document
                         </Button>
                     </DialogTrigger>
@@ -135,10 +135,10 @@ export default function SupplierDocuments() {
             </div>
 
             <div className="grid gap-6">
-                <Card className="shadow-sm border-none bg-gradient-to-r from-blue-50 to-indigo-50/20">
+                <Card className="shadow-sm border-none bg-gradient-to-r from-amber-50 to-stone-50/20 border-amber-100">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-lg flex items-center gap-2">
-                            <FileCheck className="h-5 w-5 text-blue-600" />
+                            <FileCheck className="h-5 w-5 text-amber-600" />
                             Vault Security Notice
                         </CardTitle>
                     </CardHeader>

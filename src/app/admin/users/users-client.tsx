@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { Plus, Shield as ShieldIcon } from "lucide-react";
 
 import { createUser, deleteUser, updateUser } from "@/app/actions/users";
 
@@ -17,9 +19,19 @@ interface AppUser {
     name: string;
     email: string;
     employeeId: string | null;
+    department: string | null;
     role: 'admin' | 'user' | null;
     createdAt: Date | null;
 }
+
+const DEPARTMENTS = [
+    "Finance & Budgeting",
+    "Supplier Operations",
+    "Procurement Team",
+    "Inventory Control",
+    "IT & Admin",
+    "Executive Leadership"
+];
 
 interface UsersClientProps {
     users: AppUser[];
@@ -68,8 +80,8 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                 {currentUserRole === 'admin' && (
                     <Dialog open={open} onOpenChange={setOpen}>
                         <DialogTrigger asChild>
-                            <Button className="gap-2">
-                                <span className="mr-1">+</span>
+                            <Button className="gap-2 bg-amber-600 hover:bg-amber-700 transition-all shadow-lg shadow-amber-100">
+                                <Plus className="mr-1 h-4 w-4" />
                                 Add User
                             </Button>
                         </DialogTrigger>
@@ -96,6 +108,19 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                 <div className="grid gap-2">
                                     <Label htmlFor="password">Password</Label>
                                     <Input id="password" name="password" type="password" placeholder="Minimum 6 characters" required minLength={6} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="department">Department</Label>
+                                    <select
+                                        id="department"
+                                        name="department"
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    >
+                                        <option value="">Select Department</option>
+                                        {DEPARTMENTS.map(dept => (
+                                            <option key={dept} value={dept}>{dept}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="role">Role</Label>
@@ -135,6 +160,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Name</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Emp ID</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Department</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Role</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Created</th>
                                         {currentUserRole === 'admin' && (
@@ -155,8 +181,19 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                             </td>
                                             <td className="p-4 align-middle font-mono text-xs">{user.email}</td>
                                             <td className="p-4 align-middle font-mono text-xs">{user.employeeId || '-'}</td>
+                                            <td className="p-4 align-middle text-xs">
+                                                {user.department ? (
+                                                    <Badge variant="outline" className="font-normal bg-muted/50">{user.department}</Badge>
+                                                ) : '-'}
+                                            </td>
                                             <td className="p-4 align-middle capitalize">
-                                                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                                                <Badge className={cn(
+                                                    "uppercase text-[10px] font-black tracking-widest px-3 py-1 rounded-lg",
+                                                    user.role === 'admin'
+                                                        ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                                        : 'bg-stone-100 text-stone-600 border-stone-200'
+                                                )}>
+                                                    <ShieldIcon className="mr-1 h-3 w-3" />
                                                     {user.role}
                                                 </Badge>
                                             </td>
@@ -170,7 +207,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                             variant="ghost"
                                                             size="sm"
                                                             onClick={() => setEditUser(user)}
-                                                            className="text-blue-500 hover:text-blue-700"
+                                                            className="text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg transition-colors font-bold"
                                                         >
                                                             <span>Edit</span>
                                                         </Button>
@@ -225,6 +262,20 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-password">New Password (leave blank to keep current)</Label>
                                 <Input id="edit-password" name="password" type="password" placeholder="Minimum 6 characters" minLength={6} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-department">Department</Label>
+                                <select
+                                    id="edit-department"
+                                    name="department"
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    defaultValue={editUser.department || ''}
+                                >
+                                    <option value="">Select Department</option>
+                                    {DEPARTMENTS.map(dept => (
+                                        <option key={dept} value={dept}>{dept}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-role">Role</Label>

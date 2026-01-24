@@ -59,7 +59,7 @@ export default async function PartsPage() {
         <div className="bg-card p-6 rounded-2xl border shadow-sm border-red-100 bg-red-50/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Stockouts/Critical</p>
+              <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Critical</p>
               <p className="text-3xl font-black text-red-600">{criticalStock}</p>
             </div>
             <div className="bg-red-100 p-3 rounded-xl border border-red-200">

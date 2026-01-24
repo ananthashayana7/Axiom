@@ -47,7 +47,7 @@ export default function SupplierDashboard() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-8">
+        <div className="flex min-h-screen flex-col bg-background p-8 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Supplier Command Center</h1>
@@ -66,7 +66,7 @@ export default function SupplierDashboard() {
 
             {/* Vendor Stats */}
             <div className="grid gap-6 md:grid-cols-3">
-                <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-none shadow-lg">
+                <Card className="bg-gradient-to-br from-amber-600 to-amber-700 text-white border-none shadow-lg">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-bold uppercase tracking-wider">New Invitations</CardTitle>
                         <Sparkles className="h-4 w-4 opacity-80" />
@@ -74,7 +74,7 @@ export default function SupplierDashboard() {
                     <CardContent>
                         <div className="text-4xl font-black">{stats?.invitedRFQs || 0}</div>
                         <p className="text-xs opacity-70 mt-2">Active RFQs requiring your quotation.</p>
-                        <Button variant="secondary" size="sm" className="w-full mt-4 font-bold">
+                        <Button variant="secondary" size="sm" className="w-full mt-4 font-bold border-none transition-colors">
                             View Invitations <ChevronRight className="ml-1 h-3 w-3" />
                         </Button>
                     </CardContent>
@@ -83,7 +83,7 @@ export default function SupplierDashboard() {
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground uppercase">Active Orders</CardTitle>
-                        <ShoppingCart className="h-4 w-4 text-blue-500" />
+                        <ShoppingCart className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold">{stats?.activeOrders || 0}</div>
@@ -147,18 +147,18 @@ export default function SupplierDashboard() {
 
                 {/* Collaboration & Help */}
                 <div className="space-y-6">
-                    <Card className="border-none bg-blue-50">
+                    <Card className="border-border bg-muted/20 shadow-sm border">
                         <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2 text-blue-900">
-                                <MessageSquare className="h-5 w-5" />
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <MessageSquare className="h-5 w-5 text-primary" />
                                 Support Desk
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm text-blue-800/80 leading-relaxed mb-4">
+                            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                                 Need technical help or clarification on an RFQ? Connect with the Axiom procurement team directly.
                             </p>
-                            <Button className="w-full bg-blue-600 hover:bg-blue-700 font-bold border-none shadow-md">
+                            <Button className="w-full font-bold shadow-md">
                                 Open Chat Window
                             </Button>
                         </CardContent>

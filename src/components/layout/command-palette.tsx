@@ -65,7 +65,7 @@ export function CommandPalette() {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="overflow-hidden p-0 shadow-2xl bg-white border-primary/20 max-w-[600px]">
+            <DialogContent className="overflow-hidden p-0 shadow-2xl bg-background border border-border max-w-[600px]">
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
                 <Command className="flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">
                     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
@@ -155,13 +155,13 @@ export function CommandPalette() {
                     <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-[10px] text-muted-foreground">
                         <div className="flex items-center gap-4">
                             <span className="flex items-center gap-1">
-                                <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono font-medium text-muted-foreground opacity-100">
+                                <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border border-border bg-muted/50 px-1.5 font-mono font-medium text-muted-foreground opacity-100">
                                     <span className="text-xs">↑↓</span>
                                 </kbd>
                                 Navigate
                             </span>
                             <span className="flex items-center gap-1">
-                                <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono font-medium text-muted-foreground opacity-100">
+                                <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border border-border bg-muted/50 px-1.5 font-mono font-medium text-muted-foreground opacity-100">
                                     <span className="text-xs">↵</span>
                                 </kbd>
                                 Select

@@ -19,6 +19,7 @@ export const users = pgTable('users', {
     employeeId: text('employee_id').unique(),
     password: text('password').notNull(),
     role: userRoleEnum('role').default('user'),
+    department: text('department'), // Added for department mapping
     supplierId: uuid('supplier_id').references(() => suppliers.id),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({

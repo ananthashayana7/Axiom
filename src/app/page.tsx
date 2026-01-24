@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert } from "lucide-react";
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
+import { DataExplorer } from "@/components/dashboard/data-explorer";
 import { RecentSales } from "@/components/dashboard/recent-sales";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers } from "@/app/actions/dashboard";
 import { getSuppliers } from "@/app/actions/suppliers";
@@ -10,7 +11,9 @@ import { getParts } from "@/app/actions/parts";
 import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
 import { DownloadDataButton } from "@/components/dashboard/download-data-button";
 
+import Link from "next/link";
 import { AiInsights } from "@/components/dashboard/ai-insights";
+import { CommunicationHub } from "@/components/dashboard/communication-hub";
 
 export default async function Home() {
   const stats = await getDashboardStats();
@@ -29,7 +32,7 @@ export default async function Home() {
   };
 
   return (
-    <div className="p-10 space-y-8 bg-muted/40 min-h-full">
+    <div className="p-10 space-y-8 bg-background min-h-full">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
         <div className="flex items-center space-x-2">
@@ -39,62 +42,70 @@ export default async function Home() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* ... stats cards ... */}
         {/* Total Spend */}
-        <Card className="border-l-4 border-l-primary shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tracked Spend</CardTitle>
-            <IndianRupee className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{stats.totalSpend}</div>
-            <p className="text-xs text-muted-foreground mt-1">+2.1% from last month</p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/analytics" className="block transition-transform hover:scale-[1.02]">
+          <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Tracked Spend</CardTitle>
+              <IndianRupee className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{stats.totalSpend}</div>
+              <p className="text-xs text-muted-foreground mt-1">+2.1% from last month</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Active Suppliers */}
-        <Card className="border-l-4 border-l-green-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Verified Suppliers</CardTitle>
-            <Users className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.supplierCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">4 new this week</p>
-          </CardContent>
-        </Card>
+        <Link href="/suppliers" className="block transition-transform hover:scale-[1.02]">
+          <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Verified Suppliers</CardTitle>
+              <Users className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.supplierCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">4 new this week</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Active Orders */}
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <CreditCard className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.orderCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">12 awaiting approval</p>
-          </CardContent>
-        </Card>
+        <Link href="/sourcing/orders" className="block transition-transform hover:scale-[1.02]">
+          <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+              <CreditCard className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.orderCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">12 awaiting approval</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Parts Tracked */}
-        <Card className="border-l-4 border-l-orange-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">SKUs Tracked</CardTitle>
-            <Package className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.partCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Across {categorySpend.length} categories</p>
-          </CardContent>
-        </Card>
+        <Link href="/sourcing/parts" className="block transition-transform hover:scale-[1.02]">
+          <Card className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">SKUs Tracked</CardTitle>
+              <Package className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.partCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Across {categorySpend.length} categories</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
-          <AnalyticsBoard monthlyData={monthlySpend} categoryData={categorySpend} />
+          <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} />
           <AiInsights />
         </div>
         <div className="col-span-3 space-y-6">
+          <CommunicationHub />
           <Card className="shadow-lg border-accent/50 overflow-hidden">
             <CardHeader className="border-b bg-muted/20">
               <CardTitle className="flex items-center gap-2 text-lg">

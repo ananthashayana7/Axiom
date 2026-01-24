@@ -20,8 +20,8 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-100">
-            <div className="w-full max-w-sm rounded-lg border bg-white p-8 shadow-md">
+        <div className="flex min-h-screen items-center justify-center bg-background">
+            <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
                 <h1 className="mb-2 text-center text-3xl font-bold tracking-tight text-primary">Axiom</h1>
                 <p className="mb-6 text-center text-sm text-muted-foreground">Log in to your account</p>
                 <form action={formAction} className="space-y-4">

@@ -59,6 +59,10 @@ export async function getRFQById(id: string) {
     const role = (session.user as any).role;
     const supplierId = (session.user as any).supplierId;
 
+    // Validate UUID format to prevent SQL errors
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) return null;
+
     try {
         const rfq = await db.query.rfqs.findFirst({
             where: eq(rfqs.id, id),

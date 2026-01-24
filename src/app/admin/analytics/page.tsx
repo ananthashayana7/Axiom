@@ -134,24 +134,24 @@ export default function AnalyticsPage() {
                         </p>
                     </CardContent>
                 </Card>
-                <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <Card className="border-l-4 border-l-amber-500 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Active Categories</CardTitle>
-                        <PieIcon className="h-4 w-4 text-blue-600" />
+                        <PieIcon className="h-4 w-4 text-amber-600" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.spendByCategory.length}</div>
                         <p className="text-xs text-muted-foreground mt-1 font-medium">Diversified across 8 sectors</p>
                     </CardContent>
                 </Card>
-                <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-background to-purple-50/20 shadow-sm">
+                <Card className="border-l-4 border-l-emerald-500 bg-gradient-to-br from-background to-emerald-50/20 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">AI Negotiation Alpha</CardTitle>
-                        <Zap className="h-4 w-4 text-purple-600 fill-purple-600" />
+                        <CardTitle className="text-sm font-medium text-stone-900">AI Negotiation Alpha</CardTitle>
+                        <Zap className="h-4 w-4 text-emerald-600 fill-emerald-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">4.8%</div>
-                        <p className="text-xs text-muted-foreground mt-1 font-medium italic">Incremental margin identified</p>
+                        <div className="text-2xl font-bold text-stone-900">4.8%</div>
+                        <p className="text-xs text-stone-500 mt-1 font-medium italic">Incremental margin identified</p>
                     </CardContent>
                 </Card>
             </div>
@@ -185,8 +185,8 @@ export default function AnalyticsPage() {
                 {/* Spend by Category */}
                 <Card className="shadow-sm">
                     <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <PieIcon className="h-5 w-5 text-blue-600" />
+                        <CardTitle className="text-lg flex items-center gap-2 text-stone-900">
+                            <PieIcon className="h-5 w-5 text-amber-600" />
                             Spend by Category
                         </CardTitle>
                         <CardDescription>Visual breakdown of allocation across part categories.</CardDescription>

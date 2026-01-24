@@ -1,4 +1,5 @@
 import { NotificationBell } from "./notification-bell";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { auth } from "@/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,37 +12,42 @@ export async function Header() {
     const userName = session?.user?.name || "User";
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-8 shrink-0">
-            <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">Welcome back,</span>
-                    <span className="text-sm font-bold">{userName}</span>
+        <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-8 transition-all font-sans">
+            <div className="flex items-center gap-8">
+                <div className="flex flex-col">
+                    <h2 className="text-base font-bold text-foreground tracking-tight font-heading leading-tight">Intelligence Hub</h2>
                 </div>
+                <div className="hidden lg:block h-6 w-[1px] bg-zinc-200" />
                 <div className="hidden md:flex items-center">
                     <SearchTrigger />
                 </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
+                <ThemeToggle />
                 <NotificationBell />
-                <Link
-                    href="/profile"
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                    <User className="h-4 w-4" />
-                    Profile
-                </Link>
-                <form
-                    action={async () => {
-                        "use server";
-                        await signOut();
-                    }}
-                >
-                    <Button variant="ghost" size="sm" type="submit" className="text-red-500 hover:text-red-700 hover:bg-red-50 gap-2">
-                        <LogOut className="h-4 w-4" />
-                        <span className="hidden sm:inline">Logout</span>
-                    </Button>
-                </form>
+                <div className="h-6 w-[1px] bg-zinc-200 hidden sm:block" />
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/profile"
+                        className="flex items-center gap-2.5 px-3 py-1.5 text-xs font-bold text-zinc-700 rounded-lg hover:bg-zinc-100 transition-all"
+                    >
+                        <div className="w-7 h-7 bg-emerald-100 rounded-md flex items-center justify-center text-emerald-700 font-bold text-[10px]">
+                            {userName.charAt(0)}
+                        </div>
+                        <span className="hidden xl:inline">{userName}</span>
+                    </Link>
+                    <form
+                        action={async () => {
+                            "use server";
+                            await signOut();
+                        }}
+                    >
+                        <Button variant="ghost" size="sm" type="submit" className="h-9 w-9 p-0 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                            <LogOut className="h-4 w-4" />
+                        </Button>
+                    </form>
+                </div>
             </div>
         </header>
     );

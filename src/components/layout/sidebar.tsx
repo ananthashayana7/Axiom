@@ -5,12 +5,13 @@ import {
     Package,
     ShoppingCart,
     UserCog,
-    Sparkles,
     ShieldAlert,
     BarChart3,
     FileText,
     Settings,
-    History
+    History,
+    Sparkles,
+    Atom
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
@@ -35,12 +36,37 @@ export async function Sidebar({ className }: { className?: string }) {
     const role = (session?.user as any)?.role;
 
     return (
-        <div className={cn("w-64 border-r bg-background flex flex-col h-screen overflow-hidden", className)}>
+        <div className={cn("w-64 border-r border-border bg-sidebar flex flex-col h-screen overflow-hidden", className)}>
             <div className="flex-1 overflow-y-auto min-h-0 py-4 scrollbar-thin scrollbar-thumb-muted">
                 <div className="px-3 py-2">
-                    <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
-                        Axiom
-                    </h2>
+                    <div className="mb-6 px-4 flex items-center gap-3">
+                        {/* Abstract Hidden 'AS' Icon */}
+                        <div className="relative group">
+                            <div className="absolute -inset-1 bg-gradient-to-tr from-zinc-200 to-zinc-500 rounded-lg blur-[2px] opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                            <div className="relative h-12 w-12 bg-black rounded-lg flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.5)] border border-zinc-800">
+                                <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    {/* Abstract 'A' (Chevron) & 'S' (Curve) fused into a cryptic glyph */}
+                                    <path d="M12 2L2 22h20L12 2z" className="opacity-0" />
+                                    <path d="M12 3L4 20h16L12 3z" stroke="currentColor" strokeLinecap="square" className="drop-shadow-[0_0_2px_white]" />
+                                    <path d="M12 8c-2 0-3 1-3 3s2 3 2 5-2 4-4 4" stroke="currentColor" className="text-zinc-500" />
+                                    <path d="M15 14c1 1 2.5 1 3.5 0" stroke="currentColor" className="text-zinc-600" />
+                                </svg>
+                                {/* Gloss shine on the icon */}
+                                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-lg"></div>
+                            </div>
+                        </div>
+
+                        {/* Shiny Text */}
+                        <div className="relative">
+                            <h2 className={`text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground/60 via-foreground to-foreground font-display drop-shadow-sm`}>
+                                Axiom
+                            </h2>
+                            {/* Specular Highlight for 'Shiny' effect */}
+                            <div className="absolute top-[2px] left-0 w-full h-[40%] bg-gradient-to-b from-white/20 to-transparent opacity-50 bg-clip-text text-transparent select-none pointer-events-none font-display text-4xl font-black tracking-tighter">
+                                Axiom
+                            </div>
+                        </div>
+                    </div>
                     <div className="space-y-1">
                         <Link href={role === 'supplier' ? '/portal' : '/'}>
                             <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">

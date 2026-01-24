@@ -65,24 +65,24 @@ export default async function RiskDashboardPage() {
                         <p className="text-xs text-muted-foreground mt-1 font-medium">Stable</p>
                     </CardContent>
                 </Card>
-                <Card className="border-blue-200 bg-blue-50/30 shadow-none">
+                <Card className="border-amber-200 bg-amber-50/30 shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Avg ESG Performance</CardTitle>
-                        <Globe className="h-4 w-4 text-blue-600" />
+                        <Globe className="h-4 w-4 text-amber-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{stats.esgAvg}/100</div>
-                        <p className="text-xs text-muted-foreground mt-1">Industry Standard: 62</p>
+                        <div className="text-2xl font-bold text-amber-700">{stats.esgAvg}/100</div>
+                        <p className="text-xs text-stone-500 mt-1">Industry Standard: 62</p>
                     </CardContent>
                 </Card>
-                <Card className="border-purple-200 bg-purple-50/30 shadow-none">
+                <Card className="border-stone-200 bg-stone-50/30 shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Compliance Rate</CardTitle>
-                        <Search className="h-4 w-4 text-purple-600" />
+                        <Search className="h-4 w-4 text-stone-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-600">98.2%</div>
-                        <p className="text-xs text-muted-foreground mt-1">Active Certifications</p>
+                        <div className="text-2xl font-bold text-stone-900">98.2%</div>
+                        <p className="text-xs text-stone-500 mt-1">Active Certifications</p>
                     </CardContent>
                 </Card>
             </div>
@@ -93,13 +93,13 @@ export default async function RiskDashboardPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Globe className="h-5 w-5 text-blue-600" />
+                                <CardTitle className="text-xl flex items-center gap-2 text-stone-900">
+                                    <Globe className="h-5 w-5 text-amber-600" />
                                     ESG Tracking (Sustainability)
                                 </CardTitle>
                                 <CardDescription>Monitoring environmental and social impact scores.</CardDescription>
                             </div>
-                            <Badge variant="outline" className="text-blue-600">Active Monitoring</Badge>
+                            <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50/50">Active Monitoring</Badge>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">

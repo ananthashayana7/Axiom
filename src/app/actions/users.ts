@@ -16,6 +16,7 @@ export async function getUsers() {
             name: users.name,
             email: users.email,
             employeeId: users.employeeId,
+            department: users.department,
             role: users.role,
             createdAt: users.createdAt,
         }).from(users).orderBy(users.createdAt);
@@ -36,6 +37,7 @@ export async function createUser(formData: FormData) {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
         const employeeId = formData.get("employeeId") as string;
+        const department = formData.get("department") as string;
         const password = formData.get("password") as string;
         const role = (formData.get("role") as 'admin' | 'user') || 'user';
 
@@ -45,6 +47,7 @@ export async function createUser(formData: FormData) {
             name,
             email,
             employeeId,
+            department,
             password: hashedPassword,
             role,
         }).returning();
@@ -80,10 +83,11 @@ export async function updateUser(id: string, formData: FormData) {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
         const employeeId = formData.get("employeeId") as string;
+        const department = formData.get("department") as string;
         const password = formData.get("password") as string;
         const role = formData.get("role") as 'admin' | 'user';
 
-        const updateData: any = { name, email, employeeId };
+        const updateData: any = { name, email, employeeId, department };
 
         // Only admins can change roles
         if (currentUser?.role === 'admin' && role) {

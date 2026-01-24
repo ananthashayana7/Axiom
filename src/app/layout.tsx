@@ -16,6 +16,7 @@ export const viewport: Viewport = {
   themeColor: "#0f172a",
 };
 
+import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { auth } from "@/auth";
@@ -37,26 +38,33 @@ export default async function RootLayout({
         className="antialiased flex min-h-screen"
         suppressHydrationWarning
       >
-        <SessionProvider>
-          {session ? (
-            <>
-              <Sidebar className="hidden lg:block sticky top-0 h-screen" />
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <Header />
-                <main className="flex-1 overflow-y-auto">
-                  {children}
-                </main>
-                <CommandPalette />
-              </div>
-              <InactivityTracker />
-            </>
-          ) : (
-            <main className="flex-1">
-              {children}
-            </main>
-          )}
-          <Toaster position="top-right" richColors />
-        </SessionProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SessionProvider>
+            {session ? (
+              <>
+                <Sidebar className="hidden lg:block sticky top-0 h-screen" />
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  <Header />
+                  <main className="flex-1 overflow-y-auto">
+                    {children}
+                  </main>
+                  <CommandPalette />
+                </div>
+                <InactivityTracker />
+              </>
+            ) : (
+              <main className="flex-1">
+                {children}
+              </main>
+            )}
+            <Toaster position="top-right" richColors />
+          </SessionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -58,8 +58,8 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
                 <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-b">
                     {/* Step 1: Purchase Order */}
                     <div className="p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                            <div className="p-1 rounded bg-blue-100 text-blue-600">1</div>
+                        <div className="flex items-center gap-2 text-xs font-bold text-stone-500 uppercase tracking-wider">
+                            <div className="p-1 rounded bg-amber-100 text-amber-700 font-black">1</div>
                             Purchase Order
                         </div>
                         <div className="flex justify-between items-end">
@@ -73,8 +73,8 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
 
                     {/* Step 2: Goods Receipt */}
                     <div className="p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                            <div className="p-1 rounded bg-blue-100 text-blue-600">2</div>
+                        <div className="flex items-center gap-2 text-xs font-bold text-stone-500 uppercase tracking-wider">
+                            <div className="p-1 rounded bg-amber-100 text-amber-700 font-black">2</div>
                             Goods Receipt
                         </div>
                         <div className="flex justify-between items-end">
@@ -101,8 +101,8 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
 
                     {/* Step 3: Invoice */}
                     <div className="p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                            <div className="p-1 rounded bg-blue-100 text-blue-600">3</div>
+                        <div className="flex items-center gap-2 text-xs font-bold text-stone-500 uppercase tracking-wider">
+                            <div className="p-1 rounded bg-amber-100 text-amber-700 font-black">3</div>
                             Supplier Invoice
                         </div>
                         <div className="flex justify-between items-end">

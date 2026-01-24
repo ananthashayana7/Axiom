@@ -56,10 +56,10 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
     return (
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="bg-gradient-to-br from-blue-50/50 to-transparent">
+                <Card className="bg-gradient-to-br from-amber-50/50 to-transparent border-amber-100">
                     <CardHeader className="pb-2">
                         <CardDescription className="text-[10px] uppercase font-bold tracking-wider">Overall Reliability</CardDescription>
-                        <CardTitle className="text-2xl font-bold text-blue-600">{metrics.performanceScore}%</CardTitle>
+                        <CardTitle className="text-2xl font-bold text-amber-700">{metrics.performanceScore}%</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
@@ -133,8 +133,8 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                             <AreaChart data={chartData}>
                                 <defs>
                                     <linearGradient id="colorDelivery" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.1} />
+                                        <stop offset="95%" stopColor="#d97706" stopOpacity={0} />
                                     </linearGradient>
                                     <linearGradient id="colorQuality" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
@@ -162,7 +162,7 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                                     type="monotone"
                                     dataKey="delivery"
                                     name="Delivery Rate"
-                                    stroke="#2563eb"
+                                    stroke="#d97706"
                                     strokeWidth={3}
                                     fillOpacity={1}
                                     fill="url(#colorDelivery)"
@@ -202,10 +202,10 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                                 <div className="flex items-center gap-6">
                                     <div className="text-right">
                                         <p className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Delivery</p>
-                                        <p className="font-bold text-sm text-blue-600">{log.deliveryRate}%</p>
+                                        <p className="font-bold text-sm text-amber-700">{log.deliveryRate}%</p>
                                     </div>
                                     <div className="text-center">
-                                        <ShieldCheck className={`h-5 w-5 ${parseFloat(log.qualityScore) > 90 ? 'text-green-500' : 'text-yellow-500'}`} />
+                                        <ShieldCheck className={`h-5 w-5 ${parseFloat(log.qualityScore) > 90 ? 'text-green-500' : 'text-amber-500'}`} />
                                     </div>
                                 </div>
                             </div>

@@ -18,11 +18,11 @@ export function AiInsights() {
     }
 
     return (
-        <Card className="border-indigo-100 bg-indigo-50/50 dark:bg-indigo-900/10 dark:border-indigo-900">
+        <Card className="border-primary/10 bg-primary/5">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                    <CardTitle className="text-indigo-900 dark:text-indigo-100">AI Procurement Intelligence</CardTitle>
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <CardTitle>AI Procurement Intelligence</CardTitle>
                 </div>
                 <CardDescription>
                     Real-time analysis of your spend data and risks.
@@ -43,15 +43,15 @@ export function AiInsights() {
 
                 {analysis && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
-                            <p className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2">Analysis Summary</p>
+                        <div className="rounded-lg bg-background p-4 shadow-sm border border-border">
+                            <p className="font-medium text-sm text-foreground mb-2">Analysis Summary</p>
                             <p className="text-sm text-muted-foreground">{analysis.summary}</p>
                         </div>
 
-                        <div className="rounded-lg bg-green-50 p-4 border border-green-100 dark:bg-green-900/20 dark:border-green-900">
+                        <div className="rounded-lg bg-green-500/5 p-4 border border-green-500/20">
                             <div className="flex justify-between items-center mb-2">
-                                <p className="font-medium text-sm text-green-900 dark:text-green-100">Potential Savings</p>
-                                <span className="font-bold text-green-700 dark:text-green-300 text-lg">₹{analysis.savingsPotential.toLocaleString()}</span>
+                                <p className="font-medium text-sm text-green-600 dark:text-green-400">Potential Savings</p>
+                                <span className="font-bold text-green-600 dark:text-green-400 text-lg">₹{analysis.savingsPotential.toLocaleString()}</span>
                             </div>
                         </div>
 
@@ -69,6 +69,6 @@ export function AiInsights() {
                     </div>
                 )}
             </CardContent>
-        </Card>
+        </Card >
     )
 }

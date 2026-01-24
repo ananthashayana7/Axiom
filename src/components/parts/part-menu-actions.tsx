@@ -39,6 +39,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { getMarketTrend } from "@/app/actions/intelligence";
 
 interface Part {
     id: string;
@@ -56,6 +57,9 @@ export function PartMenuActions({ part }: { part: Part }) {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isFetchingTrend, setIsFetchingTrend] = useState(false);
+    const [marketTrendValue, setMarketTrendValue] = useState(part.marketTrend || 'stable');
+    const [trendReason, setTrendReason] = useState<string | null>(null);
 
     const handleDelete = async () => {
         setIsDeleting(true);
@@ -65,7 +69,7 @@ export function PartMenuActions({ part }: { part: Part }) {
                 toast.success("Part deleted successfully");
                 setShowDeleteAlert(false);
             } else {
-                toast.error("Failed to delete part");
+                toast.error(result.error || "Failed to delete part");
             }
         } catch (error) {
             toast.error("An error occurred");
@@ -92,25 +96,25 @@ export function PartMenuActions({ part }: { part: Part }) {
     };
 
     return (
-        <>
-            <DropdownMenu open={open} onOpenChange={setOpen}>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setShowEditDialog(true)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setShowDeleteAlert(true)} className="text-red-600">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+        <div className="flex items-center gap-1.5">
+            <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 flex items-center gap-1 border-amber-100 bg-amber-50/50 text-amber-700 hover:bg-amber-600 hover:text-white transition-all duration-300 rounded-lg shadow-sm group/btn"
+                onClick={() => setShowEditDialog(true)}
+            >
+                <Pencil className="h-3 w-3 transition-transform group-hover/btn:scale-110" />
+                <span className="text-[9px] font-black uppercase tracking-tighter">Edit</span>
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 flex items-center gap-1 border-rose-100 bg-rose-50/50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all duration-300 rounded-lg shadow-sm group/btn"
+                onClick={() => setShowDeleteAlert(true)}
+            >
+                <Trash2 className="h-3 w-3 transition-transform group-hover/btn:scale-110" />
+                <span className="text-[9px] font-black uppercase tracking-tighter">Del</span>
+            </Button>
 
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent>
@@ -196,7 +200,7 @@ export function PartMenuActions({ part }: { part: Part }) {
                                 <Label htmlFor="marketTrend" className="text-right">
                                     Trend
                                 </Label>
-                                <Select name="marketTrend" defaultValue={part.marketTrend || 'stable'}>
+                                <Select name="marketTrend" value={marketTrendValue} onValueChange={setMarketTrendValue}>
                                     <SelectTrigger className="col-span-3">
                                         <SelectValue placeholder="Select trend" />
                                     </SelectTrigger>
@@ -207,6 +211,43 @@ export function PartMenuActions({ part }: { part: Part }) {
                                         <SelectItem value="volatile">Volatile</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <div />
+                                <div className="col-span-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-2"
+                                        onClick={async () => {
+                                            const nameInput = (document.getElementById('name') as HTMLInputElement)?.value;
+                                            const categoryInput = part.category; // Or get from select if changed
+                                            if (!nameInput) return toast.error("Please enter a part name first");
+
+                                            setIsFetchingTrend(true);
+                                            try {
+                                                const intelligence = await getMarketTrend(nameInput, categoryInput);
+                                                setMarketTrendValue(intelligence.trend);
+                                                setTrendReason(intelligence.reason);
+                                                toast.success("Intelligence updated based on 2026 trends!");
+                                            } catch (error) {
+                                                toast.error("Failed to fetch market intelligence");
+                                            } finally {
+                                                setIsFetchingTrend(false);
+                                            }
+                                        }}
+                                        disabled={isFetchingTrend}
+                                    >
+                                        {isFetchingTrend ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
+                                        Get Real-Time Intelligence
+                                    </Button>
+                                    {trendReason && (
+                                        <p className="mt-2 text-[10px] text-muted-foreground leading-tight italic bg-muted/50 p-2 rounded border border-dashed">
+                                            {trendReason}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <DialogFooter>
@@ -223,7 +264,7 @@ export function PartMenuActions({ part }: { part: Part }) {
             </Dialog>
 
             <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-                <AlertDialogContent>
+                <AlertDialogContent className="max-w-[90vw] sm:max-w-[425px] overflow-hidden">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -248,6 +289,6 @@ export function PartMenuActions({ part }: { part: Part }) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </>
+        </div>
     );
 }

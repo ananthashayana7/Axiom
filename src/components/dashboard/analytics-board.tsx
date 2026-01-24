@@ -23,6 +23,23 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
     const [view, setView] = useState<"trend" | "category">("trend");
     const [chartType, setChartType] = useState<"bar" | "line" | "area" | "pie">("bar");
 
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-background/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl">
+                    <p className="font-display font-bold text-lg mb-1">{label}</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        <p className="text-sm font-medium text-muted-foreground">
+                            Spend: <span className="text-foreground font-bold">₹{payload[0].value.toLocaleString()}</span>
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
     const renderChart = () => {
         const data = view === "trend" ? monthlyData : categoryData;
         const xKey = view === "trend" ? "name" : "name";
@@ -30,27 +47,25 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
 
         if (chartType === "pie") {
             return (
-                <ResponsiveContainer width="100%" height={350}>
+                <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
                         <Pie
                             data={categoryData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
+                            innerRadius={80}
+                            outerRadius={120}
                             paddingAngle={5}
                             dataKey="value"
                             nameKey="name"
-                            label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : '0'}%`}
+                            stroke="none"
                         >
                             {categoryData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="stroke-background hover:opacity-80 transition-opacity duration-300" strokeWidth={2} />
                             ))}
                         </Pie>
-                        <Tooltip
-                            formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Spend']}
-                        />
-                        <Legend />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
                     </PieChart>
                 </ResponsiveContainer>
             );
@@ -58,13 +73,37 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
 
         if (chartType === "line") {
             return (
-                <ResponsiveContainer width="100%" height={350}>
-                    <LineChart data={monthlyData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} />
-                        <Line type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: "#2563eb" }} activeDot={{ r: 6 }} />
+                <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
+                        <XAxis
+                            dataKey="name"
+                            stroke="var(--color-muted-foreground)"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                            dy={10}
+                            fontFamily="var(--font-sans)"
+                        />
+                        <YAxis
+                            stroke="var(--color-muted-foreground)"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(v) => `₹${v}`}
+                            dx={-10}
+                            fontFamily="var(--font-sans)"
+                        />
+                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--color-border)', strokeWidth: 2, strokeDasharray: '5 5' }} />
+                        <Line
+                            type="monotone"
+                            dataKey="total"
+                            stroke="var(--color-primary)"
+                            strokeWidth={3}
+                            dot={{ r: 4, fill: "var(--color-background)", stroke: "var(--color-primary)", strokeWidth: 2 }}
+                            activeDot={{ r: 8, fill: "var(--color-primary)", stroke: "var(--color-background)", strokeWidth: 2 }}
+                            animationDuration={1500}
+                        />
                     </LineChart>
                 </ResponsiveContainer>
             );
@@ -72,104 +111,131 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
 
         if (chartType === "area") {
             return (
-                <ResponsiveContainer width="100%" height={350}>
-                    <AreaChart data={monthlyData}>
+                <ResponsiveContainer width="100%" height={400}>
+                    <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <defs>
                             <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} />
-                        <Area type="monotone" dataKey="total" stroke="#2563eb" fillOpacity={1} fill="url(#colorTotal)" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
+                        <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} dy={10} fontFamily="var(--font-sans)" />
+                        <YAxis stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} dx={-10} fontFamily="var(--font-sans)" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area
+                            type="monotone"
+                            dataKey="total"
+                            stroke="var(--color-primary)"
+                            fillOpacity={1}
+                            fill="url(#colorTotal)"
+                            strokeWidth={3}
+                            animationDuration={1500}
+                        />
                     </AreaChart>
                 </ResponsiveContainer>
             );
         }
 
         return (
-            <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                    <Tooltip formatter={(value: any) => [`₹${value?.toLocaleString() || '0'}`, 'Total Spend']} cursor={{ fill: '#f1f5f9' }} />
-                    <Bar dataKey={yKey} fill="#2563eb" radius={[4, 4, 0, 0]} className="fill-primary" />
+            <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
+                    <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} dy={10} fontFamily="var(--font-sans)" />
+                    <YAxis stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} dx={-10} fontFamily="var(--font-sans)" />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-muted)', opacity: 0.2 }} />
+                    <Bar
+                        dataKey={yKey}
+                        fill="var(--color-primary)"
+                        radius={[6, 6, 0, 0]}
+                        animationDuration={1500}
+                    >
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={view === "trend" ? "var(--color-primary)" : COLORS[index % COLORS.length]} />
+                        ))}
+                    </Bar>
                 </BarChart>
             </ResponsiveContainer>
         );
     };
 
     return (
-        <Card className="shadow-lg border-accent/50">
-            <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="shadow-lg border-accent/20 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:border-accent/40">
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
-                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    <CardTitle className="text-xl font-display font-bold flex items-center gap-2">
                         <Layers className="h-5 w-5 text-primary" />
-                        Sophisticated Analytics
+                        Analytics Engine
                     </CardTitle>
-                    <CardDescription>
-                        {view === "trend" ? "Monthly spending trends over the current year." : "Distribution of spend across part categories."}
+                    <CardDescription className="text-sm font-medium mt-1">
+                        {view === "trend" ? "Real-time spending trajectory analysis." : "Category-wise capital distribution."}
                     </CardDescription>
                 </div>
-                <div className="flex bg-muted p-1 rounded-lg gap-1">
+                <div className="flex bg-muted/50 p-1 rounded-xl gap-1 border border-border/50">
                     <Button
-                        variant={view === "trend" ? "secondary" : "ghost"}
+                        variant={view === "trend" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => { setView("trend"); if (chartType === 'pie') setChartType('bar') }}
+                        className="rounded-lg font-medium"
                     >
                         Trend
                     </Button>
                     <Button
-                        variant={view === "category" ? "secondary" : "ghost"}
+                        variant={view === "category" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setView("category")}
+                        className="rounded-lg font-medium"
                     >
                         Categories
                     </Button>
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-end gap-2 mb-6">
-                    <Button
-                        variant={chartType === "bar" ? "default" : "outline"}
-                        size="icon"
-                        onClick={() => setChartType("bar")}
-                        title="Bar Chart"
-                    >
-                        <BarChart3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant={chartType === "line" ? "default" : "outline"}
-                        size="icon"
-                        onClick={() => setChartType("line")}
-                        disabled={view === "category"}
-                        title="Line Chart"
-                    >
-                        <LineIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant={chartType === "area" ? "default" : "outline"}
-                        size="icon"
-                        onClick={() => setChartType("area")}
-                        disabled={view === "category"}
-                        title="Area Chart"
-                    >
-                        <AreaIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant={chartType === "pie" ? "default" : "outline"}
-                        size="icon"
-                        onClick={() => { setChartType("pie"); setView("category"); }}
-                        title="Pie Chart"
-                    >
-                        <PieIcon className="h-4 w-4" />
-                    </Button>
+                <div className="flex justify-end gap-2 mb-8">
+                    <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/50">
+                        <Button
+                            variant={chartType === "bar" ? "secondary" : "ghost"}
+                            size="icon"
+                            className="h-8 w-8 rounded-md"
+                            onClick={() => setChartType("bar")}
+                            title="Bar Chart"
+                        >
+                            <BarChart3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant={chartType === "line" ? "secondary" : "ghost"}
+                            size="icon"
+                            className="h-8 w-8 rounded-md"
+                            onClick={() => setChartType("line")}
+                            disabled={view === "category"}
+                            title="Line Chart"
+                        >
+                            <LineIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant={chartType === "area" ? "secondary" : "ghost"}
+                            size="icon"
+                            className="h-8 w-8 rounded-md"
+                            onClick={() => setChartType("area")}
+                            disabled={view === "category"}
+                            title="Area Chart"
+                        >
+                            <AreaIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant={chartType === "pie" ? "secondary" : "ghost"}
+                            size="icon"
+                            className="h-8 w-8 rounded-md"
+                            onClick={() => { setChartType("pie"); setView("category"); }}
+                            title="Pie Chart"
+                        >
+                            <PieIcon className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
-                {renderChart()}
+                <div className="h-[400px] w-full">
+                    {renderChart()}
+                </div>
             </CardContent>
         </Card>
     );

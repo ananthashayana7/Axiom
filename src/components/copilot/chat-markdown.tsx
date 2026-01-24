@@ -31,7 +31,7 @@ export function ChatMarkdown({ content }: ChatMarkdownProps) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                     table: ({ children }) => (
-                        <div className="my-4 overflow-x-auto rounded-lg border border-primary/10 bg-white/50 dark:bg-black/20 font-sans">
+                        <div className="my-4 overflow-x-auto rounded-lg border border-border bg-background/50 dark:bg-black/20 font-sans">
                             <table className="w-full text-left text-xs border-collapse">
                                 {children}
                             </table>
@@ -77,7 +77,7 @@ function ChatChart({ config }: { config: any }) {
     const { chartType, data, keys, xAxisKey } = config
 
     return (
-        <Card className="my-4 p-4 bg-white/80 dark:bg-black/40 border-primary/10 shadow-sm">
+        <Card className="my-4 p-4 bg-background/80 dark:bg-black/40 border-border shadow-sm">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-primary" />
                 {config.title || "AI Insight Visualization"}
