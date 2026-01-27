@@ -44,7 +44,6 @@ docker-compose exec app node -r tsx/cjs src/db/seed.ts
 
 The platform is running on your machine. Your colleagues on same network can access it at:
 
-**Link:** `http://10.210.147.40:3000`
 
 ### Access Steps for Colleagues:
 1. Open Chrome or Edge on their computer.
@@ -83,7 +82,7 @@ If npm doesn't work due to network restrictions:
 
 ---
 
-## ☁️ Cloud Hosting Guide (Production Deployment)
+##  Cloud Hosting Guide (Production Deployment)
 
 When you are ready to move the platform to the cloud (AWS, DigitalOcean, etc.), follow these steps.
 
