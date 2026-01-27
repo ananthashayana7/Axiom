@@ -132,3 +132,28 @@ export async function getHighRiskSuppliers() {
         return [];
     }
 }
+export async function getSupplierAnalytics() {
+    try {
+        const result = await db.select({
+            name: suppliers.name,
+            spend: sum(procurementOrders.totalAmount),
+            orders: count(procurementOrders.id),
+            risk: suppliers.riskScore
+        })
+            .from(procurementOrders)
+            .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .groupBy(suppliers.id, suppliers.name, suppliers.riskScore)
+            .orderBy(desc(sum(procurementOrders.totalAmount)))
+            .limit(5);
+
+        return result.map(s => ({
+            name: s.name,
+            orders: Number(s.orders),
+            spend: Number(s.spend || 0),
+            reliability: 100 - (s.risk || 0)
+        }));
+    } catch (error) {
+        console.error("Failed to fetch supplier analytics:", error);
+        return [];
+    }
+}

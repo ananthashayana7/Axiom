@@ -5,22 +5,28 @@ import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert } from "
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
 import { DataExplorer } from "@/components/dashboard/data-explorer";
 import { RecentSales } from "@/components/dashboard/recent-sales";
-import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers } from "@/app/actions/dashboard";
+import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
 import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
 import { DownloadDataButton } from "@/components/dashboard/download-data-button";
 
 import Link from "next/link";
+import { auth } from "@/auth";
 import { AiInsights } from "@/components/dashboard/ai-insights";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
 
 export default async function Home() {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
+  const isAdmin = userRole === 'admin';
+
   const stats = await getDashboardStats();
   const recentOrders = await getRecentOrders();
   const monthlySpend = await getMonthlySpend();
   const categorySpend = await getCategorySpend();
   const riskySuppliers = await getHighRiskSuppliers();
+  const supplierAnalytics = await getSupplierAnalytics();
   const suppliers = await getSuppliers();
   const parts = await getParts();
 
@@ -28,7 +34,8 @@ export default async function Home() {
     stats,
     recentOrders,
     monthlySpend,
-    categorySpend
+    categorySpend,
+    supplierAnalytics
   };
 
   return (
@@ -36,14 +43,14 @@ export default async function Home() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
         <div className="flex items-center space-x-2">
-          <DownloadDataButton data={allData} />
+          {isAdmin && <DownloadDataButton data={allData} />}
           <CreateOrderDialog suppliers={suppliers} parts={parts} />
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Spend */}
-        <Link href="/admin/analytics" className="block transition-transform hover:scale-[1.02]">
+        <Link href={isAdmin ? "/admin/analytics" : "/sourcing/orders"} className="block transition-transform hover:scale-[1.02]">
           <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tracked Spend</CardTitle>
@@ -101,8 +108,8 @@ export default async function Home() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
-          <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} />
-          <AiInsights />
+          <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
+          {isAdmin && <AiInsights />}
         </div>
         <div className="col-span-3 space-y-6">
           <CommunicationHub />
@@ -121,36 +128,38 @@ export default async function Home() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg border-destructive/20 overflow-hidden">
-            <CardHeader className="border-b bg-destructive/5">
-              <CardTitle className="flex items-center gap-2 text-lg text-destructive">
-                <ShieldAlert className="h-5 w-5" />
-                Risk Watchlist
-              </CardTitle>
-              <CardDescription>
-                Suppliers requiring immediate attention.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {riskySuppliers.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-                    <div>
-                      <p className="font-medium">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">ID: {s.id.slice(0, 8)}</p>
+          {isAdmin && (
+            <Card className="shadow-lg border-destructive/20 overflow-hidden">
+              <CardHeader className="border-b bg-destructive/5">
+                <CardTitle className="flex items-center gap-2 text-lg text-destructive">
+                  <ShieldAlert className="h-5 w-5" />
+                  Risk Watchlist
+                </CardTitle>
+                <CardDescription>
+                  Suppliers requiring immediate attention.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {riskySuppliers.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <div>
+                        <p className="font-medium">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">ID: {s.id.slice(0, 8)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-destructive">{s.riskScore}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">Score</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-destructive">{s.riskScore}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">Score</p>
-                    </div>
-                  </div>
-                ))}
-                {riskySuppliers.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">All suppliers within safe risk limits.</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                  {riskySuppliers.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">All suppliers within safe risk limits.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

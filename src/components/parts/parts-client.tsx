@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus, Search, Filter } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Search, Filter, X } from "lucide-react";
 import { PartMenuActions } from "./part-menu-actions";
 import { formatCurrency } from "@/lib/utils/currency";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { deleteAllParts } from "@/app/actions/parts";
 import { toast } from "sonner";
 import {
@@ -19,9 +20,22 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export function PartsClient({ initialParts }: { initialParts: any[] }) {
+    return (
+        <Suspense fallback={<div className="p-20 text-center">Loading inventory...</div>}>
+            <PartsTable initialParts={initialParts} />
+        </Suspense>
+    );
+}
+
+function PartsTable({ initialParts }: { initialParts: any[] }) {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const filterParam = searchParams.get('filter');
+
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
@@ -41,9 +55,16 @@ export function PartsClient({ initialParts }: { initialParts: any[] }) {
 
             const matchesCategory = categoryFilter === "All" || part.category === categoryFilter;
 
-            return matchesSearch && matchesCategory;
+            let matchesStockStatus = true;
+            if (filterParam === 'low') {
+                matchesStockStatus = part.stockLevel < 50;
+            } else if (filterParam === 'critical') {
+                matchesStockStatus = part.stockLevel < 20;
+            }
+
+            return matchesSearch && matchesCategory && matchesStockStatus;
         });
-    }, [initialParts, searchQuery, categoryFilter]);
+    }, [initialParts, searchQuery, categoryFilter, filterParam]);
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredParts.length / itemsPerPage);
@@ -98,6 +119,16 @@ export function PartsClient({ initialParts }: { initialParts: any[] }) {
                                 ))}
                             </select>
                         </div>
+                        {filterParam && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => router.push('/sourcing/parts')}
+                                className="h-9 px-3 text-xs font-bold gap-2"
+                            >
+                                <X size={14} /> Clear Status: {filterParam.toUpperCase()}
+                            </Button>
+                        )}
                         <Button
                             variant="destructive"
                             size="sm"
@@ -274,26 +305,5 @@ function DeleteAllDialog({ open, onOpenChange }: { open: boolean, onOpenChange: 
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
-    );
-}
-
-function AlertTriangle({ size, className }: { size?: number, className?: string }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width={size || 24}
-            height={size || 24}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={className}
-        >
-            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-            <path d="M12 9v4" />
-            <path d="M12 17h.01" />
-        </svg>
     );
 }

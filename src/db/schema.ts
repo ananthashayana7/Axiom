@@ -3,7 +3,7 @@ import { relations } from 'drizzle-orm';
 
 export const supplierStatusEnum = pgEnum('supplier_status', ['active', 'inactive', 'blacklisted']);
 export const supplierLifecycleEnum = pgEnum('supplier_lifecycle', ['prospect', 'onboarding', 'active', 'suspended', 'terminated']);
-export const orderStatusEnum = pgEnum('order_status', ['draft', 'sent', 'fulfilled', 'cancelled']);
+export const orderStatusEnum = pgEnum('order_status', ['draft', 'pending_approval', 'approved', 'rejected', 'sent', 'fulfilled', 'cancelled']);
 export const userRoleEnum = pgEnum('user_role', ['admin', 'user', 'supplier']);
 export const abcClassificationEnum = pgEnum('abc_classification', ['A', 'B', 'C', 'X', 'Y', 'Z', 'None']);
 export const conflictMineralsEnum = pgEnum('conflict_minerals_status', ['compliant', 'non_compliant', 'unknown']);

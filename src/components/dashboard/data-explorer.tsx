@@ -36,15 +36,7 @@ interface DataExplorerProps {
     supplierData?: any[]; // Optional if we want to show supplier analytics
 }
 
-const DEMO_SUPPLIER_DATA = [
-    { name: 'Apex Dynamics', orders: 15, spend: 450000, reliability: 98 },
-    { name: 'Zenith Parts', orders: 8, spend: 120000, reliability: 85 },
-    { name: 'Global Sourcing', orders: 22, spend: 890000, reliability: 92 },
-    { name: 'FastTrack', orders: 30, spend: 340000, reliability: 95 },
-    { name: 'TechCom', orders: 5, spend: 67000, reliability: 78 },
-];
-
-export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
+export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: DataExplorerProps) {
     // BI STATE: What are we looking at?
     const [dimension, setDimension] = useState<"time" | "category" | "supplier">("time");
     const [metric, setMetric] = useState<"spend" | "orders" | "mixed">("spend");
@@ -65,15 +57,13 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
         }
         else if (dimension === "category") {
             data = categoryData;
-            // Categories don't inherently slice by time range in this aggregate view, 
-            // but we could filter if we had distinct records. For now, we return full set.
         }
         else if (dimension === "supplier") {
-            data = DEMO_SUPPLIER_DATA;
+            data = supplierData;
         }
 
         return data;
-    }, [dimension, monthlyData, categoryData, timeRange]);
+    }, [dimension, monthlyData, categoryData, supplierData, timeRange]);
 
     // 2. CONFIGURATION ENGINE (Chart Settings)
     const chartConfig = useMemo(() => {
@@ -111,7 +101,11 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
                                 {entry.name}
                             </span>
                             <span className="font-mono font-bold text-foreground">
-                                {entry.name === 'reliability' ? `${entry.value}%` : `₹${entry.value.toLocaleString()}`}
+                                {entry.name === 'reliability' || entry.name === 'Reliability Score' ? `${entry.value}%` :
+                                    entry.value >= 10000000 ? `₹${(entry.value / 10000000).toFixed(1)}Cr` :
+                                        entry.value >= 100000 ? `₹${(entry.value / 100000).toFixed(1)}L` :
+                                            entry.value >= 1000 ? `₹${(entry.value / 1000).toFixed(0)}K` :
+                                                `₹${entry.value.toLocaleString()}`}
                             </span>
                         </div>
                     ))}
@@ -124,28 +118,24 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
     return (
         <Card className="col-span-4 shadow-xl border-primary/20 bg-card overflow-hidden">
             {/* POWER BI TOOLBAR */}
-            <div className="border-b bg-muted/30 p-4 sticky top-0 z-10 backdrop-blur-md">
+            {/* POWER BI TOOLBAR */}
+            <div className="border-b bg-muted/30 px-6 py-3 sticky top-0 z-10 backdrop-blur-md">
                 <div className="flex flex-col xl:flex-row items-center justify-between gap-4">
 
-                    {/* LEFT: Title & Context */}
-                    <div className="flex items-center gap-3 w-full xl:w-auto">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                            <BarChart3 className="text-white h-6 w-6" />
-                        </div>
-                        <div>
-                            <h3 className="font-sans font-black text-xl leading-tight tracking-tight">Telemetry</h3>
-                        </div>
+                    {/* LEFT: Title */}
+                    <div>
+                        <h3 className="font-sans font-black text-xl leading-tight tracking-tight">Telemetry</h3>
                     </div>
 
                     {/* RIGHT: Controls */}
-                    <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+                    <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto">
 
                         {/* 1. DIMENSION SELECTOR */}
                         <Select value={dimension} onValueChange={(v: any) => setDimension(v)}>
-                            <SelectTrigger className="w-[140px] h-9 bg-background border-border hover:border-primary/50 transition-colors">
+                            <SelectTrigger className="w-[130px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
                                 <div className="flex items-center gap-2">
-                                    <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <span className="font-semibold text-xs uppercase">View: <span className="text-primary">{dimension}</span></span>
+                                    <Filter className="h-3 w-3 text-muted-foreground" />
+                                    <span className="font-semibold uppercase truncate"><span className="text-muted-foreground font-normal">View:</span> {dimension}</span>
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
@@ -155,10 +145,10 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
                             </SelectContent>
                         </Select>
 
-                        {/* 2. METRIC SELECTOR (Simulated) */}
+                        {/* 2. METRIC SELECTOR */}
                         <Select value={metric} onValueChange={(v: any) => setMetric(v)}>
-                            <SelectTrigger className="w-[140px] h-9 bg-background border-border hover:border-primary/50 transition-colors">
-                                <span className="font-semibold text-xs uppercase">Metric: <span className="text-primary">{metric}</span></span>
+                            <SelectTrigger className="w-[130px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
+                                <span className="font-semibold uppercase truncate"><span className="text-muted-foreground font-normal">Metric:</span> {metric}</span>
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="spend">Total Spend (₹)</SelectItem>
@@ -169,10 +159,10 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
 
                         {/* 3. TIME RANGE */}
                         <Select value={timeRange} onValueChange={setTimeRange}>
-                            <SelectTrigger className="w-[130px] h-9 bg-background border-border hover:border-primary/50 transition-colors">
+                            <SelectTrigger className="w-[120px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
                                 <div className="flex items-center gap-2">
-                                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <span className="font-semibold text-xs">{timeRange === 'ytd' ? 'Year to Date' : 'Last 30 Days'}</span>
+                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                    <span className="font-semibold">{timeRange === 'ytd' ? 'Year to Date' : timeRange === '30d' ? '30 Days' : timeRange === '90d' ? 'Quarter' : 'All Time'}</span>
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
@@ -183,39 +173,42 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
                             </SelectContent>
                         </Select>
 
-                        <div className="h-6 w-px bg-border/50 mx-2" />
+                        <div className="h-5 w-px bg-border mx-1" />
 
                         {/* 4. VISUALIZATION TOGGLES */}
-                        <div className="flex items-center bg-background border rounded-md p-1">
+                        <div className="flex items-center bg-background border rounded-md p-0.5">
                             <Button
                                 variant={chartType === 'composed' ? 'secondary' : 'ghost'}
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-7 w-7 rounded-sm"
                                 onClick={() => setChartType('composed')}
+                                title="Bar Chart"
                             >
-                                <BarChart3 className="h-4 w-4" />
+                                <BarChart3 className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                                 variant={chartType === 'area' ? 'secondary' : 'ghost'}
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-7 w-7 rounded-sm"
                                 onClick={() => setChartType('area')}
+                                title="Area Chart"
                             >
-                                <div className="h-4 w-4 rounded-sm border-2 border-current border-t-0 border-r-0" /> {/* Abstract Area Icon */}
+                                <div className="h-3.5 w-3.5 rounded-[1px] border-2 border-current border-t-0 border-r-0" />
                             </Button>
                         </div>
-
-                        <Button size="icon" variant="outline" className="h-9 w-9 ml-2" title="Export View">
-                            <Download className="h-4 w-4" />
-                        </Button>
                     </div>
                 </div>
             </div>
 
             {/* MAIN CHART CANVAS */}
-            <CardContent className="p-6 h-[450px] bg-gradient-to-b from-card to-muted/20">
+            <CardContent id="telemetry-chart-container" className="p-6 h-[450px] bg-gradient-to-b from-card to-muted/20">
                 <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={currentData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                    <ComposedChart
+                        data={currentData}
+                        margin={{ top: 20, right: 30, bottom: 20, left: 10 }}
+                        barGap={0}
+                        barCategoryGap="25%"
+                    >
                         <defs>
                             <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor={chartConfig.colorBar} stopOpacity={0.8} />
@@ -231,15 +224,21 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
                             dataKey={chartConfig.xKey}
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12, fontFamily: 'var(--font-sans)' }}
-                            dy={10}
+                            scale="band"
+                            tick={{ fill: 'var(--color-muted-foreground)', fontSize: 11, fontFamily: 'var(--font-sans)' }}
+                            padding={{ left: 10, right: 10 }}
                         />
                         <YAxis
                             yAxisId="left"
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12, fontFamily: 'var(--font-sans)' }}
-                            tickFormatter={(value) => dimension === 'supplier' && chartConfig.lineKey === 'reliability' ? value : `₹${(value / 1000).toFixed(0)}k`}
+                            tick={{ fill: 'var(--color-muted-foreground)', fontSize: 11, fontFamily: 'var(--font-sans)' }}
+                            tickFormatter={(value) => {
+                                if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;
+                                if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+                                if (value >= 1000) return `₹${(value / 1000).toFixed(0)}K`;
+                                return `₹${value}`;
+                            }}
                         />
                         {/* Secondary Y-Axis for Mixed Metrics (e.g. Reliability %) */}
                         {dimension === 'supplier' && (
@@ -248,8 +247,9 @@ export function DataExplorer({ monthlyData, categoryData }: DataExplorerProps) {
                                 orientation="right"
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }}
+                                tick={{ fill: 'var(--color-muted-foreground)', fontSize: 11 }}
                                 unit="%"
+                                domain={[0, 100]}
                             />
                         )}
 

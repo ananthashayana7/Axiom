@@ -11,6 +11,7 @@ import {
     Settings,
     History,
     Sparkles,
+    BookOpen,
     Atom
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,53 +38,45 @@ export async function Sidebar({ className }: { className?: string }) {
 
     return (
         <div className={cn("w-64 border-r border-border bg-sidebar flex flex-col h-screen overflow-hidden", className)}>
-            <div className="flex-1 overflow-y-auto min-h-0 py-4 scrollbar-thin scrollbar-thumb-muted">
+            <div className="flex-1 overflow-y-auto min-h-0 pt-2 pb-20 scrollbar-thin scrollbar-thumb-muted">
                 <div className="px-3 py-2">
-                    <div className="mb-6 px-4 flex items-center gap-3">
-                        {/* Abstract Hidden 'AS' Icon */}
-                        <div className="relative group">
-                            <div className="absolute -inset-1 bg-gradient-to-tr from-zinc-200 to-zinc-500 rounded-lg blur-[2px] opacity-20 group-hover:opacity-40 transition duration-500"></div>
-                            <div className="relative h-12 w-12 bg-black rounded-lg flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.5)] border border-zinc-800">
-                                <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    {/* Abstract 'A' (Chevron) & 'S' (Curve) fused into a cryptic glyph */}
-                                    <path d="M12 2L2 22h20L12 2z" className="opacity-0" />
-                                    <path d="M12 3L4 20h16L12 3z" stroke="currentColor" strokeLinecap="square" className="drop-shadow-[0_0_2px_white]" />
-                                    <path d="M12 8c-2 0-3 1-3 3s2 3 2 5-2 4-4 4" stroke="currentColor" className="text-zinc-500" />
-                                    <path d="M15 14c1 1 2.5 1 3.5 0" stroke="currentColor" className="text-zinc-600" />
+                    <div className="mb-4 px-4 flex items-center gap-4">
+                        {/* Minimalist Geometric 'A' Logo */}
+                        <div className="relative shrink-0">
+                            <div className="h-10 w-10 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10">
+                                <svg viewBox="0 0 24 24" className="w-7 h-7 text-primary" fill="currentColor">
+                                    <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
+                                    <path d="M12 11L8 18H16L12 11Z" />
+                                    <path d="M2.5 20L10 6L12 10L5 21H2.5Z" />
+                                    <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
                                 </svg>
-                                {/* Gloss shine on the icon */}
-                                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-lg"></div>
                             </div>
                         </div>
 
-                        {/* Shiny Text */}
-                        <div className="relative">
-                            <h2 className={`text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground/60 via-foreground to-foreground font-display drop-shadow-sm`}>
+                        {/* Classic Cinematic Serif Title */}
+                        <div className="flex flex-col tracking-tight">
+                            <h2 className="text-[28px] font-bold text-foreground font-display leading-none">
                                 Axiom
                             </h2>
-                            {/* Specular Highlight for 'Shiny' effect */}
-                            <div className="absolute top-[2px] left-0 w-full h-[40%] bg-gradient-to-b from-white/20 to-transparent opacity-50 bg-clip-text text-transparent select-none pointer-events-none font-display text-4xl font-black tracking-tighter">
-                                Axiom
-                            </div>
                         </div>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                         <Link href={role === 'supplier' ? '/portal' : '/'}>
-                            <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                 <LayoutDashboard className="mr-2 h-4 w-4" />
                                 Dashboard
                             </span>
                         </Link>
                         {role !== 'supplier' && (
                             <Link href="/suppliers">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <Users className="mr-2 h-4 w-4" />
                                     Suppliers
                                 </span>
                             </Link>
                         )}
                         <Link href="/copilot">
-                            <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary font-semibold">
+                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary font-semibold transition-colors">
                                 <Sparkles className="mr-2 h-4 w-4" />
                                 Axiom Copilot
                             </span>
@@ -93,36 +86,36 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {role !== 'supplier' && (
                     <div className="px-3 py-2">
-                        <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             Sourcing
                         </h2>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                             <Link href="/sourcing/parts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <Package className="mr-2 h-4 w-4" />
                                     Parts Catalog
                                 </span>
                             </Link>
                             <Link href="/sourcing/rfqs">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <FileText className="mr-2 h-4 w-4" />
                                     Sourcing Requests
                                 </span>
                             </Link>
                             <Link href="/sourcing/requisitions">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Internal Requisitions
                                 </span>
                             </Link>
                             <Link href="/sourcing/orders">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Orders
                                 </span>
                             </Link>
                             <Link href="/sourcing/contracts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <FileText className="mr-2 h-4 w-4" />
                                     Framework Agreements
                                 </span>
@@ -133,15 +126,15 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {role === 'supplier' && (
                     <div className="px-3 py-2">
-                        <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             Vendor Portal
                         </h2>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                             {supplierLinks.map((link) => {
                                 const Icon = link.icon;
                                 return (
                                     <Link key={link.href} href={link.href}>
-                                        <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                                        <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                             <Icon className="mr-2 h-4 w-4" />
                                             {link.label}
                                         </span>
@@ -152,18 +145,34 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
-                {role === 'admin' && (
-                    <div className="px-3 py-2">
-                        <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
-                            Admin
+                {role !== 'supplier' && (
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                            Resources
                         </h2>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
+                            <Link href="/docs">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <BookOpen className="mr-2 h-4 w-4" />
+                                    Axiom Playbook
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {role === 'admin' && (
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                            Admin Control
+                        </h2>
+                        <div className="space-y-0.5">
                             {adminLinks.map((link) => {
                                 const Icon = link.icon;
                                 return (
                                     <Link key={link.href} href={link.href}>
-                                        <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
-                                            <Icon className="mr-2 h-4 w-4" />
+                                        <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors group">
+                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                             {link.label}
                                         </span>
                                     </Link>

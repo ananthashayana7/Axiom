@@ -106,25 +106,43 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
         return { success: false, error: "Failed to create order" };
     }
 }
-export async function updateOrderStatus(orderId: string, status: 'draft' | 'sent' | 'fulfilled' | 'cancelled') {
+export async function updateOrderStatus(orderId: string, status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'fulfilled' | 'cancelled') {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
-    const role = (session.user as any).role;
-    const userSupplierId = (session.user as any).supplierId;
+    const user = session.user as any;
+    const role = user.role;
+    const userSupplierId = user.supplierId;
 
     try {
-        // Suppliers can only update their own orders (and typically not status, but let's be robust)
+        // Fetch current order to validate transition
+        const [currentOrder] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
+        if (!currentOrder) return { success: false, error: "Order not found" };
+
+        // Permission Checks
         if (role === 'supplier') {
-            const [order] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
-            if (!order || order.supplierId !== userSupplierId) return { success: false, error: "Unauthorized" };
+            // Suppliers can only update their own orders
+            if (currentOrder.supplierId !== userSupplierId) return { success: false, error: "Unauthorized" };
+
+            // Suppliers can typically only mark as fulfilled or cancelled (if allowed)
+            // preventing them from approving their own orders
+            if (['approved', 'sent'].includes(status)) {
+                return { success: false, error: "Unauthorized status change" };
+            }
+        }
+
+        // Admin/User checks for specific status transitions
+        if (status === 'approved' || status === 'rejected') {
+            if (role !== 'admin') {
+                return { success: false, error: "Only admins can approve/reject orders" };
+            }
         }
 
         await db.update(procurementOrders)
             .set({ status })
             .where(eq(procurementOrders.id, orderId));
 
-        await logActivity('UPDATE', 'order', orderId, `Order status updated to ${status.toUpperCase()}`);
+        await logActivity('UPDATE', 'order', orderId, `Order status updated to ${status.toUpperCase().replace('_', ' ')}`);
 
         revalidatePath("/sourcing/orders");
         revalidatePath(`/sourcing/orders/${orderId}`);
