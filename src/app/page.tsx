@@ -9,7 +9,6 @@ import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, 
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
 import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
-import { DownloadDataButton } from "@/components/dashboard/download-data-button";
 
 import Link from "next/link";
 import { auth } from "@/auth";
@@ -43,7 +42,6 @@ export default async function Home() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
         <div className="flex items-center space-x-2">
-          {isAdmin && <DownloadDataButton data={allData} />}
           <CreateOrderDialog suppliers={suppliers} parts={parts} />
         </div>
       </div>
