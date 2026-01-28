@@ -195,27 +195,7 @@ Axiom/
 └── setup.sh             # Linux/macOS setup script
 
 
-## TO-DO
 
-## Offer Parsing Agent:##  Automatically extracts and interprets data from supplier offer PDFs, enabling faster and more accurate responses to price inquiries.
-
-## Order Optimization Agent:##  Calculates the most efficient order quantities to reduce costs and improve supply chain performance.
-
-## Smart Bundling Agent:##  Identifies opportunities to bundle categories, suppliers, and products, unlocking savings and negotiation leverage.
-
-## Category Benchmarking Agent: ## Continuously tracks and compares supplier performance within the same category to highlight competitive advantages.
-
-## Cost Analysis Agent:##  Maps commodity indices to supplier pricing, providing fact-based insights for stronger negotiation outcomes.
-
-## Price Defense Agent:##  Generates data-driven counterarguments to challenge supplier price increase requests, protecting margins.
-
-## Document Intelligence Agent:##  Extracts all relevant information from contracts, invoices, and supplier documents, storing it directly in your system for easy access.
-
-## Industry Benchmarking Agent:##  Compares supplier prices against industry benchmarks to ensure competitive sourcing strategies.
-
-## Margin Discovery Agent:##  Detects stagnant pricing with unusually high supplier margins, revealing hidden opportunities for renegotiation.
-
-## Multi-Source Allocation Agent:##  Optimally distributes order volumes across dual or multi-sourcing setups to balance risk and cost.
 
 ## Price Trend Agent:##  Analyzes long-term market and supplier price trends to determine the most strategic timing for negotiations.
 
