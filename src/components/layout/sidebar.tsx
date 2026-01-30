@@ -12,7 +12,8 @@ import {
     History,
     Sparkles,
     BookOpen,
-    Atom
+    Atom,
+    Terminal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
@@ -37,8 +38,8 @@ export async function Sidebar({ className }: { className?: string }) {
     const role = (session?.user as any)?.role;
 
     return (
-        <div className={cn("w-64 border-r border-border bg-sidebar flex flex-col h-screen overflow-hidden", className)}>
-            <div className="flex-1 overflow-y-auto min-h-0 pt-2 pb-20 scrollbar-thin scrollbar-thumb-muted">
+        <div className={cn("w-64 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden", className)}>
+            <div className="flex-1 overflow-y-auto min-h-0 pt-2 pb-10 scrollbar-thin scrollbar-thumb-muted">
                 <div className="px-3 py-2">
                     <div className="mb-4 px-4 flex items-center gap-4">
                         {/* Minimalist Geometric 'A' Logo */}
@@ -91,31 +92,31 @@ export async function Sidebar({ className }: { className?: string }) {
                         </h2>
                         <div className="space-y-0.5">
                             <Link href="/sourcing/parts">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <Package className="mr-2 h-4 w-4" />
                                     Parts Catalog
                                 </span>
                             </Link>
                             <Link href="/sourcing/rfqs">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <FileText className="mr-2 h-4 w-4" />
                                     Sourcing Requests
                                 </span>
                             </Link>
                             <Link href="/sourcing/requisitions">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Internal Requisitions
                                 </span>
                             </Link>
                             <Link href="/sourcing/orders">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Orders
                                 </span>
                             </Link>
                             <Link href="/sourcing/contracts">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <FileText className="mr-2 h-4 w-4" />
                                     Framework Agreements
                                 </span>
@@ -152,7 +153,7 @@ export async function Sidebar({ className }: { className?: string }) {
                         </h2>
                         <div className="space-y-0.5">
                             <Link href="/docs">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <BookOpen className="mr-2 h-4 w-4" />
                                     Axiom Playbook
                                 </span>
@@ -161,23 +162,30 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
-                {role === 'admin' && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
+                {(role === 'admin' || role === 'user') && (
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2 text-sidebar-foreground">
                         <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Admin Control
+                            {role === 'admin' ? "Admin Control" : "Intelligence & Audit"}
                         </h2>
                         <div className="space-y-0.5">
-                            {adminLinks.map((link) => {
-                                const Icon = link.icon;
-                                return (
-                                    <Link key={link.href} href={link.href}>
-                                        <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors group">
-                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                            {link.label}
-                                        </span>
-                                    </Link>
-                                );
-                            })}
+                            {adminLinks
+                                .filter(link => {
+                                    if (role === 'admin') return true;
+                                    const userVisiblePaths = ['/admin/audit', '/admin/analytics', '/admin/risk'];
+                                    return userVisiblePaths.includes(link.href);
+                                })
+                                .map((link) => {
+                                    const Icon = link.icon;
+                                    return (
+                                        <Link key={link.href} href={link.href}>
+                                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                                <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
+                                                {link.label}
+                                            </span>
+                                        </Link>
+                                    );
+                                })}
+                            <div className="h-20" aria-hidden="true" />
                         </div>
                     </div>
                 )}

@@ -19,6 +19,7 @@ export default async function Home() {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
   const isAdmin = userRole === 'admin';
+  const isAgent = userRole === 'admin' || userRole === 'user';
 
   const stats = await getDashboardStats();
   const recentOrders = await getRecentOrders();
@@ -48,7 +49,7 @@ export default async function Home() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Spend */}
-        <Link href={isAdmin ? "/admin/analytics" : "/sourcing/orders"} className="block transition-transform hover:scale-[1.02]">
+        <Link href={isAgent ? "/admin/analytics" : "/sourcing/orders"} className="block transition-transform hover:scale-[1.02]">
           <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tracked Spend</CardTitle>
@@ -107,7 +108,7 @@ export default async function Home() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
           <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
-          {isAdmin && <AiInsights />}
+          {isAgent && <AiInsights />}
         </div>
         <div className="col-span-3 space-y-6">
           <CommunicationHub />
@@ -126,7 +127,7 @@ export default async function Home() {
             </CardContent>
           </Card>
 
-          {isAdmin && (
+          {isAgent && (
             <Card className="shadow-lg border-destructive/20 overflow-hidden">
               <CardHeader className="border-b bg-destructive/5">
                 <CardTitle className="flex items-center gap-2 text-lg text-destructive">

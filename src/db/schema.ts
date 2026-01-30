@@ -11,6 +11,7 @@ export const tierLevelEnum = pgEnum('tier_level', ['tier_1', 'tier_2', 'tier_3',
 export const incotermsEnum = pgEnum('incoterms', ['EXW', 'FCA', 'CPT', 'CIP', 'DAT', 'DAP', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']);
 export const requisitionStatusEnum = pgEnum('requisition_status', ['draft', 'pending_approval', 'approved', 'rejected', 'converted_to_po']);
 export const invoiceStatusEnum = pgEnum('invoice_status', ['pending', 'matched', 'disputed', 'paid']);
+export const telemetryTypeEnum = pgEnum('telemetry_type', ['event', 'metric', 'error', 'security']);
 
 export const users = pgTable('users', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -126,6 +127,21 @@ export const auditLogs = pgTable('audit_logs', {
     auditUserIdx: index('audit_user_idx').on(table.userId),
     auditEntityIdx: index('audit_entity_idx').on(table.entityType, table.entityId),
     auditCreatedIdx: index('audit_created_idx').on(table.createdAt),
+}));
+
+export const systemTelemetry = pgTable('system_telemetry', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    type: telemetryTypeEnum('type').default('event'),
+    scope: text('scope').notNull(), // e.g., 'AxiomCopilot', 'SpendAnalysis'
+    key: text('key').notNull(), // e.g., 'latency', 'token_usage', 'error_rate'
+    value: decimal('value', { precision: 12, scale: 4 }),
+    metadata: text('metadata'), // JSONified context
+    userId: uuid('user_id').references(() => users.id),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    telemetryTypeIdx: index('telemetry_type_idx').on(table.type),
+    telemetryScopeIdx: index('telemetry_scope_idx').on(table.scope),
+    telemetryCreatedIdx: index('telemetry_created_idx').on(table.createdAt),
 }));
 
 export const comments = pgTable('comments', {
@@ -440,3 +456,4 @@ export type PlatformSettings = typeof platformSettings.$inferSelect;
 export type ChatHistory = typeof chatHistory.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Contract = typeof contracts.$inferSelect;
+export type SystemTelemetry = typeof systemTelemetry.$inferSelect;

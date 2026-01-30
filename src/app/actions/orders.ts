@@ -6,6 +6,7 @@ import { eq, and, sql, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
+import { TelemetryService } from "@/lib/telemetry";
 
 export async function getOrders() {
     const session = await auth();
@@ -159,55 +160,61 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        // 1. Fetch winning quote and RFQ data
-        const [quote] = await db.select()
-            .from(rfqSuppliers)
-            .where(and(eq(rfqSuppliers.rfqId, rfqId), eq(rfqSuppliers.supplierId, supplierId)));
+        return await TelemetryService.time("OrderManagement", "convertRFQToOrder", async () => {
+            // 1. Fetch winning quote and RFQ data
+            const [quote] = await db.select()
+                .from(rfqSuppliers)
+                .where(and(eq(rfqSuppliers.rfqId, rfqId), eq(rfqSuppliers.supplierId, supplierId)));
 
-        if (!quote) throw new Error("Quotation not found");
+            if (!quote) throw new Error("Quotation not found");
 
-        const items = await db.query.rfqItems.findMany({
-            where: eq(rfqItems.rfqId, rfqId),
-            with: {
-                part: true
-            }
+            const items = await db.query.rfqItems.findMany({
+                where: eq(rfqItems.rfqId, rfqId),
+                with: {
+                    part: true
+                }
+            });
+
+            // 2. Create Order
+            const totalAmount = parseFloat(quote.quoteAmount || "0");
+            const [newOrder] = await db.insert(procurementOrders).values({
+                supplierId,
+                totalAmount: totalAmount.toString(),
+                status: 'sent'
+            }).returning({ insertedId: procurementOrders.id });
+
+            const orderId = newOrder.insertedId;
+
+            // 3. Create items with estimated unit price
+            const totalQuantity = items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+            const estimatedAvgPrice = totalAmount / totalQuantity;
+
+            await db.insert(orderItems).values(
+                items.map((item: any) => ({
+                    orderId,
+                    partId: item.partId,
+                    quantity: item.quantity,
+                    unitPrice: estimatedAvgPrice.toFixed(2),
+                }))
+            );
+
+            // 4. Update RFQ Status to closed
+            await db.update(rfqs).set({ status: 'closed' }).where(eq(rfqs.id, rfqId));
+
+            await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT.`);
+
+            await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_value", totalAmount, { rfqId, orderId });
+            await TelemetryService.trackEvent("OrderManagement", "rfq_converted_successfully", { orderId });
+
+            revalidatePath("/sourcing/rfqs");
+            revalidatePath(`/sourcing/rfqs/${rfqId}`);
+            revalidatePath("/sourcing/orders");
+            revalidatePath("/portal/orders");
+
+            return { success: true, orderId };
         });
-
-        // 2. Create Order
-        const totalAmount = parseFloat(quote.quoteAmount || "0");
-        const [newOrder] = await db.insert(procurementOrders).values({
-            supplierId,
-            totalAmount: totalAmount.toString(),
-            status: 'sent'
-        }).returning({ insertedId: procurementOrders.id });
-
-        const orderId = newOrder.insertedId;
-
-        // 3. Create items with estimated unit price
-        const totalQuantity = items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
-        const estimatedAvgPrice = totalAmount / totalQuantity;
-
-        await db.insert(orderItems).values(
-            items.map((item: any) => ({
-                orderId,
-                partId: item.partId,
-                quantity: item.quantity,
-                unitPrice: estimatedAvgPrice.toFixed(2),
-            }))
-        );
-
-        // 4. Update RFQ Status to closed
-        await db.update(rfqs).set({ status: 'closed' }).where(eq(rfqs.id, rfqId));
-
-        await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT.`);
-
-        revalidatePath("/sourcing/rfqs");
-        revalidatePath(`/sourcing/rfqs/${rfqId}`);
-        revalidatePath("/sourcing/orders");
-        revalidatePath("/portal/orders");
-
-        return { success: true, orderId };
     } catch (error) {
+        await TelemetryService.trackError("OrderManagement", "rfq_conversion_failed", error, { rfqId, supplierId });
         console.error("Conversion error:", error);
         return { success: false, error: "Failed to convert RFQ to Order." };
     }
@@ -262,31 +269,41 @@ export async function addInvoice(data: { orderId: string, supplierId: string, in
 
 export async function validateThreeWayMatch(orderId: string) {
     try {
-        // Fetch original PO
-        const [po] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
-        if (!po) return { success: false, error: "Order not found" };
+        return await TelemetryService.time("FinancialCompliance", "validateThreeWayMatch", async () => {
+            // Fetch original PO
+            const [po] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
+            if (!po) return { success: false, error: "Order not found" };
 
-        // Check for Goods Receipt
-        const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
-        const hasReceipt = receipts.length > 0;
+            // Check for Goods Receipt
+            const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
+            const hasReceipt = receipts.length > 0;
 
-        // Check for Invoices
-        const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
-        const totalInvoiceAmount = orderInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
+            // Check for Invoices
+            const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+            const totalInvoiceAmount = orderInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
 
-        const poAmount = parseFloat(po.totalAmount || "0");
-        const isPriceMatched = Math.abs(totalInvoiceAmount - poAmount) < 0.01;
+            const poAmount = parseFloat(po.totalAmount || "0");
+            const isPriceMatched = Math.abs(totalInvoiceAmount - poAmount) < 0.01;
 
-        if (hasReceipt && isPriceMatched) {
-            await db.update(invoices)
-                .set({ status: 'matched', matchedAt: new Date() })
-                .where(eq(invoices.orderId, orderId));
+            if (hasReceipt && isPriceMatched) {
+                await db.update(invoices)
+                    .set({ status: 'matched', matchedAt: new Date() })
+                    .where(eq(invoices.orderId, orderId));
 
-            return { success: true, status: 'MATCHED' };
-        }
+                await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_success", { orderId, amount: poAmount });
+                return { success: true, status: 'MATCHED' };
+            }
 
-        return { success: true, status: 'PENDING_MATCH' };
+            await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_pending", {
+                orderId,
+                hasReceipt,
+                isPriceMatched,
+                variance: totalInvoiceAmount - poAmount
+            });
+            return { success: true, status: 'PENDING_MATCH' };
+        });
     } catch (error) {
+        await TelemetryService.trackError("FinancialCompliance", "match_validation_error", error, { orderId });
         console.error("3-Way Match validation failed:", error);
         return { success: false };
     }

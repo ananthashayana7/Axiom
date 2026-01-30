@@ -30,7 +30,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className="antialiased flex min-h-screen"
+        className="antialiased flex h-[100dvh] overflow-hidden"
         suppressHydrationWarning
       >
         <ThemeProvider
@@ -42,7 +42,7 @@ export default async function RootLayout({
           <SessionProvider>
             {session ? (
               <>
-                <Sidebar className="hidden lg:block sticky top-0 h-screen" />
+                <Sidebar className="hidden lg:block h-full shrink-0" />
                 <div className="flex flex-col flex-1 overflow-hidden">
                   <Header />
                   <main className="flex-1 overflow-y-auto">

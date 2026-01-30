@@ -6,6 +6,7 @@ import { db } from "@/db"
 import { users } from "@/db/schema"
 import { eq, or } from "drizzle-orm"
 import bcrypt from "bcryptjs"
+import { TelemetryService } from "./lib/telemetry"
 
 async function findUser(identifier: string) {
     try {
@@ -50,16 +51,27 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 if (parsedCredentials.success) {
                     const { identifier, password } = parsedCredentials.data
                     const user = await findUser(identifier)
-                    if (!user) return null
+
+                    if (!user) {
+                        await TelemetryService.trackEvent("Security", "login_failed_user_not_found", { identifier });
+                        return null
+                    }
 
                     const passwordsMatch = await bcrypt.compare(password, user.password)
                     if (passwordsMatch) {
+                        await TelemetryService.trackEvent("Security", "login_success", {
+                            userId: user.id,
+                            email: user.email,
+                            role: user.role
+                        });
                         return {
                             id: user.id,
                             name: user.name,
                             email: user.email,
                             role: user.role,
                         }
+                    } else {
+                        await TelemetryService.trackEvent("Security", "login_failed_wrong_password", { identifier });
                     }
                 }
                 return null;

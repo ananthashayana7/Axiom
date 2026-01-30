@@ -21,10 +21,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function AuditDashboard() {
     const session = await auth();
-    const isAdmin = (session?.user as any)?.role === 'admin';
+    const userRole = (session?.user as any)?.role;
+    const isAllowed = userRole === 'admin' || userRole === 'user';
 
-    if (!isAdmin) {
-        return <div className="p-8">Access Denied. Administrator privileges required.</div>;
+    if (!isAllowed) {
+        return <div className="p-8">Access Denied. You do not have permission to view the audit trail.</div>;
     }
 
     const logs = await getAuditLogs();

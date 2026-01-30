@@ -37,7 +37,19 @@ export const authConfig = {
                 return Response.redirect(new URL('/', nextUrl));
             }
 
-            if (isOnAdminPage && userRole !== 'admin') {
+            if (isOnAdminPage) {
+                if (userRole === 'admin') return true;
+
+                // Allow regular users to access specific intelligence and audit pages
+                if (userRole === 'user') {
+                    const isAllowedAdminPage =
+                        nextUrl.pathname.startsWith('/admin/audit') ||
+                        nextUrl.pathname.startsWith('/admin/analytics') ||
+                        nextUrl.pathname.startsWith('/admin/risk');
+
+                    if (isAllowedAdminPage) return true;
+                }
+
                 return Response.redirect(new URL('/', nextUrl));
             }
 

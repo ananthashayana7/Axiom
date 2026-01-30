@@ -132,10 +132,10 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
 
                         {/* 1. DIMENSION SELECTOR */}
                         <Select value={dimension} onValueChange={(v: any) => setDimension(v)}>
-                            <SelectTrigger className="w-[130px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
+                            <SelectTrigger className="w-fit min-w-[150px] h-8 text-[10px] bg-background border-border hover:border-primary/50 transition-colors px-3 gap-3">
                                 <div className="flex items-center gap-2">
                                     <Filter className="h-3 w-3 text-muted-foreground" />
-                                    <span className="font-semibold uppercase truncate"><span className="text-muted-foreground font-normal">View:</span> {dimension}</span>
+                                    <span className="font-bold uppercase whitespace-nowrap"><span className="text-muted-foreground font-normal">View:</span> {dimension}</span>
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
@@ -147,8 +147,8 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
 
                         {/* 2. METRIC SELECTOR */}
                         <Select value={metric} onValueChange={(v: any) => setMetric(v)}>
-                            <SelectTrigger className="w-[130px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
-                                <span className="font-semibold uppercase truncate"><span className="text-muted-foreground font-normal">Metric:</span> {metric}</span>
+                            <SelectTrigger className="w-fit min-w-[140px] h-8 text-[10px] bg-background border-border hover:border-primary/50 transition-colors px-3 gap-3">
+                                <span className="font-bold uppercase whitespace-nowrap"><span className="text-muted-foreground font-normal">Metric:</span> {metric}</span>
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="spend">Total Spend (₹)</SelectItem>
@@ -159,10 +159,10 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
 
                         {/* 3. TIME RANGE */}
                         <Select value={timeRange} onValueChange={setTimeRange}>
-                            <SelectTrigger className="w-[120px] h-8 text-xs bg-background border-border hover:border-primary/50 transition-colors">
+                            <SelectTrigger className="w-fit min-w-[140px] h-8 text-[10px] bg-background border-border hover:border-primary/50 transition-colors px-3 gap-3">
                                 <div className="flex items-center gap-2">
                                     <Calendar className="h-3 w-3 text-muted-foreground" />
-                                    <span className="font-semibold">{timeRange === 'ytd' ? 'Year to Date' : timeRange === '30d' ? '30 Days' : timeRange === '90d' ? 'Quarter' : 'All Time'}</span>
+                                    <span className="font-bold whitespace-nowrap">{timeRange === 'ytd' ? 'Year to Date' : timeRange === '30d' ? '30 Days' : timeRange === '90d' ? 'Quarter' : 'All Time'}</span>
                                 </div>
                             </SelectTrigger>
                             <SelectContent>

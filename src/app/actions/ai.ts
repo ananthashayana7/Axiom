@@ -5,6 +5,7 @@ import { procurementOrders, orderItems, parts, suppliers, chatHistory } from "@/
 import { eq, sum, desc, sql, count, asc } from "drizzle-orm";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/auth";
+import { TelemetryService } from "@/lib/telemetry";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI("AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0");
@@ -114,25 +115,31 @@ export async function clearChatHistory() {
 }
 
 export async function analyzeSpend() {
-    console.log("Starting analyzeSpend...");
-    const context = await getDatabaseContext();
-    if (!context) return { summary: "Unable to access database for analysis.", recommendations: [], savingsPotential: 0 };
+    return await TelemetryService.time("SpendAnalysis", "analyzeSpend", async () => {
+        console.log("Starting analyzeSpend...");
+        const context = await getDatabaseContext();
+        if (!context) return { summary: "Unable to access database for analysis.", recommendations: [], savingsPotential: 0 };
 
-    const topCategory = context.topCategories[0]?.category || "Unknown";
-    const topCategoryAmount = Number(context.topCategories[0]?.total || 0);
+        const topCategory = context.topCategories[0]?.category || "Unknown";
+        const topCategoryAmount = Number(context.topCategories[0]?.total || 0);
 
-    const recommendations = [];
-    if (context.riskySuppliers.length > 0) {
-        recommendations.push(`Monitor ${context.riskySuppliers.length} high-risk suppliers like ${context.riskySuppliers[0].name}.`);
-    }
-    recommendations.push(`Consolidate spending in '${topCategory}' to negotiate better volume discounts.`);
-    recommendations.push("Review 'sent' orders that haven't moved to 'fulfilled' status.");
+        const recommendations = [];
+        if (context.riskySuppliers.length > 0) {
+            recommendations.push(`Monitor ${context.riskySuppliers.length} high-risk suppliers like ${context.riskySuppliers[0].name}.`);
+        }
+        recommendations.push(`Consolidate spending in '${topCategory}' to negotiate better volume discounts.`);
+        recommendations.push("Review 'sent' orders that haven't moved to 'fulfilled' status.");
 
-    return {
-        summary: `Total tracked spend is ${context.stats.totalSpend}, primarily driven by ${topCategory}. There are ${context.riskySuppliers.length} suppliers with risk scores above 50.`,
-        recommendations,
-        savingsPotential: topCategoryAmount * 0.1,
-    };
+        const savingsPotential = topCategoryAmount * 0.1;
+
+        await TelemetryService.trackMetric("SpendAnalysis", "potential_savings", savingsPotential);
+
+        return {
+            summary: `Total tracked spend is ${context.stats.totalSpend}, primarily driven by ${topCategory}. There are ${context.riskySuppliers.length} suppliers with risk scores above 50.`,
+            recommendations,
+            savingsPotential,
+        };
+    });
 }
 
 export async function getFullAiInsights() {
@@ -195,79 +202,62 @@ export async function getFullAiInsights() {
 }
 
 export async function processCopilotQuery(query: string, history: { role: 'user' | 'assistant', content: string }[] = []) {
-    console.log("Processing Copilot Query:", query);
-    // Key is hardcoded, skipping env check
-    // if (!process.env.GEMINI_API_KEY) { ... }
+    return await TelemetryService.time("AxiomCopilot", "processQuery", async () => {
+        const context = await getDatabaseContext();
+        try {
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+            const prompt = `
+                You are Axiom Copilot, an analytical and efficient procurement AI. 
+                Your role is to help users manage their supply chain, analyze spend, and mitigate risk using the provided data.
+                
+                Database State (Snapshot):
+                ${JSON.stringify(context, null, 2)}
+                
+                Conversation History:
+                ${historyContext || "No previous messages."}
+                
+                Current User Message: "${query}"
+                
+                RULES:
+                1. PERSONALITY: Be direct, professional, and data-driven. Strictly no "fluff".
+                2. REPETITION & GREETINGS: 
+                   - DO NOT say "I am Axiom Copilot" if there is existing history.
+                   - DO NOT use time-of-day greetings (Good morning/afternoon/evening).
+                   - If history exists, do NOT say "Hello" or use any greeting—directly answer the query.
+                3. CONTEXT: Maintain awareness of previous messages for follow-up questions.
+                4. VISUALIZATION: 
+                   - Use Markdown Tables (GFM) for comparisons or long lists. 
+                   - **IMPORTANT**: DO NOT wrap Markdown Tables in triple backticks. Use raw Markdown pipes (|).
+                   - When the user asks for a "graph", "chart", or "visual", output a JSON code block with language 'json' in this EXACT format:
+                   {
+                     "type": "chart",
+                     "chartType": "bar",
+                     "title": "Clear Title",
+                     "data": [{"name": "Category X", "value": 100}, {"name": "Category Y", "value": 200}],
+                     "xAxisKey": "name",
+                     "keys": ["value"],
+                     "insight": "Short technical insight."
+                   }
+                5. FORMATTING: Use Indian Rupee (₹) symbols for currency.
+            `;
 
-    const context = await getDatabaseContext();
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
 
-    try {
-        console.log("Calling Gemini API with Gemma 3...");
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            await saveChatMessage('user', query);
+            await saveChatMessage('assistant', text);
+            await TelemetryService.trackEvent("AxiomCopilot", "query_success", { query_length: query.length });
 
-        // Convert messages to a string block for the prompt
-        const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
-
-        const prompt = `
-            You are Axiom Copilot, an analytical and efficient procurement AI. 
-            Your role is to help users manage their supply chain, analyze spend, and mitigate risk using the provided data.
-            
-            Database State (Current Snapshot):
-            ${JSON.stringify(context, null, 2)}
-            
-            Conversation History:
-            ${historyContext || "No previous messages."}
-            
-            Current User Message: "${query}"
-            
-            RULES:
-            1. PERSONALITY: Be direct, professional, and data-driven. Strictly no "fluff".
-            2. REPETITION & GREETINGS: 
-               - DO NOT say "I am Axiom Copilot" if there is existing history.
-               - DO NOT use time-of-day greetings (Good morning/afternoon/evening).
-               - If history exists, do NOT say "Hello" or use any greeting—directly answer the query.
-            3. CONTEXT: Maintain awareness of previous messages for follow-up questions.
-            4. VISUALIZATION: 
-               - Use Markdown Tables (GFM) for comparisons or long lists. 
-               - **IMPORTANT**: DO NOT wrap Markdown Tables in triple backticks. Use raw Markdown pipes (|).
-               - When the user asks for a "graph", "chart", or "visual", output a JSON code block with language 'json' in this EXACT format:
-               {
-                 "type": "chart",
-                 "chartType": "bar",
-                 "title": "Clear Title",
-                 "data": [{"name": "Category X", "value": 100}, {"name": "Category Y", "value": 200}],
-                 "xAxisKey": "name",
-                 "keys": ["value"],
-                 "insight": "Short technical insight."
-               }
-            5. FORMATTING: Use Indian Rupee (₹) symbols for currency.
-            6. DATA INTEGRITY & GROUNDING: 
-               - Use ONLY the provided Database State. 
-               - If the user asks about ANYTHING outside the portal (general knowledge, news, unrelated topics), you MUST respond with: "I am a procurement-specialized AI and I am not aware of information outside this portal."
-               - Do not attempt to guess or use your internal training data for facts not present in the Database State.
-        `;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        // Save both messages
-        await saveChatMessage('user', query);
-        await saveChatMessage('assistant', text);
-
-        console.log("Gemma Response received:", text.substring(0, 50) + "...");
-        return text;
-    } catch (error: any) {
-        console.warn("Copilot Query failed, using fallback:", error);
-
-        // Context-aware fallback responses
-        if (query.toLowerCase().includes("risk")) {
-            return `I'm currently operating in offline mode. Based on my last snapshot, I've identified ${context?.riskySuppliers.length || 0} high-risk suppliers. You should check the 'Risk Watchlist' on your dashboard for immediate actions.`;
+            return text;
+        } catch (error: any) {
+            await TelemetryService.trackError("AxiomCopilot", "query_failed", error, { query });
+            // Fallback
+            if (query.toLowerCase().includes("risk")) {
+                return `I'm currently operating in offline mode. Based on my last snapshot, I've identified ${context?.riskySuppliers.length || 0} high-risk suppliers.`;
+            }
+            return `I am currently experiencing higher-than-usual demand.`;
         }
-        if (query.toLowerCase().includes("spend") || query.toLowerCase().includes("cost")) {
-            return `In offline mode, I can confirm your total spend is ${context?.stats.totalSpend || 'being calculated'}. The highest spending category is '${context?.topCategories[0]?.category || 'Unknown'}'. I recommend reviewing the 'Spend Intelligence' report for a full breakdown.`;
-        }
-
-        return `I am currently experiencing higher-than-usual demand (Rate Limit). While I wait for the API to recover, I can help you with basic data lookups if you ask about 'risk' or 'spend'.`;
-    }
+    }, { query_preview: query.substring(0, 30) });
 }

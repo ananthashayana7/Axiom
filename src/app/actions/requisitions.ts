@@ -5,6 +5,7 @@ import { requisitions, auditLogs } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
+import { createNotification } from "./notifications";
 
 export async function getRequisitions() {
     try {
@@ -71,6 +72,15 @@ export async function approveRequisition(id: string) {
             details: `Requisition approved by admin`
         });
 
+        // Notify Requester
+        await createNotification({
+            userId: requisition.requestedById,
+            title: "Requisition Approved",
+            message: `Your requisition for "${requisition.title}" has been approved!`,
+            type: 'success',
+            link: `/sourcing/requisitions`
+        });
+
         revalidatePath('/sourcing/requisitions');
         return { success: true };
     } catch (error) {
@@ -95,6 +105,18 @@ export async function rejectRequisition(id: string, reason: string) {
             entityId: id,
             details: `Requisition rejected. Reason: ${reason}`
         });
+
+        const [requisition] = await db.select().from(requisitions).where(eq(requisitions.id, id));
+        if (requisition) {
+            // Notify Requester
+            await createNotification({
+                userId: requisition.requestedById,
+                title: "Requisition Rejected",
+                message: `Your requisition for "${requisition.title}" was rejected. Reason: ${reason}`,
+                type: 'warning',
+                link: `/sourcing/requisitions`
+            });
+        }
 
         revalidatePath('/sourcing/requisitions');
         return { success: true };
@@ -138,6 +160,15 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
             entityType: 'requisition',
             entityId: requisitionId,
             details: `Requisition converted to PO: ${order.id}`
+        });
+
+        // Notify Requester
+        await createNotification({
+            userId: requisition.requestedById,
+            title: "Purchase Order Issued",
+            message: `Requisition "${requisition.title}" has been converted to PO #${order.id.split('-')[0].toUpperCase()}.`,
+            type: 'info',
+            link: `/sourcing/orders`
         });
 
         revalidatePath('/sourcing/requisitions');

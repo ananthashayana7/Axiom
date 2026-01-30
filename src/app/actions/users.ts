@@ -36,7 +36,8 @@ export async function createUser(formData: FormData) {
     try {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
-        const employeeId = formData.get("employeeId") as string;
+        const employeeIdRaw = formData.get("employeeId") as string;
+        const employeeId = employeeIdRaw?.trim() === "" ? null : employeeIdRaw;
         const department = formData.get("department") as string;
         const password = formData.get("password") as string;
         const role = (formData.get("role") as 'admin' | 'user') || 'user';
@@ -55,7 +56,7 @@ export async function createUser(formData: FormData) {
         await logActivity('CREATE', 'user', newUser.id, `Created new user: ${name} (${email}) with role: ${role}`);
 
         // Trigger Welcome Email
-        const welcome = generateWelcomeEmail(name, email || employeeId, password);
+        const welcome = generateWelcomeEmail(name, email || employeeId || 'N/A', password);
         await sendEmail({
             to: email,
             subject: welcome.subject,
@@ -82,7 +83,8 @@ export async function updateUser(id: string, formData: FormData) {
     try {
         const name = formData.get("name") as string;
         const email = formData.get("email") as string;
-        const employeeId = formData.get("employeeId") as string;
+        const employeeIdRaw = formData.get("employeeId") as string;
+        const employeeId = employeeIdRaw?.trim() === "" ? null : employeeIdRaw;
         const department = formData.get("department") as string;
         const password = formData.get("password") as string;
         const role = formData.get("role") as 'admin' | 'user';

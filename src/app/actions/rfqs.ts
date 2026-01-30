@@ -5,8 +5,10 @@ import { rfqs, rfqItems, rfqSuppliers, suppliers, parts } from "@/db/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
+import { createNotification } from "./notifications";
 import { auth } from "@/auth";
 import { parseOffer } from "./ai-agents";
+import { users as usersTable } from "@/db/schema";
 
 export async function getRFQs() {
     const session = await auth();
@@ -277,6 +279,23 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
 
         await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed quotation for RFQ. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
 
+        // Notify Admins
+        const admins = await db.select().from(usersTable).where(eq(usersTable.role, 'admin'));
+        const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rs.rfqId));
+        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, rs.supplierId));
+
+        if (admins.length > 0 && rfq && supplier) {
+            for (const admin of admins) {
+                await createNotification({
+                    userId: admin.id,
+                    title: "New Quote Received",
+                    message: `${supplier.name} has submitted a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
+                    type: 'info',
+                    link: `/sourcing/rfqs/${rs.rfqId}`
+                });
+            }
+        }
+
         return { success: true, analysis: analysis };
     } catch (error) {
         console.error("Failed to process quotation:", error);
@@ -320,6 +339,23 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
         revalidatePath("/portal/rfqs");
 
         await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed file quotation '${fileName}'. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
+
+        // Notify Admins
+        const admins = await db.select().from(usersTable).where(eq(usersTable.role, 'admin'));
+        const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rs.rfqId));
+        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, rs.supplierId));
+
+        if (admins.length > 0 && rfq && supplier) {
+            for (const admin of admins) {
+                await createNotification({
+                    userId: admin.id,
+                    title: "New Quote File Received",
+                    message: `${supplier.name} uploaded a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
+                    type: 'info',
+                    link: `/sourcing/rfqs/${rs.rfqId}`
+                });
+            }
+        }
 
         return { success: true, analysis };
     } catch (error) {

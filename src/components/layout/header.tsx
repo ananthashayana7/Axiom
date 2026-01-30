@@ -3,13 +3,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { auth } from "@/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { User, Settings, Search, LogOut } from "lucide-react";
+import { User, Settings, Search, LogOut, Terminal } from "lucide-react";
 import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
 
 export async function Header() {
     const session = await auth();
     const userName = session?.user?.name || "User";
+    const role = (session?.user as any)?.role;
 
     return (
         <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-8 transition-all font-sans">
@@ -24,6 +25,16 @@ export async function Header() {
             </div>
 
             <div className="flex items-center gap-5">
+                {role === 'admin' && (
+                    <Link
+                        href="/admin/telemetry"
+                        className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all border border-emerald-100"
+                        title="System Telemetry"
+                    >
+                        <Terminal className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Telemetry</span>
+                    </Link>
+                )}
                 <ThemeToggle />
                 <NotificationBell />
                 <div className="h-6 w-[1px] bg-zinc-200 hidden sm:block" />

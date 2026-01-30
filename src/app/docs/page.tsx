@@ -29,114 +29,125 @@ const SECTIONS = [
         id: "overview",
         title: "Platform Overview",
         icon: LayoutDashboard,
-        content: "Axiom is your central hub for strategic procurement. It focuses on transparency, risk mitigation, and efficient sourcing through data-driven insights."
+        content: "Axiom is a high-performance Procurement Intelligence platform. It turns fragmented data into clear, strategic actions. Our mission is to move you away from 'buying' and towards 'Strategic Sourcing'.",
+        steps: [
+            "Visibility — Stop guessing where your money goes. Axiom tracks every cent across suppliers and departments.",
+            "Intelligence — We use AI to spot risks and savings that humans often miss.",
+            "Accountability — Every action is recorded in the Audit Trail. There are no 'shadow' purchases here.",
+            "Efficiency — Automated workflows replace slow email chains and spreadsheets."
+        ]
     },
     {
         id: "foundations",
         title: "Procurement 101",
         icon: BookOpen,
-        content: "New to procurement? This section explains the basic concepts of how a professional supply chain works and why these steps are vital for a healthy business.",
+        content: "Before you click anything, understand the 'Golden Rule': Never spend company money without a digital trail. Here is how professional procurement works.",
         steps: [
-            "The Goal — Procurement isn't just 'buying things'. It's about getting the best value, ensuring items arrive on time, and building relationships with reliable partners.",
-            "The Cycle — It starts with a 'Requisition' (identifying a need), moves to 'Sourcing' (finding the best price), and ends with an 'Order' (the actual purchase).",
-            "Why it matters — Good procurement prevents overspending, avoids running out of critical parts, and ensures your company only works with ethical, low-risk suppliers.",
-            "Key Terms — RFQ (Request for Quote), PO (Purchase Order), SKU (Stock Keeping Unit), and Lead Time (how long it takes for an item to arrive)."
+            "1. The Identification — It starts with a need (e.g., 'We need 50 laptops'). This is not an order yet; it's just a request.",
+            "2. The Sourcing (RFQ) — Don't buy from the first seller. Ask at least 3 companies for their best price. This is 'Request for Quote'.",
+            "3. The Award — Choose a winner based on Price, Quality, and Speed. AI can help you calculate this 'Best Pick' automatically.",
+            "4. The Contract — Convert the winning quote into a Purchase Order (PO). This is a legal promise to pay.",
+            "5. The Receipt — When goods arrive, verify them immediately. If you don't mark them 'Fulfilled', finance won't pay the bill.",
+            "PRO-TIP: Always aim for a 3-Way Match. Ensure the Order, the Delivery Note, and the Invoice all show the same quantity and price.",
+            "PITFALL: Buying 'Off-Contract' (Maverick Spend) is the #1 way companies lose money. If it's not in Axiom, don't buy it."
         ]
     },
     {
         id: "parts",
-        title: "Managing Your Goods",
+        title: "Parts & Catalog",
         icon: Package,
-        content: "Everything your company owns or needs to buy is listed here. Keeping this 'Catalog' clean is the foundation of all other work.",
+        content: "The Catalog is your 'Single Source of Truth'. If the data here is messy, your analytics will be useless. Keep it clean.",
         steps: [
-            "Organization — All items are categorized. This helps you see how much you are spending on specific types of parts, like 'Mechanical' vs 'Electronic'.",
-            "Searching — Use the search bar to see if a part already exists before adding a new one. This prevents duplicates.",
-            "Stock Monitoring — Pay attention to the labels. 'Critical' means you represent a risk to your production if you don't buy more soon.",
-            "Price Tracking — Each part has a 'Standard Price'. We use this as a benchmark to see if we are getting good deals from suppliers later on."
+            "Naming Conventions — Use 'Noun, Descriptor' format (e.g., 'Laptop, Dell XPS' instead of 'My New XPS Laptop'). This makes searching easy.",
+            "Category Accuracy — Select the right category (Mechanical, HR, IT). This determines how we analyze your department's budget.",
+            "Standard Pricing — Set a realistic 'Benchmark Price'. Axiom uses this to tell you if a supplier is overcharging you in the future.",
+            "The 2-Minute Rule — If you see a duplicate part or a typo, fix it immediately. Data debt grows like high interest.",
+            "PRO-TIP: Use the 'Critical' flag for items that stop production. It helps the buying team prioritize their workload.",
+            "PITFALL: Creating duplicate SKUs for the same item. Check the search bar twice before adding a new part."
         ]
     },
     {
         id: "rfqs",
         title: "Strategic Sourcing (RFQs)",
         icon: FileText,
-        content: "This is where you save money. Instead of buying from the first person you find, you 'Request a Quote' from multiple partners to compare.",
+        content: "This is the 'War Room' for price negotiation. Use RFQs to create competition among your suppliers and drive costs down.",
         steps: [
-            "Defining the Need — Create an RFQ when you have a large or recurring need for parts. You list exactly what you want and when.",
-            "Inviting Partners — Axiom helps you find the right suppliers. You should invite at least 3 to ensure healthy competition.",
-            "AI Assistance — The system can analyze submissions for you. It looks at price, quality, and supplier risk to suggest the 'Best Pick'.",
-            "Closing the Deal — Once you receive quotes, you can negotiate or choose the best one. This locks in the price for your future purchases."
+            "Rule of Three — Never launch an RFQ with fewer than 3 suppliers. Competition is your only leverage.",
+            "Specific Specs — Upload clear documents. Suppliers will quote lower if they have zero uncertainty about what you want.",
+            "AI Analysis — Once quotes arrive, click 'AI Comparison'. It will highlight 'Low-Ball' offers that seem too good to be true.",
+            "Closing the RFQ — Always send a 'Thank You' or 'Regret' note to every participant. Professionalism ensures they quote again next time.",
+            "PRO-TIP: Check the 'Lead Time' as much as the 'Price'. A cheap part that arrives 6 months late is actually very expensive.",
+            "PITFALL: Forgetting to set a 'Closing Date'. Suppliers need a deadline to move quickly."
         ]
     },
     {
         id: "requisitions",
-        title: "Internal Needs",
+        title: "Internal Requests",
         icon: ShoppingCart,
-        content: "Internal teams use this to communicate what they need to the buying team. Think of it as an internal 'Shopping List' that needs permission.",
+        content: "For people who need things but don't have the authority to spend. Think of this as a formal 'Proposal' to your manager.",
         steps: [
-            "Submission — Anyone in the company can identify a need. They submit a proposal with an estimated cost.",
-            "Approval Workflow — To prevent unauthorized spending, managers must review these requests. They check if the budget is available.",
-            "The Hand-off — Once approved, the 'Buying Team' takes over. They don't have to guess what's needed—the details are already there.",
-            "Clarity — Using this system ensures every purchase has a clear reason and an authorized 'Owner'."
+            "Clarity is Value — Don't just say 'Tools'. List the part numbers and why you need them. Managers hate vague requests.",
+            "Budget Check — Ensure you have the budget before submitting. The 'Estimated Amount' must include taxes and shipping.",
+            "Approval Hierarchy — Once you hit submit, your manager gets a notification. They can Approve, Reject, or ask for more info.",
+            "Notification Tracking — Click the Bell icon in the header. You will get a ping the second your request is green-lit.",
+            "PRO-TIP: Batch your needs. One requisition for 10 items is processed 5x faster than 10 separate requisitions.",
+            "PITFALL: Submitting 'Emergency' requests for things that weren't actually emergencies. It destroys your credibility."
         ]
     },
     {
         id: "orders",
-        title: "Completing the Purchase",
+        title: "Purchase Orders (PO)",
         icon: ShoppingCart,
-        content: "A Purchase Order (PO) is a formal contract. Once you send this, you are legally committed to buying the items at the agreed price.",
+        content: "The PO is a legal contract. It protects the company by locking in prices and delivery dates before money moves.",
         steps: [
-            "Creation — Orders are usually created from approved requisitions or successful RFQs. This ensures the data is accurate.",
-            "Status Tracking — 'Sent' means the supplier is working on it. 'Fulfilled' means the items have arrived at your warehouse.",
-            "Verification — When the items arrive, mark them as fulfilled. This lets the finance team know it is okay to pay the supplier.",
-            "History — Every order is saved forever. This helps you see how prices change over time and how reliable a supplier is."
+            "Auto-Creation — Always convert an Approved Requisition or RFQ into a PO. Do not type details manually to avoid errors.",
+            "The Tracking Loop — Once a PO is 'Sent', the clock starts. Use the 'Status' column to monitor if the supplier is late.",
+            "Receipting (GRN) — When the box hits the warehouse, mark it as 'Fulfilled' in Axiom. This is the only way to trigger a payment.",
+            "Closing the Loop — A 'Fulfilled' order moves to the 'History' tab for your next year's budget planning.",
+            "PRO-TIP: If a supplier sends 95% of an order, don't mark as fulfilled. Keep it open until the last 5% arrives.",
+            "PITFALL: Verbally telling a supplier to 'send it' without a PO in the system. If it's not in Axiom, it doesn't exist to Finance."
         ]
     },
     {
         id: "suppliers",
-        title: "Partner Health (Risk)",
+        title: "Supplier Risk & Health",
         icon: Users,
-        content: "You are only as strong as your suppliers. We monitor them constantly to make sure they won't let you down.",
+        content: "Your suppliers are your biggest risk. We monitor their 'Vital Signs' to ensure they don't go bust or fail you.",
         steps: [
-            "The Risk Score — Axiom calculates a score from 0 to 100. Higher scores mean you should be careful (they might be slow or financially unstable).",
-            "Reliability — We track 'On-Time Delivery'. If a supplier is always late, the system will highlight them in red.",
-            "ESG & Ethics — We track sustainability and compliance. This ensures your company isn't accidentally supporting unethical practices.",
-            "Consolidation — It's often better to buy more from a few 'Great' suppliers than small amounts from many 'Average' ones."
+            "Red Flag: Performance — If a score drops below 60, stop giving them new work until they explain why they are late.",
+            "Red Flag: Risk — A high risk score (80+) means they might be financially unstable or have ethical issues.",
+            "ESG Compliance — Monitor if your partners are using green energy or ethical labor. This protects your brand's reputation.",
+            "The Master List — Only buy from 'Active' suppliers. 'Blacklisted' suppliers are blocked from the system for a reason.",
+            "PRO-TIP: Review your Top 10 suppliers every quarter. Don't let your business depend too heavily on just one partner.",
+            "PITFALL: Ignoring the 'Reliability' metric. A supplier who is 'always just 2 days late' is costing you hours of project delay."
         ]
     },
     {
         id: "analytics",
-        title: "Using Telemetry",
+        title: "Telemetry & Intelligence",
         icon: Sparkles,
-        content: "This is the 'Dashboard' for your business health. It turns thousands of numbers into easy-to-read charts.",
+        content: "Data is just noise until you use Telemetry. This section turns your spending habits into a clear roadmap for savings.",
         steps: [
-            "The Big Picture — The top metrics show your total spend and 'Savings Realized' (money you saved by negotiating).",
-            "Spotting Trends — The charts show if your spending is going up or down. A sudden spike might mean a problem in a specific department.",
-            "AI Insights — Click 'Analyze' to let the AI find hidden opportunities. It might notice that two different teams are buying the same part from different sellers."
-        ]
-    },
-    {
-        id: "admin",
-        title: "Governance",
-        icon: ShieldCheck,
-        content: "For team leads and managers to ensure the system is being used correctly and securely.",
-        steps: [
-            "Permissions — Not everyone should see everything. Use User Management to define who can approve big spending.",
-            "The Audit Trail — This is the 'Black Box' of the app. It records who changed what and when, which is vital for security and accountability.",
-            "Consistency — Ensure all team members are following the same naming conventions for parts and suppliers."
+            "The Spend Spike — Look for sudden jumps in costs. It usually means a part price changed or a department is overspending.",
+            "Savings Realized — This metric shows the boss how much money *you* saved the company through smart negotiation.",
+            "AI Insights — The AI looks across the whole company. It might notice that 'Site A' is paying 20% more than 'Site B' for the same part.",
+            "Technical Health — Check the 'System Telemetry' in the header to ensure all AI integrations and data streams are live.",
+            "PRO-TIP: Download the 'Monthly Recap' PDF and send it to your manager. It proves your value every single month.",
+            "PITFALL: Looking at the charts but taking no action. Analytics are a compass, not a trophy."
         ]
     },
     {
         id: "sharing",
-        title: "Sharing & Access",
+        title: "Onboarding & Access",
         icon: Share2,
-        content: "How to bring your team into Axiom and get them started with strategic procurement.",
+        content: "Axiom works best when the whole team is inside. Here is how to bring your colleagues into the project safely.",
         steps: [
-            "The URL — Share the platform's web address with your team members so they can access the login portal.",
-            "User Credentials — Ensure each person has their own login. Since you've already added them, they just need their email and the password you assigned.",
-            "Local Sharing — To find your link, open Command Prompt and type 'ipconfig'. Look for 'IPv4 Address'. Share 'http://[YOUR-IP]:3001' with anyone on your Wi-Fi.",
-            "Sharing without Admin — If your firewall blocks local access and you can't change it, use a 'Tunnel'. Run this in your terminal: `npx localtunnel --port 3001`. It will give you a public web link you can share with anyone, anywhere.",
-            "Onboarding — Direct every new person to the 'Procurement 101' section of this Playbook first. It ensures everyone speaks the same language.",
-            "Mobile Access — Axiom is responsive. Your team can track orders or approve requisitions directly from their phones while on the move."
+            "The Invite — Go to 'User Management' to add your team. Assign them roles (User, Admin, or Supplier).",
+            "The Local Link — If you are in the office, share your internal IP address (e.g., http://192.168.1.5:3001).",
+            "The Global Tunnel — To share with people working from home, use the 'Tunnel' method. Run `npx localtunnel --port 3001` in your console.",
+            "Security First — Tell your team to *never* share their passwords. Use the 'Inactivity Tracker'—Axiom will auto-log-out for safety.",
+            "PRO-TIP: Make 'Procurement 101' mandatory reading for every new hire before they get their login.",
+            "PITFALL: Sharing one login between multiple people. It destroys the 'Audit Trail'—you won't know who actually made a mistake."
         ]
     }
 ];
@@ -194,7 +205,7 @@ export default function DocsPage() {
                     </div>
                     <div className="px-2 py-1 border-l-2 border-primary/20">
                         <p className="text-[10px] font-black tracking-widest text-muted-foreground/40 uppercase">Architected & Developed By</p>
-                        <p className="text-sm font-bold text-foreground font-display tracking-tight">A. Anantha Shayana</p>
+                        <p className="text-sm font-bold text-foreground font-display tracking-tight">A. Anantha Shayana, <span className="text-primary/70 text-[11px]">AI Expert</span></p>
                     </div>
                 </div>
             </div>

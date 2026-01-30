@@ -6,47 +6,51 @@ import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
+import { TelemetryService } from "@/lib/telemetry";
 
 export async function calculateABCAnalysis() {
     const session = await auth();
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        const allSuppliers = await db.select().from(suppliers);
-        const allOrders = await db.select().from(procurementOrders);
+        return await TelemetryService.time("SupplierManagement", "ABCAnalysis", async () => {
+            const allSuppliers = await db.select().from(suppliers);
+            const allOrders = await db.select().from(procurementOrders);
 
-        // Group spend by supplier
-        const spendMap = new Map<string, number>();
-        allOrders.forEach(order => {
-            const amount = parseFloat(order.totalAmount || "0");
-            spendMap.set(order.supplierId, (spendMap.get(order.supplierId) || 0) + amount);
+            // ... (keep existing logic) ...
+            const spendMap = new Map<string, number>();
+            allOrders.forEach(order => {
+                const amount = parseFloat(order.totalAmount || "0");
+                spendMap.set(order.supplierId, (spendMap.get(order.supplierId) || 0) + amount);
+            });
+
+            const sortedSuppliers = allSuppliers
+                .map(s => ({ id: s.id, spend: spendMap.get(s.id) || 0 }))
+                .sort((a, b) => b.spend - a.spend);
+
+            const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
+            if (totalSpend === 0) return { success: true, message: "No spend data found." };
+
+            let cumulativeSpend = 0;
+            for (const s of sortedSuppliers) {
+                cumulativeSpend += s.spend;
+                const percentage = (cumulativeSpend / totalSpend) * 100;
+
+                let classification: 'A' | 'B' | 'C' = 'C';
+                if (percentage <= 70) classification = 'A';
+                else if (percentage <= 90) classification = 'B';
+
+                await db.update(suppliers)
+                    .set({ abcClassification: classification })
+                    .where(eq(suppliers.id, s.id));
+            }
+
+            await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
+            revalidatePath("/suppliers");
+            return { success: true };
         });
-
-        const sortedSuppliers = allSuppliers
-            .map(s => ({ id: s.id, spend: spendMap.get(s.id) || 0 }))
-            .sort((a, b) => b.spend - a.spend);
-
-        const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
-        if (totalSpend === 0) return { success: true, message: "No spend data found." };
-
-        let cumulativeSpend = 0;
-
-        for (const s of sortedSuppliers) {
-            cumulativeSpend += s.spend;
-            const percentage = (cumulativeSpend / totalSpend) * 100;
-
-            let classification: 'A' | 'B' | 'C' = 'C';
-            if (percentage <= 70) classification = 'A';
-            else if (percentage <= 90) classification = 'B';
-
-            await db.update(suppliers)
-                .set({ abcClassification: classification })
-                .where(eq(suppliers.id, s.id));
-        }
-
-        revalidatePath("/suppliers");
-        return { success: true };
     } catch (error) {
+        await TelemetryService.trackError("SupplierManagement", "abc_analysis_failed", error);
         console.error("ABC Analysis failed:", error);
         return { success: false, error: "Analysis failed" };
     }

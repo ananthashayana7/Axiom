@@ -56,52 +56,6 @@ export async function getAuditLogs(entityType?: string, entityId?: string) {
 }
 
 /**
- * Notifications
- */
-export async function createNotification(userId: string, title: string, message: string) {
-    try {
-        await db.insert(notifications).values({
-            userId,
-            title,
-            message,
-            read: 'no',
-        });
-    } catch (error) {
-        console.error("Failed to create notification:", error);
-    }
-}
-
-export async function getNotifications() {
-    const session = await auth();
-    if (!session?.user?.id) return [];
-
-    try {
-        return await db.select()
-            .from(notifications)
-            .where(eq(notifications.userId, session.user.id))
-            .orderBy(desc(notifications.createdAt))
-            .limit(20);
-    } catch (error) {
-        console.error("Failed to fetch notifications:", error);
-        return [];
-    }
-}
-
-export async function markNotificationRead(id: string) {
-    const session = await auth();
-    if (!session?.user?.id) return;
-
-    try {
-        await db.update(notifications)
-            .set({ read: 'yes' })
-            .where(and(eq(notifications.id, id), eq(notifications.userId, session.user.id)));
-        revalidatePath("/");
-    } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-    }
-}
-
-/**
  * Comments
  */
 export async function postComment(entityType: string, entityId: string, text: string) {
