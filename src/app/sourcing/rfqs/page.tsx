@@ -56,12 +56,12 @@ export default async function RFQsPage() {
                         <CardContent>
                             <div className="flex flex-wrap gap-2 items-center text-sm">
                                 <span className="text-muted-foreground">AI Selected Suppliers:</span>
-                                {rfq.suppliers.map((s: any) => (
+                                {rfq.suppliers?.map((s: any) => (
                                     <Badge key={s.id} variant="secondary" className="bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary px-3">
-                                        {s.supplier.name}
+                                        {s.supplier?.name || "Unknown"}
                                     </Badge>
                                 ))}
-                                {rfq.suppliers.length === 0 && <span className="text-muted-foreground italic">None invited yet</span>}
+                                {(rfq.suppliers?.length || 0) === 0 && <span className="text-muted-foreground italic">None invited yet</span>}
                             </div>
                         </CardContent>
                     </Card>

@@ -263,7 +263,7 @@ export default function SuppliersPage() {
                                                 <div className="flex flex-wrap gap-1.5 justify-center">
                                                     {supplier.isoCertifications?.map((iso: string) => (
                                                         <Badge key={iso} variant="outline" className="text-[9px] px-1 py-0 h-4 bg-background border-border text-foreground uppercase tracking-wider font-bold">
-                                                            {iso.split(' ')[1] || 'ISO'}
+                                                            {iso?.split(' ')[1] || 'ISO'}
                                                         </Badge>
                                                     ))}
                                                     {supplier.modernSlaveryStatement === 'yes' && (

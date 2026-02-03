@@ -29,11 +29,17 @@ cd Axiom
 ```
 
 ### Step 2: Create Environment File
-Create `.env.local` file in the root directory:
+Create `.env.local` file in the root directory. You can use the provided setup scripts (`setup.bat` for Windows, `setup.sh` for Linux/Mac) which will guide you through this process.
+
 ```env
 DATABASE_URL=postgres://postgres:admin@localhost:5432/procurement_db
-AUTH_SECRET=change_this_to_a_secure_secret_in_production
+AUTH_SECRET=a_randomly_generated_secure_string
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
+
+> [!IMPORTANT]
+> The **Gemini API Key** is required for AI features like supplier recommendation and quote parsing. You can get one from the [Google AI Studio](https://aistudio.google.com/).
+
 
 ### Step 3: Start with Docker
 ```bash

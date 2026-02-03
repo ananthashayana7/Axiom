@@ -4,20 +4,20 @@ services:
     container_name: procurement_db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: procurement_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  app: 
+  app:
     build:
       context: .
       dockerfile: Dockerfile
@@ -26,8 +26,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://postgres:admin@db:5432/procurement_db
-      AUTH_SECRET: 2f8b4c9d3e7a1f6c5b8a2d9e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:admin@db:5432/procurement_db}
+      AUTH_SECRET: ${AUTH_SECRET}
     depends_on:
       db:
         condition: service_healthy

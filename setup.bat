@@ -19,9 +19,11 @@ echo.
 REM Create environment file if it doesn't exist
 if not exist .env.local (
     echo Creating .env.local file...
+    set /p GEMINI_KEY="Enter your GEMINI_API_KEY (leave blank to skip AI features): "
     (
         echo DATABASE_URL=postgres://postgres:admin@localhost:5432/procurement_db
-        echo AUTH_SECRET=change_this_to_a_secure_secret_in_production
+        echo AUTH_SECRET=your_randomly_generated_secure_secret_here
+        echo GEMINI_API_KEY=%GEMINI_KEY%
     ) > .env.local
     echo .env.local created successfully!
 ) else (

@@ -17,11 +17,22 @@ echo "✓ Docker is running..."
 # Create environment file if it doesn't exist
 if [ ! -f .env.local ]; then
     echo "Creating .env.local file..."
+    
+    # Generate a random 32-character secret
+    GENERATED_SECRET=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)
+    
+    echo ""
+    echo "--- AI Configuration ---"
+    read -p "Enter your GEMINI_API_KEY (leave blank to skip AI features): " GEMINI_KEY
+    echo "--- AI Configuration Done ---"
+    echo ""
+
     cat > .env.local << EOF
 DATABASE_URL=postgres://postgres:admin@localhost:5432/procurement_db
-AUTH_SECRET=change_this_to_a_secure_secret_in_production
+AUTH_SECRET=$GENERATED_SECRET
+GEMINI_API_KEY=$GEMINI_KEY
 EOF
-    echo "✓ .env.local created successfully!"
+    echo "✓ .env.local created successfully with a unique secure secret!"
 else
     echo "✓ .env.local already exists."
 fi

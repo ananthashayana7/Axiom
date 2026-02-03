@@ -22,10 +22,12 @@ export async function createRequisition(data: { title: string, description?: str
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
     try {
+        if (data.estimatedAmount <= 0) return { success: false, error: "Amount must be positive" };
+
         const [requisition] = await db.insert(requisitions).values({
             title: data.title,
             description: data.description,
-            estimatedAmount: data.estimatedAmount.toString(),
+            estimatedAmount: data.estimatedAmount.toFixed(2),
             department: data.department,
             requestedById: (session.user as any).id,
             status: 'pending_approval'
@@ -133,48 +135,57 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
     if (!session?.user || (session?.user as any)?.role !== 'admin') return { success: false, error: "Only admins can convert to PO" };
 
     try {
-        const [requisition] = await db.select().from(requisitions).where(eq(requisitions.id, requisitionId));
-        if (!requisition) return { success: false, error: "Requisition not found" };
-        if (requisition.status !== 'approved') return { success: false, error: "Only approved requisitions can be converted" };
+        return await db.transaction(async (tx) => {
+            const [requisition] = await tx.select().from(requisitions).where(eq(requisitions.id, requisitionId));
+            if (!requisition) {
+                tx.rollback();
+                return { success: false, error: "Requisition not found" };
+            }
+            if (requisition.status !== 'approved') {
+                tx.rollback();
+                return { success: false, error: "Only approved requisitions can be converted" };
+            }
 
-        // 1. Create the Procurement Order
-        const [order] = await db.insert(procurementOrders).values({
-            supplierId,
-            status: 'sent', // Auto-set to sent as it's coming from an approved req
-            totalAmount: requisition.estimatedAmount,
-            requisitionId: requisitionId
-        }).returning();
+            // 1. Create the Procurement Order
+            const [order] = await tx.insert(procurementOrders).values({
+                supplierId,
+                status: 'sent', // Auto-set to sent as it's coming from an approved req
+                totalAmount: requisition.estimatedAmount,
+                requisitionId: requisitionId
+            }).returning();
 
-        // 2. Update the Requisition
-        await db.update(requisitions)
-            .set({
-                status: 'converted_to_po',
-                purchaseOrderId: order.id
-            })
-            .where(eq(requisitions.id, requisitionId));
+            // 2. Update the Requisition
+            await tx.update(requisitions)
+                .set({
+                    status: 'converted_to_po',
+                    purchaseOrderId: order.id
+                })
+                .where(eq(requisitions.id, requisitionId));
 
-        // 3. Log Audit
-        await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
-            action: 'CONVERT',
-            entityType: 'requisition',
-            entityId: requisitionId,
-            details: `Requisition converted to PO: ${order.id}`
+            // 3. Log Audit
+            await tx.insert(auditLogs).values({
+                userId: (session.user as any).id,
+                action: 'CONVERT',
+                entityType: 'requisition',
+                entityId: requisitionId,
+                details: `Requisition converted to PO: ${order.id}`
+            });
+
+            // Notify Requester
+            await createNotification({
+                userId: requisition.requestedById,
+                title: "Purchase Order Issued",
+                message: `Requisition "${requisition.title}" has been converted to PO #${order.id.split('-')[0].toUpperCase()}.`,
+                type: 'info',
+                link: `/sourcing/orders?id=${order.id}`
+            });
+
+            revalidatePath('/sourcing/requisitions');
+            revalidatePath('/sourcing/orders');
+            return { success: true, orderId: order.id };
         });
-
-        // Notify Requester
-        await createNotification({
-            userId: requisition.requestedById,
-            title: "Purchase Order Issued",
-            message: `Requisition "${requisition.title}" has been converted to PO #${order.id.split('-')[0].toUpperCase()}.`,
-            type: 'info',
-            link: `/sourcing/orders?id=${order.id}`
-        });
-
-        revalidatePath('/sourcing/requisitions');
-        revalidatePath('/sourcing/orders');
-        return { success: true, orderId: order.id };
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'Rollback') return { success: false, error: "Transaction rolled back" };
         console.error("Conversion failed:", error);
         return { success: false, error: "Internal Server Error" };
     }

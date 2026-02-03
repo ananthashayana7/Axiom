@@ -57,61 +57,64 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
 
     try {
         const { supplierId, totalAmount, items } = data;
+        if (totalAmount <= 0) return { success: false, error: "Total amount must be positive" };
 
-        // 0. Check for Active Framework Agreement
-        const today = new Date();
-        const [activeContract] = await db.select()
-            .from(contracts)
-            .where(and(
-                eq(contracts.supplierId, supplierId),
-                eq(contracts.status, 'active'),
-                eq(contracts.type, 'framework_agreement'),
-                lte(contracts.validFrom, today),
-                gte(contracts.validTo, today)
-            ))
-            .limit(1);
+        return await db.transaction(async (tx) => {
+            // 0. Check for Active Framework Agreement
+            const today = new Date();
+            const [activeContract] = await tx.select()
+                .from(contracts)
+                .where(and(
+                    eq(contracts.supplierId, supplierId),
+                    eq(contracts.status, 'active'),
+                    eq(contracts.type, 'framework_agreement'),
+                    lte(contracts.validFrom, today),
+                    gte(contracts.validTo, today)
+                ))
+                .limit(1);
 
-        const contractId = activeContract?.id || null;
-        const effectiveIncoterms = data.incoterms || activeContract?.incoterms || null;
+            const contractId = activeContract?.id || null;
+            const effectiveIncoterms = data.incoterms || activeContract?.incoterms || null;
 
-        // 1. Create Order
-        const [newOrder] = await db.insert(procurementOrders).values({
-            supplierId,
-            totalAmount: totalAmount.toString(),
-            status: 'draft',
-            contractId,
-            incoterms: effectiveIncoterms,
-            asnNumber: data.asnNumber
-        }).returning({ insertedId: procurementOrders.id });
+            // 1. Create Order
+            const [newOrder] = await tx.insert(procurementOrders).values({
+                supplierId,
+                totalAmount: totalAmount.toFixed(2),
+                status: 'draft',
+                contractId,
+                incoterms: effectiveIncoterms,
+                asnNumber: data.asnNumber
+            }).returning({ insertedId: procurementOrders.id });
 
-        const orderId = newOrder.insertedId;
+            const orderId = newOrder.insertedId;
 
-        if (contractId) {
-            await db.insert(auditLogs).values({
-                userId: (session.user as any).id,
-                action: 'LINK',
-                entityType: 'order',
-                entityId: orderId,
-                details: `Order auto-linked to Framework Agreement ${activeContract.title}`
-            });
-        }
+            if (contractId) {
+                await tx.insert(auditLogs).values({
+                    userId: (session.user as any).id,
+                    action: 'LINK',
+                    entityType: 'order',
+                    entityId: orderId,
+                    details: `Order auto-linked to Framework Agreement ${activeContract.title}`
+                });
+            }
 
-        // 2. Create Items
-        if (items.length > 0) {
-            await db.insert(orderItems).values(
-                items.map(item => ({
-                    orderId,
-                    partId: item.partId,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice.toString(),
-                }))
-            );
-        }
+            // 2. Create Items
+            if (items.length > 0) {
+                await tx.insert(orderItems).values(
+                    items.map(item => ({
+                        orderId,
+                        partId: item.partId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice.toFixed(2),
+                    }))
+                );
+            }
 
-        await logActivity('CREATE', 'order', orderId, `New order created for total amount ₹${totalAmount.toLocaleString()}`);
+            await logActivity('CREATE', 'order', orderId, `New order created for total amount ₹${totalAmount.toLocaleString()}`);
 
-        revalidatePath("/sourcing/orders");
-        return { success: true };
+            revalidatePath("/sourcing/orders");
+            return { success: true };
+        });
     } catch (error) {
         console.error("Failed to create order:", error);
         return { success: false, error: "Failed to create order" };
@@ -170,63 +173,65 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        return await TelemetryService.time("OrderManagement", "convertRFQToOrder", async () => {
-            // 1. Fetch winning quote and RFQ data
-            const [quote] = await db.select()
-                .from(rfqSuppliers)
-                .where(and(eq(rfqSuppliers.rfqId, rfqId), eq(rfqSuppliers.supplierId, supplierId)));
+        return await db.transaction(async (tx) => {
+            return await TelemetryService.time("OrderManagement", "convertRFQToOrder", async () => {
+                // 1. Fetch winning quote and RFQ data
+                const [quote] = await tx.select()
+                    .from(rfqSuppliers)
+                    .where(and(eq(rfqSuppliers.rfqId, rfqId), eq(rfqSuppliers.supplierId, supplierId)));
 
-            if (!quote) throw new Error("Quotation not found");
+                if (!quote) throw new Error("Quotation not found");
 
-            const items = await db.query.rfqItems.findMany({
-                where: eq(rfqItems.rfqId, rfqId),
-                with: {
-                    part: true
-                }
+                const items = await tx.query.rfqItems.findMany({
+                    where: eq(rfqItems.rfqId, rfqId),
+                    with: {
+                        part: true
+                    }
+                });
+
+                // 2. Create Order
+                const totalAmount = parseFloat(quote.quoteAmount || "0");
+                const [newOrder] = await tx.insert(procurementOrders).values({
+                    supplierId,
+                    totalAmount: totalAmount.toFixed(2),
+                    status: 'sent'
+                }).returning({ insertedId: procurementOrders.id });
+
+                const orderId = newOrder.insertedId;
+
+                // 3. Create items with estimated unit price
+                const totalQuantity = items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+                const estimatedAvgPrice = totalQuantity > 0 ? totalAmount / totalQuantity : 0;
+
+                await tx.insert(orderItems).values(
+                    items.map((item: any) => ({
+                        orderId,
+                        partId: item.partId,
+                        quantity: item.quantity,
+                        unitPrice: estimatedAvgPrice.toFixed(2),
+                    }))
+                );
+
+                // 4. Update RFQ Status to closed
+                await tx.update(rfqs).set({ status: 'closed' }).where(eq(rfqs.id, rfqId));
+
+                await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT.`);
+
+                await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_value", totalAmount, { rfqId, orderId });
+                await TelemetryService.trackEvent("OrderManagement", "rfq_converted_successfully", { orderId });
+
+                revalidatePath("/sourcing/rfqs");
+                revalidatePath(`/sourcing/rfqs/${rfqId}`);
+                revalidatePath("/sourcing/orders");
+                revalidatePath("/portal/orders");
+
+                return { success: true, orderId };
             });
-
-            // 2. Create Order
-            const totalAmount = parseFloat(quote.quoteAmount || "0");
-            const [newOrder] = await db.insert(procurementOrders).values({
-                supplierId,
-                totalAmount: totalAmount.toString(),
-                status: 'sent'
-            }).returning({ insertedId: procurementOrders.id });
-
-            const orderId = newOrder.insertedId;
-
-            // 3. Create items with estimated unit price
-            const totalQuantity = items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
-            const estimatedAvgPrice = totalAmount / totalQuantity;
-
-            await db.insert(orderItems).values(
-                items.map((item: any) => ({
-                    orderId,
-                    partId: item.partId,
-                    quantity: item.quantity,
-                    unitPrice: estimatedAvgPrice.toFixed(2),
-                }))
-            );
-
-            // 4. Update RFQ Status to closed
-            await db.update(rfqs).set({ status: 'closed' }).where(eq(rfqs.id, rfqId));
-
-            await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT.`);
-
-            await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_value", totalAmount, { rfqId, orderId });
-            await TelemetryService.trackEvent("OrderManagement", "rfq_converted_successfully", { orderId });
-
-            revalidatePath("/sourcing/rfqs");
-            revalidatePath(`/sourcing/rfqs/${rfqId}`);
-            revalidatePath("/sourcing/orders");
-            revalidatePath("/portal/orders");
-
-            return { success: true, orderId };
         });
-    } catch (error) {
+    } catch (error: any) {
         await TelemetryService.trackError("OrderManagement", "rfq_conversion_failed", error, { rfqId, supplierId });
         console.error("Conversion error:", error);
-        return { success: false, error: "Failed to convert RFQ to Order." };
+        return { success: false, error: error.message || "Failed to convert RFQ to Order." };
     }
 }
 
@@ -240,30 +245,32 @@ export async function recordGoodsReceipt(orderId: string, data: {
     if (!session) return { success: false, error: "Unauthorized" };
 
     try {
-        const [receipt] = await db.insert(goodsReceipts).values({
-            orderId,
-            receivedById: (session.user as any).id,
-            notes: data.notes
-        }).returning();
+        return await db.transaction(async (tx) => {
+            const [receipt] = await tx.insert(goodsReceipts).values({
+                orderId,
+                receivedById: (session.user as any).id,
+                notes: data.notes
+            }).returning();
 
-        // 2. Create QC Inspection Record
-        await db.insert(qcInspections).values({
-            receiptId: receipt.id,
-            inspectorId: (session.user as any).id,
-            status: (data.visualInspectionPassed && data.quantityVerified && data.documentMatch) ? 'passed' : 'failed',
-            visualInspectionPassed: data.visualInspectionPassed ? 'yes' : 'no',
-            quantityVerified: data.quantityVerified ? 'yes' : 'no',
-            documentMatch: data.documentMatch ? 'yes' : 'no',
-            notes: data.notes,
+            // 2. Create QC Inspection Record
+            await tx.insert(qcInspections).values({
+                receiptId: receipt.id,
+                inspectorId: (session.user as any).id,
+                status: (data.visualInspectionPassed && data.quantityVerified && data.documentMatch) ? 'passed' : 'failed',
+                visualInspectionPassed: data.visualInspectionPassed ? 'yes' : 'no',
+                quantityVerified: data.quantityVerified ? 'yes' : 'no',
+                documentMatch: data.documentMatch ? 'yes' : 'no',
+                notes: data.notes,
+            });
+
+            await tx.update(procurementOrders)
+                .set({ status: 'fulfilled' })
+                .where(eq(procurementOrders.id, orderId));
+
+            revalidatePath(`/sourcing/orders/${orderId}`);
+            revalidatePath("/sourcing/goods-receipts");
+            return { success: true };
         });
-
-        await db.update(procurementOrders)
-            .set({ status: 'fulfilled' })
-            .where(eq(procurementOrders.id, orderId));
-
-        revalidatePath(`/sourcing/orders/${orderId}`);
-        revalidatePath("/sourcing/goods-receipts");
-        return { success: true };
     } catch (error) {
         console.error("Goods receipt recording failed:", error);
         return { success: false, error: "Failed to record receipt and inspection" };

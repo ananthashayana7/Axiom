@@ -26,7 +26,7 @@ export async function getSettings() {
                 platformName: 'Axiom Procurement Intelligence',
                 defaultCurrency: 'INR',
                 isSettingsLocked: 'no',
-                geminiApiKey: "AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0",
+                geminiApiKey: null,
             }).returning();
 
             return {

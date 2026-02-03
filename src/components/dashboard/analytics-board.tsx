@@ -42,6 +42,17 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
 
     const renderChart = () => {
         const data = view === "trend" ? monthlyData : categoryData;
+
+        if (!data || data.length === 0) {
+            return (
+                <div className="h-full w-full flex flex-col items-center justify-center text-muted-foreground bg-muted/5 rounded-xl border border-dashed border-border/50">
+                    <BarChart3 className="h-10 w-10 mb-4 opacity-20" />
+                    <p className="font-medium">No analytics data available</p>
+                    <p className="text-xs">Start creating orders to see spend trends.</p>
+                </div>
+            );
+        }
+
         const xKey = view === "trend" ? "name" : "name";
         const yKey = view === "trend" ? "total" : "value";
 

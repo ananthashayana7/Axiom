@@ -21,11 +21,21 @@ try {
 # Create environment file if it doesn't exist
 if (-not (Test-Path ".env.local")) {
     Write-Host "Creating .env.local file..." -ForegroundColor Yellow
+    
+    $generatedSecret = [Convert]::ToBase64String((1..32 | ForEach-Object { [byte](Get-Random -Minimum 0 -Maximum 255) }))
+    
+    Write-Host ""
+    Write-Host "--- AI Configuration ---" -ForegroundColor Cyan
+    $geminiKey = Read-Host "Enter your GEMINI_API_KEY (leave blank to skip AI features)"
+    Write-Host "--- AI Configuration Done ---" -ForegroundColor Cyan
+    Write-Host ""
+
     @"
 DATABASE_URL=postgres://postgres:admin@localhost:5432/procurement_db
-AUTH_SECRET=change_this_to_a_secure_secret_in_production
+AUTH_SECRET=$generatedSecret
+GEMINI_API_KEY=$geminiKey
 "@ | Out-File -FilePath ".env.local" -Encoding UTF8
-    Write-Host "✓ .env.local created successfully!" -ForegroundColor Green
+    Write-Host "✓ .env.local created successfully with a unique secure secret!" -ForegroundColor Green
 } else {
     Write-Host "✓ .env.local already exists." -ForegroundColor Green
 }

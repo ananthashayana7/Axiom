@@ -124,7 +124,12 @@ export const procurementOrders = pgTable('procurement_orders', {
     savingsAmount: decimal('savings_amount', { precision: 12, scale: 2 }).default('0'), // (Initial - Total)
     savingsType: text('savings_type'), // e.g. 'negotiation', 'volume_discount', 'strategic'
     createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table: any) => ({
+    orderSupplierIdx: index('order_supplier_idx').on(table.supplierId),
+    orderStatusIdx: index('order_status_idx').on(table.status),
+    orderReqIdx: index('order_req_idx').on(table.requisitionId),
+    orderCreatedAtIdx: index('order_created_at_idx').on(table.createdAt),
+}));
 
 export const orderItems = pgTable('order_items', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -132,7 +137,10 @@ export const orderItems = pgTable('order_items', {
     partId: uuid('part_id').references(() => parts.id).notNull(),
     quantity: integer('quantity').notNull(),
     unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).notNull(),
-});
+}, (table: any) => ({
+    itemOrderIdx: index('item_order_idx').on(table.orderId),
+    itemPartIdx: index('item_part_idx').on(table.partId),
+}));
 
 export const auditLogs = pgTable('audit_logs', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -299,7 +307,10 @@ export const goodsReceipts = pgTable('goods_receipts', {
     notes: text('notes'),
     inspectionStatus: inspectionStatusEnum('inspection_status').default('pending'),
     inspectionNotes: text('inspection_notes'),
-});
+}, (table: any) => ({
+    receiptOrderIdx: index('receipt_order_idx').on(table.orderId),
+    receivedByIdx: index('received_by_idx').on(table.receivedById),
+}));
 
 export const qcInspections = pgTable('qc_inspections', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -323,7 +334,11 @@ export const invoices = pgTable('invoices', {
     status: invoiceStatusEnum('status').default('pending'),
     matchedAt: timestamp('matched_at'),
     createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table: any) => ({
+    invoiceOrderIdx: index('invoice_order_idx').on(table.orderId),
+    invoiceSupplierIdx: index('invoice_supplier_idx').on(table.supplierId),
+    invoiceStatusIdx: index('invoice_status_idx').on(table.status),
+}));
 
 
 export const ordersRelations = relations(procurementOrders, ({ one, many }: any) => ({

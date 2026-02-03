@@ -53,7 +53,7 @@ export default async function OrdersPage() {
                                                     {order.id.slice(0, 8)}...
                                                 </Link>
                                             </td>
-                                            <td className="p-4 align-middle font-bold text-slate-700">{order.supplier.name}</td>
+                                            <td className="p-4 align-middle font-bold text-slate-700">{order.supplier?.name || "Unknown Supplier"}</td>
                                             <td className="p-4 align-middle capitalize">
                                                 <Badge variant="outline" className={cn(
                                                     "font-black text-[10px] uppercase tracking-widest px-2 py-0.5",
@@ -62,7 +62,7 @@ export default async function OrdersPage() {
                                                             order.status === 'pending_approval' ? "bg-amber-50 text-amber-700 border-amber-100" :
                                                                 "bg-slate-50 text-slate-600 border-slate-100"
                                                 )}>
-                                                    {order.status.replace('_', ' ')}
+                                                    {order.status?.replace('_', ' ') || "N/A"}
                                                 </Badge>
                                             </td>
                                             <td className="p-4 align-middle font-bold">

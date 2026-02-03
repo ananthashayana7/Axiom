@@ -31,19 +31,22 @@ export async function calculateABCAnalysis() {
             const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
             if (totalSpend === 0) return { success: true, message: "No spend data found." };
 
-            let cumulativeSpend = 0;
-            for (const s of sortedSuppliers) {
-                cumulativeSpend += s.spend;
-                const percentage = (cumulativeSpend / totalSpend) * 100;
+            return await db.transaction(async (tx) => {
+                let cumulativeSpend = 0;
+                for (const s of sortedSuppliers) {
+                    cumulativeSpend += s.spend;
+                    const percentage = (cumulativeSpend / totalSpend) * 100;
 
-                let classification: 'A' | 'B' | 'C' = 'C';
-                if (percentage <= 70) classification = 'A';
-                else if (percentage <= 90) classification = 'B';
+                    let classification: 'A' | 'B' | 'C' = 'C';
+                    if (percentage <= 70) classification = 'A';
+                    else if (percentage <= 90) classification = 'B';
 
-                await db.update(suppliers)
-                    .set({ abcClassification: classification })
-                    .where(eq(suppliers.id, s.id));
-            }
+                    await tx.update(suppliers)
+                        .set({ abcClassification: classification })
+                        .where(eq(suppliers.id, s.id));
+                }
+                return { success: true };
+            });
 
             await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
             revalidatePath("/suppliers");
@@ -267,28 +270,30 @@ export async function recordPerformanceLog(data: {
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        // 1. Record history
-        const [log] = await db.insert(supplierPerformanceLogs).values({
-            supplierId: data.supplierId,
-            deliveryRate: data.deliveryRate.toString(),
-            qualityScore: data.qualityScore.toString(),
-            collaborationScore: data.collaborationScore,
-            notes: data.notes
-        }).returning();
+        return await db.transaction(async (tx) => {
+            // 1. Record history
+            const [log] = await tx.insert(supplierPerformanceLogs).values({
+                supplierId: data.supplierId,
+                deliveryRate: data.deliveryRate.toString(),
+                qualityScore: data.qualityScore.toString(),
+                collaborationScore: data.collaborationScore,
+                notes: data.notes
+            }).returning();
 
-        // 2. Update current snapshots on supplier
-        await db.update(suppliers).set({
-            onTimeDeliveryRate: data.deliveryRate.toString(),
-            defectRate: (100 - data.qualityScore).toString(),
-            collaborationScore: data.collaborationScore,
-            performanceScore: Math.round((data.deliveryRate + data.qualityScore + data.collaborationScore) / 3)
-        }).where(eq(suppliers.id, data.supplierId));
+            // 2. Update current snapshots on supplier
+            await tx.update(suppliers).set({
+                onTimeDeliveryRate: data.deliveryRate.toString(),
+                defectRate: (100 - data.qualityScore).toString(),
+                collaborationScore: data.collaborationScore,
+                performanceScore: Math.round((data.deliveryRate + data.qualityScore + data.collaborationScore) / 3)
+            }).where(eq(suppliers.id, data.supplierId));
 
-        await logActivity('CREATE', 'performance_log', log.id, `Manual performance audit recorded for supplier ${data.supplierId}`);
+            await logActivity('CREATE', 'performance_log', log.id, `Manual performance audit recorded for supplier ${data.supplierId}`);
 
-        revalidatePath(`/suppliers/${data.supplierId}`);
-        revalidatePath("/suppliers");
-        return { success: true };
+            revalidatePath(`/suppliers/${data.supplierId}`);
+            revalidatePath("/suppliers");
+            return { success: true };
+        });
     } catch (error) {
         console.error("Failed to record performance:", error);
         return { success: false, error: "Failed to save log" };

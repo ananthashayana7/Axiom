@@ -190,40 +190,42 @@ export async function createRFQ(title: string, description: string, items: { par
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        // 1. Create RFQ
-        const [newRfq] = await db.insert(rfqs).values({
-            title,
-            description,
-            status: 'draft'
-        }).returning();
+        return await db.transaction(async (tx) => {
+            // 1. Create RFQ
+            const [newRfq] = await tx.insert(rfqs).values({
+                title,
+                description,
+                status: 'draft'
+            }).returning();
 
-        // 2. Add Items
-        if (items.length > 0) {
-            await db.insert(rfqItems).values(
-                items.map(item => ({
-                    rfqId: newRfq.id,
-                    partId: item.partId,
-                    quantity: item.quantity
-                }))
-            );
-        }
+            // 2. Add Items
+            if (items.length > 0) {
+                await tx.insert(rfqItems).values(
+                    items.map(item => ({
+                        rfqId: newRfq.id,
+                        partId: item.partId,
+                        quantity: item.quantity
+                    }))
+                );
+            }
 
-        // 3. Automated Supplier Selection (Initial Draft)
-        const suggestedSuppliers = await recommendSuppliers(items.map(i => i.partId));
-        if (suggestedSuppliers.length > 0) {
-            await db.insert(rfqSuppliers).values(
-                suggestedSuppliers.map((s: any) => ({
-                    rfqId: newRfq.id,
-                    supplierId: s.id,
-                    status: 'invited' as const
-                }))
-            );
-        }
+            // 3. Automated Supplier Selection (Initial Draft)
+            const suggestedSuppliers = await recommendSuppliers(items.map(i => i.partId));
+            if (suggestedSuppliers.length > 0) {
+                await tx.insert(rfqSuppliers).values(
+                    suggestedSuppliers.map((s: any) => ({
+                        rfqId: newRfq.id,
+                        supplierId: s.id,
+                        status: 'invited' as const
+                    }))
+                );
+            }
 
-        await logActivity('CREATE', 'rfq', newRfq.id, `RFQ '${title}' created with ${suggestedSuppliers.length} AI-recommended suppliers.`);
+            await logActivity('CREATE', 'rfq', newRfq.id, `RFQ '${title}' created with ${suggestedSuppliers.length} AI-recommended suppliers.`);
 
-        revalidatePath("/sourcing/rfqs");
-        return { success: true, rfqId: newRfq.id };
+            revalidatePath("/sourcing/rfqs");
+            return { success: true, rfqId: newRfq.id };
+        });
     } catch (error) {
         console.error("Failed to create RFQ:", error);
         return { success: false, error: "Failed to create RFQ" };
@@ -308,38 +310,39 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
 
         const analysisString = JSON.stringify(analysis);
 
-        await db.update(rfqSuppliers)
-            .set({
-                aiAnalysis: analysisString,
-                quoteAmount: (analysis.totalAmount || 0).toString(),
-                status: 'quoted'
-            })
-            .where(eq(rfqSuppliers.id, rfqSupplierId));
+        return await db.transaction(async (tx) => {
+            await tx.update(rfqSuppliers)
+                .set({
+                    aiAnalysis: analysisString,
+                    quoteAmount: (analysis.totalAmount || 0).toString(),
+                    status: 'quoted'
+                })
+                .where(eq(rfqSuppliers.id, rfqSupplierId));
 
-        revalidatePath(`/sourcing/rfqs/${rs.rfqId}`);
-        revalidatePath(`/portal/rfqs/${rs.rfqId}`);
-        revalidatePath("/portal/rfqs");
+            revalidatePath(`/sourcing/rfqs/${rs.rfqId}`);
+            revalidatePath(`/portal/rfqs/${rs.rfqId}`);
+            revalidatePath("/portal/rfqs");
 
-        await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed quotation for RFQ. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
+            await logActivity('UPDATE', 'rfq_supplier', rfqSupplierId, `AI parsed quotation for RFQ. Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`);
 
-        // Notify Admins
-        const admins = await db.select().from(usersTable).where(eq(usersTable.role, 'admin'));
-        const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rs.rfqId));
-        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, rs.supplierId));
+            // Notify Admins
+            const admins = await tx.select().from(usersTable).where(eq(usersTable.role, 'admin'));
+            const [rfq] = await tx.select().from(rfqs).where(eq(rfqs.id, rs.rfqId));
+            const [supplier] = await tx.select().from(suppliers).where(eq(suppliers.id, rs.supplierId));
 
-        if (admins.length > 0 && rfq && supplier) {
-            for (const admin of admins) {
-                await createNotification({
-                    userId: admin.id,
-                    title: "New Quote Received",
-                    message: `${supplier.name} has submitted a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
-                    type: 'info',
-                    link: `/sourcing/rfqs?id=${rs.rfqId}`
-                });
+            if (admins.length > 0 && rfq && supplier) {
+                for (const admin of admins) {
+                    await createNotification({
+                        userId: admin.id,
+                        title: "New Quote Received",
+                        message: `${supplier.name} has submitted a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
+                        type: 'info',
+                        link: `/sourcing/rfqs?id=${rs.rfqId}`
+                    });
+                }
             }
-        }
-
-        return { success: true, analysis: analysis };
+            return { success: true, analysis: analysis };
+        });
     } catch (error) {
         console.error("Failed to process quotation:", error);
         return { success: false, error: "Failed to process quotation" };
