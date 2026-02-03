@@ -1,7 +1,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-export function RecentSales({ orders }: { orders: any[] }) {
+export function RecentProcurements({ orders }: { orders: any[] }) {
     return (
         <div className="space-y-8">
             {orders.map((order) => (

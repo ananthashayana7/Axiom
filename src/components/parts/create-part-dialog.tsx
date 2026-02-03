@@ -155,6 +155,28 @@ export function CreatePartDialog() {
                             </Select>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="reorderPoint" className="text-right text-[10px] font-bold uppercase">Reorder</Label>
+                            <Input
+                                id="reorderPoint"
+                                name="reorderPoint"
+                                type="number"
+                                defaultValue="50"
+                                className="col-span-1"
+                                min="0"
+                                required
+                            />
+                            <Label htmlFor="minStockLevel" className="text-right text-[10px] font-bold uppercase">Min</Label>
+                            <Input
+                                id="minStockLevel"
+                                name="minStockLevel"
+                                type="number"
+                                defaultValue="20"
+                                className="col-span-1"
+                                min="0"
+                                required
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
                             <div />
                             <div className="col-span-3">
                                 <Button

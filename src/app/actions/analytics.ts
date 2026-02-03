@@ -39,10 +39,25 @@ export async function getSpendStats() {
             .orderBy(sql`date_trunc('month', ${procurementOrders.createdAt})`)
             .limit(6);
 
-        // 4. Savings Tracker (Mock logic: comparing PO price vs Should-Cost baseline)
-        // In a real app, should-cost would be its own field or table
-        const totalActualSpend = spendTrend.reduce((acc: number, curr: any) => acc + curr.totalSpend, 0);
-        const realizedSavings = totalActualSpend * 0.12; // 12% realized savings mock
+        // 4. Savings Tracker (Real Logic based on negotiated amounts)
+        const savingsData = await db.select({
+            totalInitial: sql<number>`sum(${procurementOrders.initialQuoteAmount})`.mapWith(Number),
+            totalFinal: sql<number>`sum(${procurementOrders.totalAmount})`.mapWith(Number),
+            count: sql<number>`count(${procurementOrders.id})`.mapWith(Number)
+        })
+            .from(procurementOrders)
+            .where(
+                and(
+                    eq(procurementOrders.status, 'fulfilled'),
+                    sql`${procurementOrders.initialQuoteAmount} IS NOT NULL`
+                )
+            );
+
+        const totalActualSpend = Number(savingsData[0]?.totalFinal || 0);
+        const totalInitialQuote = Number(savingsData[0]?.totalInitial || 0);
+        // Only count savings if initial > final to avoid data errors skewing results
+        const realizedSavings = Math.max(0, totalInitialQuote - totalActualSpend);
+        const savingsRate = totalInitialQuote > 0 ? (realizedSavings / totalInitialQuote) * 100 : 0;
 
         return {
             spendByCategory,
@@ -50,7 +65,7 @@ export async function getSpendStats() {
             spendTrend,
             totalActualSpend,
             realizedSavings,
-            savingsRate: 12.4
+            savingsRate: Number(savingsRate.toFixed(1))
         };
     } catch (error) {
         console.error("Failed to fetch spend stats:", error);

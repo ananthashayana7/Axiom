@@ -10,8 +10,8 @@ export default async function PartsPage() {
 
   // Basic stats calculation based on real data
   const totalParts = parts.length;
-  const lowStock = parts.filter((p: any) => p.stockLevel < 50).length;
-  const criticalStock = parts.filter((p: any) => p.stockLevel < 20).length;
+  const lowStock = parts.filter((p: any) => p.stockLevel <= (p.reorderPoint || 50) && p.stockLevel > (p.minStockLevel || 20)).length;
+  const criticalStock = parts.filter((p: any) => p.stockLevel <= (p.minStockLevel || 20)).length;
   const categoriesCount = new Set(parts.map((p: any) => p.category)).size;
 
   return (

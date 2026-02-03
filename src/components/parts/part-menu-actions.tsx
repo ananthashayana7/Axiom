@@ -49,6 +49,8 @@ interface Part {
     stockLevel: number;
     price: string | null;
     marketTrend: string | null;
+    reorderPoint: number | null;
+    minStockLevel: number | null;
 }
 
 export function PartMenuActions({ part }: { part: Part }) {
@@ -60,6 +62,7 @@ export function PartMenuActions({ part }: { part: Part }) {
     const [isFetchingTrend, setIsFetchingTrend] = useState(false);
     const [marketTrendValue, setMarketTrendValue] = useState(part.marketTrend || 'stable');
     const [trendReason, setTrendReason] = useState<string | null>(null);
+    const [trendSource, setTrendSource] = useState<string | null>(null);
 
     const handleDelete = async () => {
         setIsDeleting(true);
@@ -197,6 +200,26 @@ export function PartMenuActions({ part }: { part: Part }) {
                                 />
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="reorderPoint" className="text-right text-[10px] font-bold uppercase">Reorder Point</Label>
+                                <Input
+                                    id="reorderPoint"
+                                    name="reorderPoint"
+                                    type="number"
+                                    defaultValue={part.reorderPoint || 50}
+                                    className="col-span-1"
+                                    required
+                                />
+                                <Label htmlFor="minStockLevel" className="text-right text-[10px] font-bold uppercase">Min Stock</Label>
+                                <Input
+                                    id="minStockLevel"
+                                    name="minStockLevel"
+                                    type="number"
+                                    defaultValue={part.minStockLevel || 20}
+                                    className="col-span-1"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="marketTrend" className="text-right">
                                     Trend
                                 </Label>
@@ -230,7 +253,8 @@ export function PartMenuActions({ part }: { part: Part }) {
                                                 const intelligence = await getMarketTrend(nameInput, categoryInput);
                                                 setMarketTrendValue(intelligence.trend);
                                                 setTrendReason(intelligence.reason);
-                                                toast.success("Intelligence updated based on 2026 trends!");
+                                                setTrendSource(intelligence.source);
+                                                toast.success(`Intelligence fetched from ${intelligence.source}`);
                                             } catch (error) {
                                                 toast.error("Failed to fetch market intelligence");
                                             } finally {
@@ -243,9 +267,14 @@ export function PartMenuActions({ part }: { part: Part }) {
                                         Get Real-Time Intelligence
                                     </Button>
                                     {trendReason && (
-                                        <p className="mt-2 text-[10px] text-muted-foreground leading-tight italic bg-muted/50 p-2 rounded border border-dashed">
-                                            {trendReason}
-                                        </p>
+                                        <div className="mt-2 text-[10px] text-muted-foreground leading-tight italic bg-muted/50 p-2 rounded border border-dashed">
+                                            <p>{trendReason}</p>
+                                            {trendSource && (
+                                                <p className="mt-1 font-bold not-italic text-stone-500 uppercase tracking-widest text-[8px]">
+                                                    Source: {trendSource}
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>

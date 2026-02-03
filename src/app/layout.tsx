@@ -39,7 +39,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SessionProvider>
+          <SessionProvider session={session}>
             {session ? (
               <>
                 <Sidebar className="hidden lg:block h-full shrink-0" />

@@ -7,8 +7,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0");
+import { getAiModel } from "@/lib/ai-provider";
+
+// Remove hardcoded key, using provider
 
 async function getDatabaseContext() {
     try {
@@ -123,6 +124,9 @@ export async function analyzeSpend() {
         const topCategory = context.topCategories[0]?.category || "Unknown";
         const topCategoryAmount = Number(context.topCategories[0]?.total || 0);
 
+        const savingsResult = await db.select({ total: sum(procurementOrders.savingsAmount) }).from(procurementOrders);
+        const actualSavings = Number(savingsResult[0]?.total || 0);
+
         const recommendations = [];
         if (context.riskySuppliers.length > 0) {
             recommendations.push(`Monitor ${context.riskySuppliers.length} high-risk suppliers like ${context.riskySuppliers[0].name}.`);
@@ -130,7 +134,7 @@ export async function analyzeSpend() {
         recommendations.push(`Consolidate spending in '${topCategory}' to negotiate better volume discounts.`);
         recommendations.push("Review 'sent' orders that haven't moved to 'fulfilled' status.");
 
-        const savingsPotential = topCategoryAmount * 0.1;
+        const savingsPotential = actualSavings > 0 ? actualSavings : topCategoryAmount * 0.05; // Fallback to 5% only if no data exists
 
         await TelemetryService.trackMetric("SpendAnalysis", "potential_savings", savingsPotential);
 
@@ -147,7 +151,7 @@ export async function getFullAiInsights() {
     if (!context) return null;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = await getAiModel("gemini-1.5-flash");
         const prompt = `
             You are a senior procurement analyst at Axiom (a Tacto-like platform).
             Analyze this data and provide:
@@ -205,7 +209,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
     return await TelemetryService.time("AxiomCopilot", "processQuery", async () => {
         const context = await getDatabaseContext();
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const model = await getAiModel("gemini-1.5-flash");
             const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
                 You are Axiom Copilot, an analytical and efficient procurement AI. 
@@ -240,6 +244,11 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
                      "insight": "Short technical insight."
                    }
                 5. FORMATTING: Use Indian Rupee (₹) symbols for currency.
+                6. GROUNDING & RELIABILITY: 
+                   - Answer ONLY based on the provided "Database State" or history.
+                   - If a user asks for information not present in the data, state: "I do not have access to that specific data in my current enterprise snapshot."
+                   - DO NOT hallucinate names, numbers, or dates.
+                   - Cite your sources. Example: "(Source: Database Stats)" or "(Source: Recent Orders)".
             `;
 
             const result = await model.generateContent(prompt);
@@ -257,7 +266,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
             if (query.toLowerCase().includes("risk")) {
                 return `I'm currently operating in offline mode. Based on my last snapshot, I've identified ${context?.riskySuppliers.length || 0} high-risk suppliers.`;
             }
-            return `I am currently experiencing higher-than-usual demand.`;
+            return `Axiom Copilot is temporarily restricted. Please check your AI API configuration in Admin Settings or contact support if the issue persists.`;
         }
     }, { query_preview: query.substring(0, 30) });
 }

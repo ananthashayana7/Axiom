@@ -1,25 +1,46 @@
 'use server'
 
 import { db } from "@/db";
-import { platformSettings } from "@/db/schema";
+import { platformSettings, users } from "@/db/schema";
 import { logActivity } from "./activity";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { eq } from "drizzle-orm";
 
 export async function getSettings() {
     try {
         const [settings] = await db.select().from(platformSettings).limit(1);
+        const session = await auth();
+        let isTwoFactorEnabled = false;
+
+        if (session?.user?.id) {
+            const [user] = await db.select({
+                isTwoFactorEnabled: users.isTwoFactorEnabled
+            }).from(users).where(eq(users.id, session.user.id));
+            isTwoFactorEnabled = !!user?.isTwoFactorEnabled;
+        }
+
         if (!settings) {
             // Seed default settings if empty
             const [newSettings] = await db.insert(platformSettings).values({
                 platformName: 'Axiom Procurement Intelligence',
                 defaultCurrency: 'INR',
                 isSettingsLocked: 'no',
-                // Pre-seed with the user's known key if initializing for the first time
                 geminiApiKey: "AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0",
             }).returning();
-            return newSettings;
+
+            return {
+                ...newSettings,
+                role: (session?.user as any)?.role || 'user',
+                isTwoFactorEnabled
+            };
         }
-        return settings;
+
+        return {
+            ...settings,
+            role: (session?.user as any)?.role || 'user',
+            isTwoFactorEnabled
+        };
     } catch (error) {
         console.error("Failed to fetch settings:", error);
         return {
@@ -27,6 +48,7 @@ export async function getSettings() {
             defaultCurrency: 'INR',
             isSettingsLocked: 'no',
             geminiApiKey: null,
+            role: 'user'
         };
     }
 }
@@ -69,5 +91,25 @@ export async function updateSettings(formData: FormData) {
     } catch (error) {
         console.error("Failed to update settings:", error);
         return { success: false, error: "Database communication failed" };
+    }
+}
+
+export async function flushAuthCache() {
+    try {
+        const session = await auth();
+        if (!session || (session.user as any).role !== 'admin') {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        // In NextAuth + Drizzle setup, "flushing" means revalidating all routes
+        // to ensure session consistency and clearing any cached auth states.
+        revalidatePath("/", "layout");
+
+        await logActivity('DELETE', 'system', 'cache', `Admin flushed authorization cache: ${session.user?.email}`);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Flush Cache Error:", error);
+        return { success: false, error: "Failed to flush cache" };
     }
 }

@@ -25,6 +25,8 @@ import { createContract } from '@/app/actions/contracts'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
+import { ContractUpload } from '@/components/contracts/contract-upload'
+
 interface CreateContractDialogProps {
     suppliers: any[]
 }
@@ -32,7 +34,15 @@ interface CreateContractDialogProps {
 export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [aiData, setAiData] = useState<any>(null)
     const router = useRouter()
+
+    const handleDataExtracted = (data: any) => {
+        setAiData(JSON.stringify(data));
+        // Auto-fill logic would ideally utilize form refs or react-hook-form, 
+        // but for native forms, we can rely on defaultValue mapping if we re-render or just let user manually check.
+        // For better UX with native forms, we can set key prop to force re-render with new defaults
+    };
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -48,6 +58,11 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
             validTo: new Date(formData.get('validTo') as string),
             noticePeriod: Number(formData.get('noticePeriod')),
             renewalStatus: formData.get('renewalStatus') as any,
+            // Hidden AI fields
+            liabilityCap: formData.get('liabilityCap') ? Number(formData.get('liabilityCap')) : undefined,
+            priceLockExpiry: formData.get('priceLockExpiry') ? new Date(formData.get('priceLockExpiry') as string) : undefined,
+            autoRenewalAlert: formData.get('autoRenewalAlert') as string,
+            aiExtractedData: formData.get('aiExtractedData') as string,
         }
 
         try {
@@ -55,6 +70,7 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
             if (result.success) {
                 toast.success('Contract created successfully')
                 setOpen(false)
+                setAiData(null)
                 router.refresh()
             } else {
                 toast.error(result.error || 'Failed to create contract')
@@ -66,6 +82,8 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
         }
     }
 
+    const aiDefaults = aiData ? JSON.parse(aiData) : null;
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -74,14 +92,27 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
                     New Contract
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-                <form onSubmit={handleSubmit}>
-                    <DialogHeader>
-                        <DialogTitle>Create New Contract</DialogTitle>
-                        <DialogDescription>
-                            Define the terms for your partnership with the supplier.
-                        </DialogDescription>
-                    </DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Create New Contract</DialogTitle>
+                    <DialogDescription>
+                        Define the terms for your partnership with the supplier.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="py-4 border-b border-border/50 mb-4">
+                    <ContractUpload onDataExtracted={handleDataExtracted} />
+                </div>
+
+                <form onSubmit={handleSubmit} key={aiData ? 'loaded' : 'empty'}>
+                    <input type="hidden" name="aiExtractedData" value={aiData || ''} />
+                    {aiDefaults?.liabilityCapAmount && <input type="hidden" name="liabilityCap" value={aiDefaults.liabilityCapAmount} />}
+                    {aiDefaults?.priceLockDurationMonths && (
+                        // Estimate price lock expiry based on duration if start date is today - simplistic
+                        <input type="hidden" name="priceLockExpiry" value={new Date(Date.now() + aiDefaults.priceLockDurationMonths * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} />
+                    )}
+                    <input type="hidden" name="autoRenewalAlert" value={aiDefaults?.autoRenewal ? 'true' : 'false'} />
+
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="title" className="text-right">
@@ -93,6 +124,7 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
                                 className="col-span-3"
                                 placeholder="Master Service Agreement 2024"
                                 required
+                                defaultValue={aiDefaults?.summary ? `Contract - ${aiDefaults.summary.substring(0, 30)}...` : ''}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -143,6 +175,7 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
                                 className="col-span-3"
                                 placeholder="0.00"
                                 required
+                                defaultValue={aiDefaults?.liabilityCapAmount || ''}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -150,14 +183,42 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
                                 <Label htmlFor="validFrom" className="text-right col-span-1">
                                     From
                                 </Label>
-                                <Input id="validFrom" name="validFrom" type="date" className="col-span-3" required />
+                                <Input
+                                    id="validFrom"
+                                    name="validFrom"
+                                    type="date"
+                                    className="col-span-3"
+                                    required
+                                    defaultValue={aiDefaults?.effectiveDate || ''}
+                                />
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="validTo" className="text-right col-span-1">
                                     To
                                 </Label>
-                                <Input id="validTo" name="validTo" type="date" className="col-span-3" required />
+                                <Input
+                                    id="validTo"
+                                    name="validTo"
+                                    type="date"
+                                    className="col-span-3"
+                                    required
+                                    defaultValue={aiDefaults?.expirationDate || ''}
+                                />
                             </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="noticePeriod" className="text-right">
+                                Notice (Days)
+                            </Label>
+                            <Input
+                                id="noticePeriod"
+                                name="noticePeriod"
+                                type="number"
+                                className="col-span-3"
+                                placeholder="30"
+                                required
+                                defaultValue={aiDefaults?.noticePeriodDays || 30}
+                            />
                         </div>
                     </div>
                     <DialogFooter>

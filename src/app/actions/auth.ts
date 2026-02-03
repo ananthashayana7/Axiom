@@ -8,18 +8,52 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { TotpService } from "@/lib/totp";
+
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export async function authenticate(
     prevState: string | undefined,
     formData: FormData,
 ) {
     try {
+        const identifier = formData.get('identifier') as string;
+        const password = formData.get('password') as string;
+        const code = formData.get('code') as string;
+
+        // Note: We'll modify the login flow to handle a "require-2fa" status
+        // For now, this is the standard sign-in
         await signIn('credentials', {
-            ...Object.fromEntries(formData),
+            identifier,
+            password,
+            code, // We need to pass the code to the authorize callback
             redirectTo: '/',
         });
-    } catch (error) {
+    } catch (error: any) {
+        if (isRedirectError(error)) {
+            throw error;
+        }
+
+        console.log("[AUTH ACTION] Caught error type:", typeof error, "isAuthError:", error instanceof AuthError);
+        console.log("[AUTH ACTION] Error Message:", error.message);
+        console.log("[AUTH ACTION] Error Cause:", JSON.stringify(error.cause, null, 2));
+
+        // Robust check for the internal 2FA signal
+        const errorMsg = error.message || '';
+        const causeMsg = error.cause?.err?.message || error.cause?.message || '';
+
+        if (errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
+            console.log("[AUTH ACTION] Require 2FA signal detected");
+            return 'require-2fa';
+        }
+
+        if (errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
+            console.log("[AUTH ACTION] Setup 2FA signal detected");
+            return 'setup-2fa';
+        }
+
         if (error instanceof AuthError) {
+            console.log("[AUTH ACTION] AuthError detected:", error.type);
             switch (error.type) {
                 case 'CredentialsSignin':
                     return 'Invalid credentials.';
@@ -27,7 +61,83 @@ export async function authenticate(
                     return 'Something went wrong.';
             }
         }
-        throw error;
+
+        return 'An unexpected error occurred. Please try again.';
+    }
+}
+
+export async function setupTwoFactor() {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return { success: false, error: "Not authenticated" };
+    }
+
+    try {
+        const secret = TotpService.generateSecret();
+        const email = session.user.email || 'user';
+        const otpauthUrl = TotpService.getOtpAuthUrl(secret, email);
+
+        // Temporarily store the secret until verified
+        await db.update(users)
+            .set({ twoFactorSecret: secret, isTwoFactorEnabled: false })
+            .where(eq(users.id, session.user.id));
+
+        return {
+            success: true,
+            secret,
+            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`
+        };
+    } catch (error) {
+        console.error("Failed to setup 2FA:", error);
+        return { success: false, error: "Failed to setup 2FA" };
+    }
+}
+
+export async function verifyAndEnableTwoFactor(token: string) {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return { success: false, error: "Not authenticated" };
+    }
+
+    try {
+        const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
+        if (!user || !user.twoFactorSecret) {
+            return { success: false, error: "2FA not initialized" };
+        }
+
+        const isValid = TotpService.verifyToken(user.twoFactorSecret, token);
+        if (!isValid) {
+            return { success: false, error: "Invalid verification code" };
+        }
+
+        await db.update(users)
+            .set({ isTwoFactorEnabled: true })
+            .where(eq(users.id, session.user.id));
+
+        revalidatePath("/admin/settings");
+        return { success: true, message: "Two-factor authentication enabled successfully" };
+    } catch (error) {
+        console.error("Failed to verify 2FA:", error);
+        return { success: false, error: "Failed to verify 2FA" };
+    }
+}
+
+export async function disableTwoFactor() {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return { success: false, error: "Not authenticated" };
+    }
+
+    try {
+        await db.update(users)
+            .set({ twoFactorSecret: null, isTwoFactorEnabled: false })
+            .where(eq(users.id, session.user.id));
+
+        revalidatePath("/admin/settings");
+        return { success: true, message: "Two-factor authentication disabled" };
+    } catch (error) {
+        console.error("Failed to disable 2FA:", error);
+        return { success: false, error: "Failed to disable 2FA" };
     }
 }
 

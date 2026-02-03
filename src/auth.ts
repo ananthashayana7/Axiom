@@ -4,61 +4,78 @@ import Credentials from "next-auth/providers/credentials"
 import { z } from "zod"
 import { db } from "@/db"
 import { users } from "@/db/schema"
-import { eq, or } from "drizzle-orm"
+import { ilike, or } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
+import { TotpService } from "@/lib/totp";
 
 async function findUser(identifier: string) {
     try {
-        // Search by email OR employeeId
         const [user] = await db.select().from(users).where(
-            or(
-                eq(users.email, identifier),
-                eq(users.employeeId, identifier)
-            )
+            ilike(users.employeeId, identifier)
         );
         return user || null;
-    } catch {
-        // Fallback to default admin if DB not ready
-        if (identifier === "admin@example.com" || identifier === "ADMIN001") {
-            return {
-                id: "00000000-0000-0000-0000-000000000000",
-                name: "Admin User",
-                email: "admin@example.com",
-                employeeId: "ADMIN001",
-                password: await bcrypt.hash("password", 10),
-                role: "admin" as const,
-                createdAt: new Date(),
-            }
-        }
+    } catch (err) {
+        console.error("Database error in findUser:", err);
         return null;
     }
 }
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
-    secret: "2f8b4c9d3e7a1f6c5b8a2d9e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
+    trustHost: true,
+    secret: process.env.AUTH_SECRET,
     providers: [
         Credentials({
+            credentials: {
+                identifier: { label: "Identifier", type: "text" },
+                password: { label: "Password", type: "password" },
+                code: { label: "2FA Code", type: "text" },
+            },
             async authorize(credentials) {
-                const parsedCredentials = z
-                    .object({
-                        identifier: z.string().min(3), // Can be email or employeeId
-                        password: z.string().min(6)
-                    })
-                    .safeParse(credentials)
+                console.log("[AUTH] Authorize called for:", credentials?.identifier);
+                try {
+                    const identifier = String(credentials?.identifier || "").trim();
+                    const password = String(credentials?.password || "");
+                    const code = String(credentials?.code || "");
 
-                if (parsedCredentials.success) {
-                    const { identifier, password } = parsedCredentials.data
-                    const user = await findUser(identifier)
-
-                    if (!user) {
-                        await TelemetryService.trackEvent("Security", "login_failed_user_not_found", { identifier });
-                        return null
+                    if (!identifier || !password) {
+                        console.log("[AUTH] Missing identifier or password");
+                        return null;
                     }
 
-                    const passwordsMatch = await bcrypt.compare(password, user.password)
+                    const user = await findUser(identifier);
+                    if (!user) {
+                        console.warn(`[AUTH] USER_NOT_FOUND | identifier: ${identifier}`);
+                        await TelemetryService.trackEvent("Security", "login_failed_user_not_found", { identifier });
+                        return null;
+                    }
+
+                    const passwordsMatch = await bcrypt.compare(password, user.password);
+
                     if (passwordsMatch) {
+                        // Check for 2FA
+                        if (user.isTwoFactorEnabled) {
+                            if (!code || code === 'undefined' || code === 'null' || code === '') {
+                                console.log(`[AUTH] 2FA_REQUIRED | user: ${user.employeeId}`);
+                                throw new Error("require-2fa");
+                            }
+
+                            const isValidToken = TotpService.verifyToken(user.twoFactorSecret!, code);
+                            if (!isValidToken) {
+                                console.warn(`[AUTH] 2FA_FAILED | user: ${user.employeeId} | code_received: ${code.length > 0 ? 'yes' : 'no'}`);
+                                await TelemetryService.trackEvent("Security", "login_failed_invalid_2fa", {
+                                    userId: user.id,
+                                    identifier
+                                });
+                                return null;
+                            }
+                        } else {
+                            console.log(`[AUTH] 2FA_SETUP_REQUIRED | user: ${user.employeeId}`);
+                            throw new Error("setup-2fa");
+                        }
+
+                        console.log(`[AUTH] LOGIN_SUCCESS | user: ${user.employeeId} | role: ${user.role}`);
                         await TelemetryService.trackEvent("Security", "login_success", {
                             userId: user.id,
                             email: user.email,
@@ -71,10 +88,20 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             role: user.role,
                         }
                     } else {
-                        await TelemetryService.trackEvent("Security", "login_failed_wrong_password", { identifier });
+                        console.warn(`[AUTH] LOGIN_FAILED_WRONG_PASSWORD | identifier: ${identifier}`);
+                        await TelemetryService.trackEvent("Security", "login_failed_wrong_password", {
+                            identifier,
+                            userId: user.id
+                        });
+                        return null;
                     }
+                } catch (error: any) {
+                    if (error.message === 'require-2fa' || error.message === 'setup-2fa') {
+                        throw error;
+                    }
+                    console.error(`[AUTH] FATAL_ERROR | identifier: ${credentials?.identifier} | error: ${error.message}`);
+                    return null;
                 }
-                return null;
             },
         }),
     ],

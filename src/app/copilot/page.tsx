@@ -8,6 +8,7 @@ import { Bot, User, Send, Sparkles, Loader, Paperclip, FileText, X } from "lucid
 import { processCopilotQuery, getChatHistory, clearChatHistory } from "@/app/actions/ai";
 import { ChatMarkdown } from "@/components/copilot/chat-markdown";
 import { toast } from "sonner";
+import { AxiomLogo } from "@/components/shared/axiom-logo";
 
 interface Message {
     role: 'user' | 'assistant';
@@ -83,7 +84,7 @@ export default function CopilotPage() {
             <div className="p-8 pb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-primary font-outfit">
-                        <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                        <AxiomLogo className="h-8 w-8 text-primary animate-pulse" />
                         Axiom Copilot
                     </h1>
                     <p className="text-muted-foreground mt-1 text-sm">AI-powered procurement insights and multi-format document analysis.</p>
@@ -112,10 +113,10 @@ export default function CopilotPage() {
                             messages.map((m, i) => (
                                 <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${m.role === 'assistant'
-                                        ? 'bg-primary text-primary-foreground border-primary/20'
+                                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-200 dark:shadow-none'
                                         : 'bg-background text-foreground border-accent'
                                         }`}>
-                                        {m.role === 'assistant' ? <Bot size={22} className="text-white" /> : <User size={22} />}
+                                        {m.role === 'assistant' ? <AxiomLogo className="w-6 h-6 text-white" /> : <User size={22} />}
                                     </div>
                                     <div className={`max-w-[85%] rounded-2xl p-4 text-sm shadow-sm ${m.role === 'assistant'
                                         ? 'bg-muted/50 border border-muted-foreground/10'
@@ -132,8 +133,8 @@ export default function CopilotPage() {
                         )}
                         {isPending && (
                             <div className="flex gap-4 animate-in fade-in duration-300">
-                                <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 border border-primary/20 shadow-sm">
-                                    <Bot size={22} className="text-white" />
+                                <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 border border-emerald-500 shadow-sm shadow-emerald-200">
+                                    <AxiomLogo className="w-6 h-6 text-white" />
                                 </div>
                                 <div className="bg-muted/50 border border-muted-foreground/10 rounded-2xl p-4 flex items-center gap-3">
                                     <div className="flex gap-1">

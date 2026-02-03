@@ -130,10 +130,18 @@ export default async function RequisitionsPage() {
                                             ₹{Number(req.estimatedAmount).toLocaleString()}
                                         </td>
                                         <td className="p-4 align-middle">
-                                            <Badge variant="outline" className={cn("px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px]", getStatusColor(req.status || ''))}>
-                                                {getStatusIcon(req.status || '')}
-                                                {req.status?.replace('_', ' ')}
-                                            </Badge>
+                                            <div className="flex flex-col gap-1.5 w-[120px]">
+                                                <Badge variant="outline" className={cn("px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] w-fit", getStatusColor(req.status || ''))}>
+                                                    {getStatusIcon(req.status || '')}
+                                                    {req.status?.replace('_', ' ')}
+                                                </Badge>
+                                                <Progress value={
+                                                    req.status === 'draft' ? 10 :
+                                                        req.status === 'pending_approval' ? 40 :
+                                                            req.status === 'approved' ? 75 :
+                                                                req.status === 'converted_to_po' ? 100 : 0
+                                                } className="h-1" />
+                                            </div>
                                         </td>
                                         <td className="p-4 align-middle text-muted-foreground whitespace-nowrap">
                                             {req.createdAt ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(req.createdAt)) : 'N/A'}

@@ -1,6 +1,5 @@
 import { db } from "@/db";
 import { systemTelemetry } from "@/db/schema";
-import { auth } from "@/auth";
 
 export type TelemetryType = 'event' | 'metric' | 'error' | 'security';
 
@@ -42,8 +41,7 @@ export class TelemetryService {
         metadata?: any
     ) {
         try {
-            const session = await auth();
-            const userId = (session?.user as any)?.id;
+            let userId = metadata?.userId;
 
             await db.insert(systemTelemetry).values({
                 type,

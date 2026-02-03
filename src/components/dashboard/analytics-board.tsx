@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { BarChart3, LineChart as LineIcon, PieChart as PieIcon, AreaChart as AreaIcon, Layers } from "lucide-react"
 
-const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+const COLORS = ["#065f46", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
 interface AnalyticsBoardProps {
     monthlyData: { name: string; total: number }[];
@@ -74,7 +74,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
         if (chartType === "line") {
             return (
                 <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <LineChart data={monthlyData} margin={{ top: 20, right: 30, left: 60, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
                         <XAxis
                             dataKey="name"
@@ -112,7 +112,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
         if (chartType === "area") {
             return (
                 <ResponsiveContainer width="100%" height={400}>
-                    <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 60, bottom: 5 }}>
                         <defs>
                             <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
@@ -139,7 +139,7 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
 
         return (
             <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={data} margin={{ top: 20, right: 30, left: 60, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
                     <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} dy={10} fontFamily="var(--font-sans)" />
                     <YAxis stroke="var(--color-muted-foreground)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} dx={-10} fontFamily="var(--font-sans)" />

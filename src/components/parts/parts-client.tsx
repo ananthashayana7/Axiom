@@ -3,7 +3,7 @@
 import React, { useState, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus, Search, Filter, X } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Search, Filter, X, Repeat } from "lucide-react";
 import { PartMenuActions } from "./part-menu-actions";
 import { formatCurrency } from "@/lib/utils/currency";
 import { Input } from "@/components/ui/input";
@@ -57,9 +57,9 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
 
             let matchesStockStatus = true;
             if (filterParam === 'low') {
-                matchesStockStatus = part.stockLevel < 50;
+                matchesStockStatus = part.stockLevel <= (part.reorderPoint || 50) && part.stockLevel > (part.minStockLevel || 20);
             } else if (filterParam === 'critical') {
-                matchesStockStatus = part.stockLevel < 20;
+                matchesStockStatus = part.stockLevel <= (part.minStockLevel || 20);
             }
 
             return matchesSearch && matchesCategory && matchesStockStatus;
@@ -130,6 +130,18 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                             </Button>
                         )}
                         <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                                const res = await require("@/app/actions/parts").processLowStockAlerts();
+                                if (res.success) toast.success(res.message);
+                                else toast.error(res.error);
+                            }}
+                            className="h-9 px-4 font-bold border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        >
+                            <Repeat className="h-4 w-4 mr-2" /> Process Reorders
+                        </Button>
+                        <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => setShowDeleteAllAlert(true)}
@@ -164,8 +176,8 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                                     <Badge variant="secondary" className="font-semibold bg-secondary/50">{part.category}</Badge>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                    <span className={`inline-block px-2 py-1 rounded-md font-bold ${part.stockLevel < 20 ? 'bg-red-100 text-red-700' :
-                                        part.stockLevel < 50 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                                    <span className={`inline-block px-2 py-1 rounded-md font-bold ${part.stockLevel <= (part.minStockLevel || 20) ? 'bg-red-100 text-red-700' :
+                                        part.stockLevel <= (part.reorderPoint || 50) ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
                                         }`}>
                                         {part.stockLevel}
                                     </span>
@@ -176,10 +188,15 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                                     {renderTrend(part.marketTrend)}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-xs font-black uppercase">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`h-2 w-2 rounded-full ${part.stockLevel < 20 ? 'bg-red-500 animate-pulse' : part.stockLevel < 50 ? 'bg-amber-500' : 'bg-green-500'}`} />
-                                        {part.stockLevel < 20 ? 'CRITICAL' : part.stockLevel < 50 ? 'LOW STOCK' : 'AVAILABLE'}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2 text-xs font-black uppercase">
+                                            <div className={`h-2 w-2 rounded-full ${part.stockLevel <= (part.minStockLevel || 20) ? 'bg-red-500 animate-pulse' : part.stockLevel <= (part.reorderPoint || 50) ? 'bg-amber-500' : 'bg-green-500'}`} />
+                                            {part.stockLevel <= (part.minStockLevel || 20) ? 'CRITICAL' : part.stockLevel <= (part.reorderPoint || 50) ? 'LOW STOCK' : 'AVAILABLE'}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
+                                            Min: {part.minStockLevel || 20} | Reorder: {part.reorderPoint || 50}
+                                        </div>
                                     </div>
                                 </td>
                                 <td className="sticky right-0 bg-card px-6 py-4 whitespace-nowrap text-right shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)] z-10 group-hover:bg-muted transition-colors">

@@ -15,6 +15,27 @@
       "when": 1768891720843,
       "tag": "0001_colossal_the_spike",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769850222850,
+      "tag": "0002_colossal_dracula",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769853067442,
+      "tag": "0003_tidy_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769858493655,
+      "tag": "0004_fluffy_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

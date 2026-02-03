@@ -32,7 +32,7 @@ export async function Header() {
                         title="System Telemetry"
                     >
                         <Terminal className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Telemetry</span>
+                        <span className="hidden sm:inline">Vitals</span>
                     </Link>
                 )}
                 <ThemeToggle />

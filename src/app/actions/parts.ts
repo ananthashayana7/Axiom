@@ -1,10 +1,11 @@
 'use server'
 
 import { db } from "@/db";
-import { parts, orderItems, rfqItems, type Part } from "@/db/schema";
+import { parts, orderItems, rfqItems, requisitions, type Part } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
+import { auth } from "@/auth";
 
 export async function getParts(): Promise<Part[]> {
     try {
@@ -24,6 +25,8 @@ export async function addPart(formData: FormData) {
         const stockLevel = parseInt(formData.get("stock") as string) || 0;
         const price = formData.get("price") as string || '0';
         const marketTrend = formData.get("marketTrend") as string || 'stable';
+        const reorderPoint = parseInt(formData.get("reorderPoint") as string) || 50;
+        const minStockLevel = parseInt(formData.get("minStockLevel") as string) || 20;
 
         const [newPart] = await db.insert(parts).values({
             name,
@@ -32,6 +35,8 @@ export async function addPart(formData: FormData) {
             stockLevel,
             price,
             marketTrend,
+            reorderPoint,
+            minStockLevel,
         }).returning();
 
         await logActivity('CREATE', 'part', newPart.id, `Created new part: ${name} (${sku})`);
@@ -52,6 +57,8 @@ export async function updatePart(id: string, formData: FormData) {
         const stockLevel = parseInt(formData.get("stock") as string) || 0;
         const price = formData.get("price") as string;
         const marketTrend = formData.get("marketTrend") as string;
+        const reorderPoint = parseInt(formData.get("reorderPoint") as string);
+        const minStockLevel = parseInt(formData.get("minStockLevel") as string);
 
         await db.update(parts)
             .set({
@@ -61,6 +68,8 @@ export async function updatePart(id: string, formData: FormData) {
                 stockLevel,
                 price,
                 marketTrend,
+                reorderPoint,
+                minStockLevel,
             })
             .where(eq(parts.id, id));
 
@@ -109,5 +118,43 @@ export async function deleteAllParts() {
     } catch (error) {
         console.error("Failed to clear inventory:", error);
         return { success: false, error: "Failed to clear inventory" };
+    }
+}
+
+export async function processLowStockAlerts() {
+    const session = await auth();
+    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        const lowStockParts = await db.select()
+            .from(parts)
+            .where(sql`${parts.stockLevel} <= ${parts.reorderPoint}`);
+
+        if (lowStockParts.length === 0) {
+            return { success: true, count: 0, message: "No low stock items found." };
+        }
+
+        let createdCount = 0;
+        for (const part of lowStockParts) {
+            const reorderQty = (part.reorderPoint || 50) * 2 - part.stockLevel;
+
+            await db.insert(requisitions).values({
+                title: `Auto-Reorder: ${part.name}`,
+                description: `System generated reorder for SKU: ${part.sku}. Current stock: ${part.stockLevel}, Target: ${(part.reorderPoint || 50) * 2}.`,
+                department: part.category,
+                status: 'draft',
+                requestedById: (session.user as any).id,
+                estimatedAmount: (reorderQty * parseFloat(part.price || "0")).toString()
+            });
+
+            await logActivity('CREATE', 'requisition', 'auto', `Auto-generated requisition for ${part.name} due to low stock (${part.stockLevel})`);
+            createdCount++;
+        }
+
+        revalidatePath("/sourcing/requisitions");
+        return { success: true, count: createdCount, message: `Successfully generated ${createdCount} requisitions.` };
+    } catch (error) {
+        console.error("Auto-reorder failed:", error);
+        return { success: false, error: "Failed to process reorders." };
     }
 }

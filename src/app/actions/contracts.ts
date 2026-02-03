@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { contracts, procurementOrders } from "@/db/schema";
+import { contracts, procurementOrders, suppliers } from "@/db/schema";
 import type { Contract, Supplier } from "@/db/schema";
 import { eq, desc, and, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -23,15 +23,31 @@ export async function getContracts(supplierId?: string) {
             filters.push(eq(contracts.supplierId, userSupplierId));
         }
 
-        const data = await db.query.contracts.findMany({
-            where: and(...filters),
-            with: {
-                supplier: true,
-                orders: true, // call-off orders
-            },
-            orderBy: desc(contracts.createdAt)
-        });
-        return data;
+        const rawData = await db
+            .select({
+                id: contracts.id,
+                supplierId: contracts.supplierId,
+                title: contracts.title,
+                type: contracts.type,
+                status: contracts.status,
+                value: contracts.value,
+                validFrom: contracts.validFrom,
+                validTo: contracts.validTo,
+                noticePeriod: contracts.noticePeriod,
+                renewalStatus: contracts.renewalStatus,
+                incoterms: contracts.incoterms,
+                createdAt: contracts.createdAt,
+                supplierName: suppliers.name,
+            })
+            .from(contracts)
+            .leftJoin(suppliers, eq(contracts.supplierId, suppliers.id))
+            .where(and(...filters))
+            .orderBy(desc(contracts.createdAt));
+
+        return rawData.map(row => ({
+            ...row,
+            supplier: { name: row.supplierName }
+        }));
     } catch (error) {
         console.error("Failed to fetch contracts:", error);
         return [];
@@ -49,6 +65,10 @@ interface CreateContractData {
     renewalStatus?: 'auto_renew' | 'manual' | 'none';
     incoterms?: 'EXW' | 'FCA' | 'CPT' | 'CIP' | 'DAT' | 'DAP' | 'DDP' | 'FAS' | 'FOB' | 'CFR' | 'CIF';
     slaKpis?: string; // JSON string
+    liabilityCap?: number;
+    priceLockExpiry?: Date;
+    autoRenewalAlert?: string; // 'true' or 'false'
+    aiExtractedData?: string;
 }
 
 export async function createContract(data: CreateContractData) {
@@ -68,6 +88,10 @@ export async function createContract(data: CreateContractData) {
             incoterms: data.incoterms,
             slaKpis: data.slaKpis,
             status: 'draft',
+            liabilityCap: data.liabilityCap ? data.liabilityCap.toString() : null,
+            priceLockExpiry: data.priceLockExpiry,
+            autoRenewalAlert: data.autoRenewalAlert || 'true',
+            aiExtractedData: data.aiExtractedData
         }).returning();
 
         await logActivity('CREATE', 'contract', newContract.id, `New contract created: ${data.title}`);
@@ -96,7 +120,7 @@ export async function updateContractStatus(id: string, status: 'active' | 'expir
     }
 }
 
-export async function getExpiringContracts(days: number = 30) {
+export async function getExpiringContracts(days: number = 90) {
     const session = await auth();
     if (!session) return [];
 
@@ -105,19 +129,49 @@ export async function getExpiringContracts(days: number = 30) {
         const futureDate = new Date();
         futureDate.setDate(today.getDate() + days);
 
-        const expiring = await db.query.contracts.findMany({
-            where: and(
+        const expiringRaw = await db
+            .select({
+                id: contracts.id,
+                supplierId: contracts.supplierId,
+                title: contracts.title,
+                type: contracts.type,
+                status: contracts.status,
+                value: contracts.value,
+                validFrom: contracts.validFrom,
+                validTo: contracts.validTo,
+                renewalStatus: contracts.renewalStatus,
+                supplierName: suppliers.name,
+            })
+            .from(contracts)
+            .leftJoin(suppliers, eq(contracts.supplierId, suppliers.id))
+            .where(and(
                 eq(contracts.status, 'active'),
                 lte(contracts.validTo, futureDate),
                 gte(contracts.validTo, today)
-            ),
-            with: {
-                supplier: true
-            }
-        });
-        return expiring;
+            ))
+            .orderBy(contracts.validTo);
+
+        return expiringRaw.map(row => ({
+            ...row,
+            supplier: { name: row.supplierName }
+        }));
     } catch (error) {
         console.error("Failed to fetch expiring contracts:", error);
         return [];
+    }
+}
+
+export async function deleteContract(id: string) {
+    const session = await auth();
+    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+
+    try {
+        await db.delete(contracts).where(eq(contracts.id, id));
+        await logActivity('DELETE', 'contract', id, `Contract deleted by admin`);
+        revalidatePath("/sourcing/contracts");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete contract:", error);
+        return { success: false, error: "Failed to delete contract" };
     }
 }

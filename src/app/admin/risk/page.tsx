@@ -16,10 +16,14 @@ import {
     CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { MitigationAction } from "@/components/admin/mitigation-action";
 import { RiskIntelligenceView } from "@/components/admin/risk-intelligence-view";
+import { GeoRiskMap } from "@/components/admin/geo-risk-map";
 import { getRiskComplianceStats } from "@/app/actions/risk";
+import { batchGeocodeSuppliers } from "@/app/actions/geocoding";
+import { GeocodeTrigger } from "@/components/admin/geocode-trigger";
 
 export const dynamic = 'force-dynamic';
 
@@ -37,9 +41,25 @@ export default async function RiskDashboardPage() {
         <div className="flex min-h-screen flex-col bg-muted/40 p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Risk & Compliance Command Center</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Risk & Compliance Intelligence</h1>
                     <p className="text-muted-foreground mt-1">Real-time monitoring of ESG, financial, and operational supply chain risks.</p>
                 </div>
+                <GeocodeTrigger />
+            </div>
+
+            <div className="w-full h-[400px] mb-8 rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                <GeoRiskMap
+                    suppliers={allSuppliers
+                        .filter(s => s.latitude && s.longitude)
+                        .map(s => ({
+                            id: s.id,
+                            name: s.name,
+                            latitude: parseFloat(s.latitude || "0"),
+                            longitude: parseFloat(s.longitude || "0"),
+                            riskScore: s.riskScore || 0
+                        }))
+                    }
+                />
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -50,8 +70,8 @@ export default async function RiskDashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-red-600">{highRiskSuppliers.length}</div>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <span className="text-red-600 font-bold">↑ 12%</span> vs last month
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+                            Requiring immediate attention
                         </p>
                     </CardContent>
                 </Card>
@@ -72,7 +92,7 @@ export default async function RiskDashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-700">{stats.esgAvg}/100</div>
-                        <p className="text-xs text-stone-500 mt-1">Industry Standard: 62</p>
+                        <p className="text-xs text-stone-500 mt-1">Portfolio ESG Target: 75+</p>
                     </CardContent>
                 </Card>
                 <Card className="border-stone-200 bg-stone-50/30 shadow-none">
@@ -81,8 +101,8 @@ export default async function RiskDashboardPage() {
                         <Search className="h-4 w-4 text-stone-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-stone-900">98.2%</div>
-                        <p className="text-xs text-stone-500 mt-1">Active Certifications</p>
+                        <div className="text-2xl font-bold text-stone-900">{stats.esgAvg}%</div>
+                        <p className="text-xs text-stone-500 mt-1 font-medium">Avg Portfolio ESG Score</p>
                     </CardContent>
                 </Card>
             </div>
@@ -106,13 +126,13 @@ export default async function RiskDashboardPage() {
                         {lowESGSuppliers.slice(0, 4).map((s: any) => (
                             <div key={s.id} className="space-y-2">
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="font-semibold">{s.name}</span>
+                                    <Link href={`/suppliers/${s.id}`} className="font-semibold hover:text-primary transition-colors">{s.name}</Link>
                                     <span className="text-red-500 font-bold">{s.esgScore}/100</span>
                                 </div>
                                 <Progress value={s.esgScore || 0} className="h-2 bg-muted transition-all [&>div]:bg-red-500" />
                                 <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
                                     <AlertTriangle size={10} />
-                                    Environmental compliance audit pending since last quarter.
+                                    Environmental compliance verification active.
                                 </p>
                             </div>
                         ))}
@@ -142,16 +162,23 @@ export default async function RiskDashboardPage() {
                         {financialWatchlist.slice(0, 5).map((s: any) => (
                             <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border bg-background hover:bg-muted/50 transition-colors">
                                 <div className="flex flex-col gap-1">
-                                    <span className="font-bold text-foreground">{s.name}</span>
-                                    <span className="text-xs text-muted-foreground">Dun & Bradstreet Rating: <strong>B-</strong></span>
+                                    <Link href={`/suppliers/${s.id}`} className="font-bold text-foreground hover:text-primary transition-colors">{s.name}</Link>
+                                    <span className="text-xs text-muted-foreground">Financial Health: <strong>{
+                                        s.financialScore > 80 ? 'Exceptional' :
+                                            s.financialScore > 60 ? 'Strong' :
+                                                s.financialScore > 40 ? 'Fair' : 'Distressed'
+                                    }</strong></span>
                                 </div>
                                 <div className="text-right flex flex-col items-end gap-1">
-                                    <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-none px-3">
+                                    <Badge variant="secondary" className={cn(
+                                        "px-3 border-none",
+                                        s.financialScore > 70 ? "bg-green-100 text-green-700" :
+                                            s.financialScore > 40 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                                    )}>
                                         Score: {s.financialScore}
                                     </Badge>
-                                    <span className="text-[10px] flex items-center gap-1 text-red-500">
-                                        <ArrowDownRight size={12} />
-                                        -5pts this week
+                                    <span className="text-[10px] text-muted-foreground">
+                                        Liquidity: {s.financialScore > 50 ? 'Stable' : 'Volatile'}
                                     </span>
                                 </div>
                             </div>
@@ -183,11 +210,11 @@ export default async function RiskDashboardPage() {
                             </div>
                         )}
                         <div className="p-4 rounded-xl border bg-background/50 hover:shadow-md transition-all group">
-                            <Badge variant="outline" className="text-orange-500 border-orange-200 mb-3 uppercase text-[10px]">Market Insight</Badge>
-                            <h4 className="font-bold mb-2">Category Benchmarking</h4>
-                            <p className="text-sm text-muted-foreground line-clamp-2">Market rates for electronics components have shifted by 4.2%. Axiom suggests reviewing open RFQs.</p>
+                            <Badge variant="outline" className="text-orange-500 border-orange-200 mb-3 uppercase text-[10px]">Strategic Insight</Badge>
+                            <h4 className="font-bold mb-2">Portfolio Diversification</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-2">Axiom detected {highRiskSuppliers.length} suppliers in high-risk zones. Recommendation: Review alternative source options.</p>
                             <Link href="/sourcing/rfqs" className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 group-hover:underline">
-                                Run New RFP <ArrowUpRight size={14} />
+                                Explore Sourcing <ArrowUpRight size={14} />
                             </Link>
                         </div>
                     </CardContent>

@@ -382,9 +382,11 @@ export default function SuppliersPage() {
                         <p className="text-xs text-muted-foreground leading-relaxed">
                             Axiom uses <strong>MCDA</strong> (Multi-Criteria Decision Analysis) to calculate your supplier scores. Every onboarding requires active validation of ISO certificates to appear in the "Compliance" channel.
                         </p>
-                        <Button variant="link" size="sm" className="p-0 h-auto text-[11px] mt-4 text-primary font-bold">
-                            Review Axiom Compliance Playbook →
-                        </Button>
+                        <Link href="/docs">
+                            <Button variant="link" size="sm" className="p-0 h-auto text-[11px] mt-4 text-primary font-bold">
+                                Review Axiom Compliance Playbook →
+                            </Button>
+                        </Link>
                     </CardContent>
                 </Card>
             </div>

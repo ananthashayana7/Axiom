@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqSuppliers, rfqs, procurementOrders, rfqItems, parts, documents } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { rfqSuppliers, rfqs, procurementOrders, rfqItems, parts, documents, suppliers, orderItems } from "@/db/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -32,7 +32,7 @@ export async function getSupplierStats() {
     }
 }
 
-import { sql } from "drizzle-orm";
+
 
 export async function getSupplierRFQs() {
     const session = await auth();
@@ -67,19 +67,41 @@ export async function getSupplierOrders() {
     if (!supplierId) return [];
 
     try {
-        const vendorOrders = await db.query.procurementOrders.findMany({
-            where: eq(procurementOrders.supplierId, supplierId),
-            with: {
-                items: {
-                    with: {
-                        part: true
-                    }
-                }
-            },
-            orderBy: [desc(procurementOrders.createdAt)]
-        });
+        const orders = await db.select({
+            id: procurementOrders.id,
+            status: procurementOrders.status,
+            totalAmount: procurementOrders.totalAmount,
+            createdAt: procurementOrders.createdAt,
+        })
+            .from(procurementOrders)
+            .where(eq(procurementOrders.supplierId, supplierId))
+            .orderBy(desc(procurementOrders.createdAt));
 
-        return vendorOrders;
+        const orderIds = orders.map(o => o.id);
+
+        if (orderIds.length === 0) return [];
+
+        const allItemsRaw = await db.select({
+            id: orderItems.id,
+            orderId: orderItems.orderId,
+            quantity: orderItems.quantity,
+            unitPrice: orderItems.unitPrice,
+            partName: parts.name,
+            partSku: parts.sku
+        })
+            .from(orderItems)
+            .leftJoin(parts, eq(orderItems.partId, parts.id))
+            .where(sql`${orderItems.orderId} IN ${orderIds}`);
+
+        const allItems = allItemsRaw.map(i => ({
+            ...i,
+            part: { name: i.partName, sku: i.partSku }
+        }));
+
+        return orders.map(order => ({
+            ...order,
+            items: allItems.filter(item => item.orderId === order.id)
+        }));
     } catch (error) {
         console.error("Portal Orders error:", error);
         return [];
@@ -129,5 +151,43 @@ export async function uploadSupplierDocument(formData: FormData) {
     } catch (error) {
         console.error("Upload error:", error);
         return { success: false, error: "Failed to save document record." };
+    }
+}
+export async function getSupplierProfile() {
+    const session = await auth();
+    const supplierId = (session?.user as any)?.supplierId;
+    if (!supplierId) return null;
+
+    try {
+        const [profile] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
+        return profile;
+    } catch (error) {
+        console.error("Profile fetch error:", error);
+        return null;
+    }
+}
+
+export async function updateSupplierProfile(formData: FormData) {
+    const session = await auth();
+    const supplierId = (session?.user as any)?.supplierId;
+    if (!supplierId) return { success: false, error: "Unauthorized" };
+
+    const contactEmail = formData.get('contactEmail') as string;
+    const city = formData.get('city') as string;
+
+    try {
+        await db.update(suppliers).set({
+            contactEmail,
+            city,
+            updatedAt: new Date()
+        }).where(eq(suppliers.id, supplierId));
+
+        await logActivity('UPDATE', 'supplier', supplierId, `Supplier updated their profile contact info.`);
+
+        revalidatePath('/portal/profile');
+        return { success: true };
+    } catch (error) {
+        console.error("Profile update error:", error);
+        return { success: false, error: "Failed to update profile." };
     }
 }

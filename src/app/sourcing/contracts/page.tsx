@@ -11,6 +11,7 @@ const formatDate = (date: Date) =>
     new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 
 import { CreateContractDialog } from "@/components/sourcing/create-contract-dialog";
+import { ContractActions } from "@/components/sourcing/contract-actions";
 
 export default async function ContractsPage() {
     const contracts = await getContracts();
@@ -69,14 +70,8 @@ export default async function ContractsPage() {
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex gap-2">
-                                <Button variant="outline" size="sm" className="w-full gap-2">
-                                    <FileText className="h-4 w-4" />
-                                    View PDF
-                                </Button>
-                                <Button variant="secondary" size="sm" className="w-full">
-                                    Manage
-                                </Button>
+                            <div className="pt-2">
+                                <ContractActions contractId={contract.id} status={contract.status || 'draft'} />
                             </div>
                         </CardContent>
 

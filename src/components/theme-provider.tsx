@@ -70,7 +70,9 @@ export function ThemeProvider({
 
 export const useTheme = () => {
     const context = React.useContext(ThemeContext)
-    if (context === undefined)
-        throw new Error("useTheme must be used within a ThemeProvider")
+    if (context === undefined) {
+        // Fallback for SSR or when used outside provider to prevent crashes
+        return { theme: 'system' as Theme, setTheme: () => { } }
+    }
     return context
 }

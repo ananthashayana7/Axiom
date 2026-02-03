@@ -20,7 +20,9 @@ import {
     ChevronRight,
     Share2,
     CheckCircle2,
-    Info
+    Info,
+    RefreshCcw,
+    Scale
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -81,6 +83,20 @@ const SECTIONS = [
         ]
     },
     {
+        id: "contracts",
+        title: "Framework Agreements",
+        icon: ShieldCheck,
+        content: "Legal safety for long-term relationships. Framework Agreements ensure you are always buying at pre-negotiated terms without launching an RFQ every single time.",
+        steps: [
+            "Contract Activation — New contracts start as 'Draft'. You must 'Activate' them before they can be linked to any Purchase Order.",
+            "Linking Orders — When creating an order, select the 'Contract' field. This automatically inherits the agreed-upon Incoterms and legal protections.",
+            "Renewal Alerts — Axiom monitors the 'Valid To' date. Check the 'Contracts' page regularly to spot agreements that are about to expire.",
+            "Termination — If a supplier fails their SLA, use the 'Terminate' action to block any new spend against that contract.",
+            "PRO-TIP: Use 'Auto-Renew' for low-risk, high-volume service contracts to avoid service interruptions.",
+            "PITFALL: Buying without a contract when one exists. Always link your PO to the Framework Agreement to ensure pricing compliance."
+        ]
+    },
+    {
         id: "requisitions",
         title: "Internal Requests",
         icon: ShoppingCart,
@@ -102,10 +118,11 @@ const SECTIONS = [
         steps: [
             "Auto-Creation — Always convert an Approved Requisition or RFQ into a PO. Do not type details manually to avoid errors.",
             "The Tracking Loop — Once a PO is 'Sent', the clock starts. Use the 'Status' column to monitor if the supplier is late.",
+            "The Three-Way Match — A critical audit step. Axiom compares the PO Amount, the Goods Receipt (GRN), and the Invoice. If they don't match, it is flagged as 'Disputed'.",
             "Receipting (GRN) — When the box hits the warehouse, mark it as 'Fulfilled' in Axiom. This is the only way to trigger a payment.",
             "Closing the Loop — A 'Fulfilled' order moves to the 'History' tab for your next year's budget planning.",
             "PRO-TIP: If a supplier sends 95% of an order, don't mark as fulfilled. Keep it open until the last 5% arrives.",
-            "PITFALL: Verbally telling a supplier to 'send it' without a PO in the system. If it's not in Axiom, it doesn't exist to Finance."
+            "PITFALL: Verbally telling a supplier to 'send it' without a PO in the system. If it's not in Axiom, it doesn't exist."
         ]
     },
     {
@@ -117,6 +134,7 @@ const SECTIONS = [
             "Red Flag: Performance — If a score drops below 60, stop giving them new work until they explain why they are late.",
             "Red Flag: Risk — A high risk score (80+) means they might be financially unstable or have ethical issues.",
             "ESG Compliance — Monitor if your partners are using green energy or ethical labor. This protects your brand's reputation.",
+            "Manual Performance Audits — Go to a Supplier's page and click 'Record Performance'. This calculates a live scorecard based on Delivery, Quality, and Collaboration.",
             "The Master List — Only buy from 'Active' suppliers. 'Blacklisted' suppliers are blocked from the system for a reason.",
             "PRO-TIP: Review your Top 10 suppliers every quarter. Don't let your business depend too heavily on just one partner.",
             "PITFALL: Ignoring the 'Reliability' metric. A supplier who is 'always just 2 days late' is costing you hours of project delay."
@@ -148,6 +166,20 @@ const SECTIONS = [
             "Security First — Tell your team to *never* share their passwords. Use the 'Inactivity Tracker'—Axiom will auto-log-out for safety.",
             "PRO-TIP: Make 'Procurement 101' mandatory reading for every new hire before they get their login.",
             "PITFALL: Sharing one login between multiple people. It destroys the 'Audit Trail'—you won't know who actually made a mistake."
+        ]
+    },
+    {
+        id: "maintenance",
+        title: "System Maintenance",
+        icon: RefreshCcw,
+        content: "Keeping the engine running. As an Admin, you have the power to reset data and manage the technical health of the workspace.",
+        steps: [
+            "The Reset Utility — Found in Admin Settings. This wipes all orders, suppliers, and parts while keeping your User account intact.",
+            "Database Hygiene — Always ensure your DATABASE_URL is backed up before a reset. These actions are permanent and irreversible.",
+            "Audit Trail Integrity — Axiom logs every major system action. If you reset the database, the activity logs are also cleared to start fresh.",
+            "Role Management — Regularly audit who has 'Admin' access. Restricted access is the best defense against data accidents.",
+            "PRO-TIP: Perform a 'Workspace Reset' only after your annual audit is complete and data is archived.",
+            "PITFALL: Resetting the database during active procurement cycles. This will disconnect suppliers and cancel pending orders."
         ]
     }
 ];

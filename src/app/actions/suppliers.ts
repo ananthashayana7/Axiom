@@ -139,6 +139,11 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
         if (data.lifecycleStatus) await logActivity('UPDATE', 'supplier', id, `Lifecycle updated to ${data.lifecycleStatus.toUpperCase()}`);
         if (data.performanceScore !== undefined) await logActivity('UPDATE', 'supplier', id, `Performance score updated to ${data.performanceScore}`);
 
+        // Trigger ESG Recalculation if sub-scores are updated
+        if (data.esgEnvironmentScore !== undefined || data.esgSocialScore !== undefined || data.esgGovernanceScore !== undefined) {
+            await calculateSupplierESG(id);
+        }
+
         revalidatePath(`/suppliers/${id}`);
         revalidatePath("/suppliers");
         return { success: true };
@@ -181,6 +186,9 @@ export async function addSupplier(formData: FormData) {
 
         await logActivity('CREATE', 'supplier', newSupplier.id, `New supplier onboarded: ${name}`);
 
+        // Trigger ESG Recalculation
+        await calculateSupplierESG(newSupplier.id);
+
         revalidatePath("/suppliers");
         return { success: true };
     } catch (error) {
@@ -191,25 +199,59 @@ export async function addSupplier(formData: FormData) {
 
 export async function getSupplierPerformanceMetrics(supplierId: string) {
     try {
-        const metrics = await db.query.suppliers.findFirst({
-            where: eq(suppliers.id, supplierId),
-            columns: {
-                performanceScore: true,
-                onTimeDeliveryRate: true,
-                defectRate: true,
-                collaborationScore: true,
-                responsivenessScore: true,
-            },
-            with: {
-                performanceLogs: {
-                    orderBy: desc(supplierPerformanceLogs.recordedAt),
-                    limit: 10
-                }
-            }
-        });
-        return metrics;
+        const [supplierInfo] = await db
+            .select({
+                performanceScore: suppliers.performanceScore,
+                onTimeDeliveryRate: suppliers.onTimeDeliveryRate,
+                defectRate: suppliers.defectRate,
+                collaborationScore: suppliers.collaborationScore,
+                responsivenessScore: suppliers.responsivenessScore,
+            })
+            .from(suppliers)
+            .where(eq(suppliers.id, supplierId))
+            .limit(1);
+
+        if (!supplierInfo) return null;
+
+        const logs = await db
+            .select()
+            .from(supplierPerformanceLogs)
+            .where(eq(supplierPerformanceLogs.supplierId, supplierId))
+            .orderBy(desc(supplierPerformanceLogs.recordedAt))
+            .limit(10);
+
+        return {
+            ...supplierInfo,
+            performanceLogs: logs
+        };
     } catch (error) {
         console.error("Failed to fetch performance metrics:", error);
+        return null;
+    }
+}
+
+/**
+ * ESG CALCULATION LOGIC (Point 10 Transparency)
+ * Weights: Environment (40%), Social (30%), Governance (30%)
+ */
+export async function calculateSupplierESG(supplierId: string) {
+    try {
+        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
+        if (!supplier) return null;
+
+        const env = supplier.esgEnvironmentScore || 0;
+        const soc = supplier.esgSocialScore || 0;
+        const gov = supplier.esgGovernanceScore || 0;
+
+        const totalEsg = Math.round((env * 0.4) + (soc * 0.3) + (gov * 0.3));
+
+        await db.update(suppliers)
+            .set({ esgScore: totalEsg })
+            .where(eq(suppliers.id, supplierId));
+
+        return totalEsg;
+    } catch (error) {
+        console.error("ESG Calculation failed:", error);
         return null;
     }
 }

@@ -5,13 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, FileCheck, Receipt, Truck, Info } from "lucide-react";
 import { getOrderFinanceDetails } from "@/app/actions/orders";
+import { RecordReceiptDialog } from "./record-receipt-dialog";
+import { AddInvoiceDialog } from "./add-invoice-dialog";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 interface ThreeWayMatchProps {
     orderId: string;
     poAmount: number;
+    supplierId: string;
 }
 
-export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
+export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchProps) {
     const [details, setDetails] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -94,7 +100,14 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
                             {hasReceipt ? (
                                 <Truck size={18} className="text-green-500 mb-1" />
                             ) : (
-                                <AlertCircle size={18} className="text-amber-500 mb-1" />
+                                <RecordReceiptDialog
+                                    orderId={orderId}
+                                    trigger={
+                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-100/50 font-bold border border-amber-200">
+                                            Log Receipt
+                                        </Button>
+                                    }
+                                />
                             )}
                         </div>
                     </div>
@@ -126,7 +139,16 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
                             {hasInvoice ? (
                                 <Receipt size={18} className={isPriceMatched ? "text-green-500 mb-1" : "text-red-500 mb-1"} />
                             ) : (
-                                <AlertCircle size={18} className="text-amber-500 mb-1" />
+                                <AddInvoiceDialog
+                                    orderId={orderId}
+                                    supplierId={supplierId}
+                                    poAmount={poAmount}
+                                    trigger={
+                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-100/50 font-bold border border-amber-200">
+                                            Add Invoice
+                                        </Button>
+                                    }
+                                />
                             )}
                         </div>
                     </div>
@@ -141,6 +163,10 @@ export function ThreeWayMatch({ orderId, poAmount }: ThreeWayMatchProps) {
                                 {!hasReceipt && <p>• Physical goods receipt has not been logged in Axiom.</p>}
                                 {!hasInvoice && <p>• Financial invoice from supplier is missing.</p>}
                                 {hasInvoice && !isPriceMatched && <p>• Invoiced amount (₹{totalInvoiced.toLocaleString()}) does not match PO (₹{poAmount.toLocaleString()}).</p>}
+                                <div className="mt-3 flex gap-2">
+                                    {!hasReceipt && <RecordReceiptDialog orderId={orderId} />}
+                                    {!hasInvoice && <AddInvoiceDialog orderId={orderId} supplierId={supplierId} poAmount={poAmount} />}
+                                </div>
                                 <p className="mt-2 text-[10px] opacity-80">SOX compliance requires all three nodes to match before payment release.</p>
                             </div>
                         </div>

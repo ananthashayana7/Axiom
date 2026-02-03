@@ -78,7 +78,7 @@ export async function approveRequisition(id: string) {
             title: "Requisition Approved",
             message: `Your requisition for "${requisition.title}" has been approved!`,
             type: 'success',
-            link: `/sourcing/requisitions`
+            link: `/sourcing/requisitions?id=${requisition.id}`
         });
 
         revalidatePath('/sourcing/requisitions');
@@ -114,7 +114,7 @@ export async function rejectRequisition(id: string, reason: string) {
                 title: "Requisition Rejected",
                 message: `Your requisition for "${requisition.title}" was rejected. Reason: ${reason}`,
                 type: 'warning',
-                link: `/sourcing/requisitions`
+                link: `/sourcing/requisitions?id=${requisition.id}`
             });
         }
 
@@ -168,7 +168,7 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
             title: "Purchase Order Issued",
             message: `Requisition "${requisition.title}" has been converted to PO #${order.id.split('-')[0].toUpperCase()}.`,
             type: 'info',
-            link: `/sourcing/orders`
+            link: `/sourcing/orders?id=${order.id}`
         });
 
         revalidatePath('/sourcing/requisitions');

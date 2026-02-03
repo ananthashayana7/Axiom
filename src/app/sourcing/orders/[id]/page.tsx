@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { procurementOrders, type Supplier, type OrderItem, type Part } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { procurementOrders, suppliers, contracts, orderItems, parts } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,42 +15,73 @@ export const dynamic = 'force-dynamic';
 
 import { OrderStatusStepper } from "@/components/sourcing/order-status-stepper";
 import { ThreeWayMatch } from "@/components/sourcing/three-way-match";
+import { UpdateLogisticsDialog } from "@/components/sourcing/update-logistics-dialog";
+import { Truck, Globe } from "lucide-react";
 
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
-
-// Define the type for the order with relations
-type OrderWithRelations = {
-    id: string;
-    supplierId: string;
-    contractId: string | null;
-    requisitionId: string | null;
-    status: string | null;
-    totalAmount: string | null;
-    incoterms: string | null;
-    createdAt: Date | null;
-    supplier: Supplier;
-    contract: any;
-    items: Array<OrderItem & { part: Part }>;
-};
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
     const isAdmin = (session?.user as any)?.role === 'admin';
 
-    const order = await db.query.procurementOrders.findFirst({
-        where: eq(procurementOrders.id, id),
-        with: {
-            supplier: true,
-            contract: true,
-            items: {
-                with: {
-                    part: true
-                }
-            }
-        }
-    }) as OrderWithRelations | undefined;
+    // 1. Fetch Order with Supplier and Contract (Minimal Fields)
+    const [orderBase] = await db
+        .select({
+            id: procurementOrders.id,
+            supplierId: procurementOrders.supplierId,
+            contractId: procurementOrders.contractId,
+            requisitionId: procurementOrders.requisitionId,
+            status: procurementOrders.status,
+            totalAmount: procurementOrders.totalAmount,
+            incoterms: procurementOrders.incoterms,
+            carrier: procurementOrders.carrier,
+            trackingNumber: procurementOrders.trackingNumber,
+            estimatedArrival: procurementOrders.estimatedArrival,
+            createdAt: procurementOrders.createdAt,
+            supplierName: suppliers.name,
+            supplierEmail: suppliers.contactEmail,
+            contractTitle: contracts.title,
+        })
+        .from(procurementOrders)
+        .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+        .leftJoin(contracts, eq(procurementOrders.contractId, contracts.id))
+        .where(eq(procurementOrders.id, id))
+        .limit(1);
+
+    if (!orderBase) {
+        notFound();
+    }
+
+    // 2. Fetch Order Items with Parts (Minimal Fields)
+    const itemsRaw = await db
+        .select({
+            id: orderItems.id,
+            orderId: orderItems.orderId,
+            partId: orderItems.partId,
+            quantity: orderItems.quantity,
+            unitPrice: orderItems.unitPrice,
+            partName: parts.name,
+            partSku: parts.sku,
+        })
+        .from(orderItems)
+        .leftJoin(parts, eq(orderItems.partId, parts.id))
+        .where(eq(orderItems.orderId, id));
+
+    // Remap for component compatibility
+    const order = {
+        ...orderBase,
+        supplier: {
+            name: orderBase.supplierName,
+            contactEmail: orderBase.supplierEmail,
+        },
+        contract: orderBase.contractTitle ? { title: orderBase.contractTitle } : null,
+        items: itemsRaw.map(i => ({
+            ...i,
+            part: { name: i.partName, sku: i.partSku }
+        }))
+    };
 
     if (!order) {
         notFound();
@@ -100,10 +131,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <ThreeWayMatch
                     orderId={id}
                     poAmount={parseFloat(order.totalAmount || "0")}
+                    supplierId={order.supplierId}
                 />
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 mb-8">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -158,6 +190,50 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                 <p className="text-sm text-muted-foreground">Total Amount</p>
                                 <p className="text-2xl font-bold text-primary">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-primary" />
+                            Logistics & Tracking
+                        </CardTitle>
+                        <UpdateLogisticsDialog
+                            orderId={id}
+                            initialData={{
+                                carrier: order.carrier,
+                                trackingNumber: order.trackingNumber,
+                                estimatedArrival: order.estimatedArrival ? order.estimatedArrival.toISOString() : null
+                            }}
+                        />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {order.trackingNumber ? (
+                                <>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Carrier:</span>
+                                        <span className="font-bold">{order.carrier}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Tracking:</span>
+                                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded border">{order.trackingNumber}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm pt-2 border-t border-dashed">
+                                        <span className="text-muted-foreground">Estimated Arrival:</span>
+                                        <span className="font-bold text-blue-600">
+                                            {order.estimatedArrival ? new Date(order.estimatedArrival).toLocaleDateString() : 'N/A'}
+                                        </span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-4">
+                                    <Globe className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                                    <p className="text-sm text-muted-foreground italic">No tracking information provided.</p>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

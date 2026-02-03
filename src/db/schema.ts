@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, decimal, timestamp, pgEnum, index, uniqueIndex, serial } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, decimal, timestamp, pgEnum, index, uniqueIndex, serial, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const supplierStatusEnum = pgEnum('supplier_status', ['active', 'inactive', 'blacklisted']);
@@ -12,21 +12,25 @@ export const incotermsEnum = pgEnum('incoterms', ['EXW', 'FCA', 'CPT', 'CIP', 'D
 export const requisitionStatusEnum = pgEnum('requisition_status', ['draft', 'pending_approval', 'approved', 'rejected', 'converted_to_po']);
 export const invoiceStatusEnum = pgEnum('invoice_status', ['pending', 'matched', 'disputed', 'paid']);
 export const telemetryTypeEnum = pgEnum('telemetry_type', ['event', 'metric', 'error', 'security']);
+export const inspectionStatusEnum = pgEnum('inspection_status', ['pending', 'passed', 'failed', 'conditional']);
 
 export const users = pgTable('users', {
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
     email: text('email').notNull().unique(),
     employeeId: text('employee_id').unique(),
+    phoneNumber: text('phone_number').unique(),
+    twoFactorSecret: text('two_factor_secret'),
+    isTwoFactorEnabled: boolean('is_two_factor_enabled').default(false),
     password: text('password').notNull(),
     role: userRoleEnum('role').default('user'),
     department: text('department'), // Added for department mapping
     supplierId: uuid('supplier_id').references(() => suppliers.id),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
-    emailIdx: uniqueIndex('email_idx').on(table.email),
+    // emailIdx: uniqueIndex('email_idx').on(table.email),
+    // roleIdx: index('role_idx').on(table.role),
     employeeIdIdx: uniqueIndex('employee_id_idx').on(table.employeeId),
-    roleIdx: index('role_idx').on(table.role),
 }));
 
 export const suppliers = pgTable('suppliers', {
@@ -60,6 +64,11 @@ export const suppliers = pgTable('suppliers', {
     tierLevel: tierLevelEnum('tier_level').default('tier_3'),
     isConflictMineralCompliant: text('is_conflict_mineral_compliant').default('no'),
     modernSlaveryStatement: text('modern_slavery_statement').default('no'),
+    // Geographic Data for Risk Control Tower
+    latitude: decimal('latitude', { precision: 10, scale: 7 }),
+    longitude: decimal('longitude', { precision: 10, scale: 7 }),
+    countryCode: text('country_code'), // ISO 2-char code
+    city: text('city'),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     statusIdx: index('supplier_status_idx').on(table.status),
@@ -89,6 +98,8 @@ export const parts = pgTable('parts', {
     price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
     marketTrend: text('market_trend').default('stable'),
     stockLevel: integer('stock_level').notNull().default(0),
+    reorderPoint: integer('reorder_point').default(50),
+    minStockLevel: integer('min_stock_level').default(20),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     skuIdx: uniqueIndex('sku_idx').on(table.sku),
@@ -104,6 +115,14 @@ export const procurementOrders = pgTable('procurement_orders', {
     requisitionId: uuid('requisition_id').references(() => requisitions.id),
     incoterms: text('incoterms'),
     asnNumber: text('asn_number'),
+    // Logistics Tracking
+    carrier: text('carrier'), // e.g., 'FedEx', 'DHL', 'BlueDart'
+    trackingNumber: text('tracking_number'),
+    estimatedArrival: timestamp('estimated_arrival'),
+    // Cost Avoidance & Savings
+    initialQuoteAmount: decimal('initial_quote_amount', { precision: 12, scale: 2 }), // Price before negotiation
+    savingsAmount: decimal('savings_amount', { precision: 12, scale: 2 }).default('0'), // (Initial - Total)
+    savingsType: text('savings_type'), // e.g. 'negotiation', 'volume_discount', 'strategic'
     createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -190,6 +209,11 @@ export const contracts = pgTable('contracts', {
     incoterms: incotermsEnum('incoterms'),
     slaKpis: text('sla_kpis'), // JSON string of metrics
     documentUrl: text('document_url'),
+    // AI Intelligence Fields
+    aiExtractedData: text('ai_extracted_data'), // JSON storage for raw AI parsing
+    liabilityCap: decimal('liability_cap', { precision: 12, scale: 2 }),
+    priceLockExpiry: timestamp('price_lock_expiry'),
+    autoRenewalAlert: text('auto_renewal_alert').default('true'), // Boolean stored as text for simplicity or change to boolean if supported
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     contractSupplierIdx: index('contract_supplier_idx').on(table.supplierId),
@@ -273,6 +297,21 @@ export const goodsReceipts = pgTable('goods_receipts', {
     receivedById: uuid('received_by_id').references(() => users.id).notNull(),
     receivedAt: timestamp('received_at').defaultNow(),
     notes: text('notes'),
+    inspectionStatus: inspectionStatusEnum('inspection_status').default('pending'),
+    inspectionNotes: text('inspection_notes'),
+});
+
+export const qcInspections = pgTable('qc_inspections', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    receiptId: uuid('receipt_id').references(() => goodsReceipts.id).notNull(),
+    inspectorId: uuid('inspector_id').references(() => users.id).notNull(),
+    status: inspectionStatusEnum('status').default('pending'),
+    checklistResults: text('checklist_results'), // JSON storage for actual check items
+    visualInspectionPassed: text('visual_inspection_passed').default('no'),
+    quantityVerified: text('quantity_verified').default('no'),
+    documentMatch: text('document_match').default('no'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').defaultNow(),
 });
 
 export const invoices = pgTable('invoices', {
@@ -414,13 +453,25 @@ export const requisitionsRelations = relations(requisitions, ({ one }: any) => (
     }),
 }));
 
-export const goodsReceiptsRelations = relations(goodsReceipts, ({ one }: any) => ({
+export const goodsReceiptsRelations = relations(goodsReceipts, ({ one, many }: any) => ({
     order: one(procurementOrders, {
         fields: [goodsReceipts.orderId],
         references: [procurementOrders.id],
     }),
     receivedBy: one(users, {
         fields: [goodsReceipts.receivedById],
+        references: [users.id],
+    }),
+    inspections: many(qcInspections),
+}));
+
+export const qcInspectionsRelations = relations(qcInspections, ({ one }: any) => ({
+    receipt: one(goodsReceipts, {
+        fields: [qcInspections.receiptId],
+        references: [goodsReceipts.id],
+    }),
+    inspector: one(users, {
+        fields: [qcInspections.inspectorId],
         references: [users.id],
     }),
 }));
@@ -457,3 +508,5 @@ export type ChatHistory = typeof chatHistory.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Contract = typeof contracts.$inferSelect;
 export type SystemTelemetry = typeof systemTelemetry.$inferSelect;
+export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
+export type QCInspection = typeof qcInspections.$inferSelect;

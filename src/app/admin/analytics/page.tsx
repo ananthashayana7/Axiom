@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import { SpendAnalysisView } from "@/components/admin/spend-analysis-view";
 import { getOrders } from "@/app/actions/orders";
 import { getSuppliers } from "@/app/actions/suppliers";
+import { SavingsWidget } from "@/components/dashboard/savings-widget";
+import { ContractAlerts } from "@/components/dashboard/contract-alerts";
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#0088FE', '#00C49F', '#FFBB28'];
 
@@ -109,31 +111,12 @@ export default function AnalyticsPage() {
 
             {/* Top Level Metrics */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-l-4 border-l-primary shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Total Managed Spend</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">₹{(stats.totalActualSpend / 100000).toFixed(1)}L</div>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <ArrowUpRight className="text-green-600 h-3 w-3" />
-                            <span className="text-green-600 font-bold">14.2%</span> from last quarter
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-green-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Realized Savings</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">₹{(stats.realizedSavings / 100000).toFixed(1)}L</div>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <span className="text-green-600 font-bold">{stats.savingsRate}%</span> Avg Savings Rate
-                        </p>
-                    </CardContent>
-                </Card>
+                <SavingsWidget
+                    totalSpend={stats.totalActualSpend}
+                    realizedSavings={stats.realizedSavings}
+                    savingsRate={stats.savingsRate}
+                />
+                <ContractAlerts />
                 <Card className="border-l-4 border-l-amber-500 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Active Categories</CardTitle>
@@ -141,7 +124,7 @@ export default function AnalyticsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.spendByCategory.length}</div>
-                        <p className="text-xs text-muted-foreground mt-1 font-medium">Diversified across 8 sectors</p>
+                        <p className="text-xs text-muted-foreground mt-1 font-medium">Active Spend Categories</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-emerald-500 bg-gradient-to-br from-background to-emerald-50/20 shadow-sm">
@@ -150,8 +133,8 @@ export default function AnalyticsPage() {
                         <Zap className="h-4 w-4 text-emerald-600 fill-emerald-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-stone-900">4.8%</div>
-                        <p className="text-xs text-stone-500 mt-1 font-medium italic">Incremental margin identified</p>
+                        <div className="text-2xl font-bold text-stone-900">{stats.savingsRate}%</div>
+                        <p className="text-xs text-stone-500 mt-1 font-medium italic">Negotiated Savings Rate</p>
                     </CardContent>
                 </Card>
             </div>

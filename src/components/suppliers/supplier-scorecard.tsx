@@ -63,7 +63,7 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                            <TrendingUp className="h-3 w-3" /> +2.4% vs last Q
+                            {metrics.performanceScore > 80 ? 'Exceptional' : metrics.performanceScore > 50 ? 'Compliant' : 'Risk Flagged'}
                         </div>
                     </CardContent>
                 </Card>
@@ -76,7 +76,7 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                     <CardContent className="space-y-3">
                         <Progress value={parseFloat(metrics.onTimeDeliveryRate)} className="h-1.5" />
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" /> Target: 95.0%
+                            <Clock className="h-3 w-3" /> Performance: {metrics.onTimeDeliveryRate}%
                         </div>
                     </CardContent>
                 </Card>

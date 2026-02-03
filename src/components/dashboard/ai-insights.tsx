@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Loader } from "lucide-react"
@@ -17,6 +17,10 @@ export function AiInsights() {
         setLoading(false)
     }
 
+    useEffect(() => {
+        handleAnalyze()
+    }, [])
+
     return (
         <Card className="border-primary/10 bg-primary/5">
             <CardHeader>
@@ -31,13 +35,9 @@ export function AiInsights() {
             <CardContent>
                 {!analysis && (
                     <div className="flex flex-col items-center justify-center py-6 text-center">
-                        <p className="text-sm text-muted-foreground mb-4">
-                            Generate insights to identify savings and optimize supplier performance.
+                        <p className="text-sm text-muted-foreground mb-4 font-medium animate-pulse">
+                            Initializing AI Procurement Intelligence...
                         </p>
-                        <Button onClick={handleAnalyze} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                            {loading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-                            Analyze Spend Data
-                        </Button>
                     </div>
                 )}
 
@@ -63,9 +63,6 @@ export function AiInsights() {
                                 ))}
                             </ul>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleAnalyze} disabled={loading} className="w-full mt-2">
-                            Refresh Analysis
-                        </Button>
                     </div>
                 )}
             </CardContent>

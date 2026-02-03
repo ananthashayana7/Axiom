@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqs, rfqItems, rfqSuppliers, suppliers, parts } from "@/db/schema";
+import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents } from "@/db/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -33,21 +33,43 @@ export async function getRFQs() {
             return vendorRfqs as any;
         }
 
-        return await db.query.rfqs.findMany({
-            with: {
-                suppliers: {
-                    with: {
-                        supplier: true
-                    }
-                },
-                items: {
-                    with: {
-                        part: true
-                    }
-                }
-            },
-            orderBy: (rfqs: any, { desc }: any) => [desc(rfqs.createdAt)]
-        });
+        const baseRfqs = await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
+        const rfqIds = baseRfqs.map(r => r.id);
+
+        if (rfqIds.length === 0) return [];
+
+        // Fetch invited suppliers
+        const invitedSuppliers = await db
+            .select({
+                id: rfqSuppliers.id,
+                rfqId: rfqSuppliers.rfqId,
+                supplierId: rfqSuppliers.supplierId,
+                status: rfqSuppliers.status,
+                quoteAmount: rfqSuppliers.quoteAmount,
+                supplier: suppliers
+            })
+            .from(rfqSuppliers)
+            .leftJoin(suppliers, eq(rfqSuppliers.supplierId, suppliers.id))
+            .where(sql`${rfqSuppliers.rfqId} IN ${rfqIds}`);
+
+        // Fetch items
+        const rfqItemsData = await db
+            .select({
+                id: rfqItems.id,
+                rfqId: rfqItems.rfqId,
+                partId: rfqItems.partId,
+                quantity: rfqItems.quantity,
+                part: parts
+            })
+            .from(rfqItems)
+            .leftJoin(parts, eq(rfqItems.partId, parts.id))
+            .where(sql`${rfqItems.rfqId} IN ${rfqIds}`);
+
+        return baseRfqs.map(rfq => ({
+            ...rfq,
+            suppliers: invitedSuppliers.filter(s => s.rfqId === rfq.id),
+            items: rfqItemsData.filter(i => i.rfqId === rfq.id)
+        }));
     } catch (error) {
         console.error("Failed to fetch RFQs:", error);
         return [];
@@ -66,22 +88,43 @@ export async function getRFQById(id: string) {
     if (!uuidRegex.test(id)) return null;
 
     try {
-        const rfq = await db.query.rfqs.findFirst({
-            where: eq(rfqs.id, id),
-            with: {
-                suppliers: {
-                    with: {
-                        supplier: true
-                    }
-                },
-                items: {
-                    with: {
-                        part: true
-                    }
-                },
-                documents: true
-            }
-        });
+        const [rfqBase] = await db.select().from(rfqs).where(eq(rfqs.id, id)).limit(1);
+        if (!rfqBase) return null;
+
+        const invitedSuppliers = await db
+            .select({
+                id: rfqSuppliers.id,
+                rfqId: rfqSuppliers.rfqId,
+                supplierId: rfqSuppliers.supplierId,
+                status: rfqSuppliers.status,
+                quoteAmount: rfqSuppliers.quoteAmount,
+                aiAnalysis: rfqSuppliers.aiAnalysis,
+                supplier: suppliers
+            })
+            .from(rfqSuppliers)
+            .leftJoin(suppliers, eq(rfqSuppliers.supplierId, suppliers.id))
+            .where(eq(rfqSuppliers.rfqId, id));
+
+        const rfqItemsData = await db
+            .select({
+                id: rfqItems.id,
+                rfqId: rfqItems.rfqId,
+                partId: rfqItems.partId,
+                quantity: rfqItems.quantity,
+                part: parts
+            })
+            .from(rfqItems)
+            .leftJoin(parts, eq(rfqItems.partId, parts.id))
+            .where(eq(rfqItems.rfqId, id));
+
+        const rfqDocs = await db.select().from(documents).where(eq(documents.rfqId, id));
+
+        const rfq = {
+            ...rfqBase,
+            suppliers: invitedSuppliers,
+            items: rfqItemsData,
+            documents: rfqDocs
+        };
 
         if (!rfq) return null;
 
@@ -291,7 +334,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
                     title: "New Quote Received",
                     message: `${supplier.name} has submitted a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
                     type: 'info',
-                    link: `/sourcing/rfqs/${rs.rfqId}`
+                    link: `/sourcing/rfqs?id=${rs.rfqId}`
                 });
             }
         }
@@ -352,7 +395,7 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
                     title: "New Quote File Received",
                     message: `${supplier.name} uploaded a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
                     type: 'info',
-                    link: `/sourcing/rfqs/${rs.rfqId}`
+                    link: `/sourcing/rfqs?id=${rs.rfqId}`
                 });
             }
         }

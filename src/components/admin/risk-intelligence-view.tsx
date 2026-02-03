@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,9 @@ export function RiskIntelligenceView({ supplier }: { supplier: any }) {
                 )}
             </div>
 
-            <h4 className="font-bold mb-1">{supplier.name}</h4>
+            <Link href={`/suppliers/${supplier.id}`}>
+                <h4 className="font-bold mb-1 hover:text-primary transition-colors">{supplier.name}</h4>
+            </Link>
             <div className="flex justify-between items-center mb-4">
                 <p className="text-xs text-muted-foreground">
                     Current Risk Score: <strong>{supplier.riskScore || 0}</strong>

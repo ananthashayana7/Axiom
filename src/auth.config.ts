@@ -55,21 +55,25 @@ export const authConfig = {
 
             return true;
         },
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
                 token.role = (user as any).role;
+            }
+
+            if (trigger === "update" && session) {
+                token = { ...token, ...session };
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
-                (session.user as any).id = token.id;
-                (session.user as any).role = token.role;
+                session.user.id = token.id as string;
+                (session.user as any).role = token.role as string;
             }
             return session;
         },
     },
     providers: [], // Providers added in auth.ts
-    secret: "2f8b4c9d3e7a1f6c5b8a2d9e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
+    secret: process.env.AUTH_SECRET,
 } satisfies NextAuthConfig;

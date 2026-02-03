@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Bell, Check, Trash2, Info, AlertTriangle, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/app/actions/notifications";
 import Link from "next/link";
@@ -18,6 +19,7 @@ interface Notification {
 }
 
 export function NotificationBell() {
+    const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [open, setOpen] = useState(false);
     const unreadCount = notifications.filter(n => n.isRead === 'no').length;
@@ -93,7 +95,7 @@ export function NotificationBell() {
                                     <div
                                         key={n.id}
                                         className={`p-5 hover:bg-muted/50 transition-all cursor-pointer group ${n.isRead === 'no' ? 'bg-primary/5' : ''}`}
-                                        onClick={() => n.link && (window.location.href = n.link)}
+                                        onClick={() => n.link && router.push(n.link)}
                                     >
                                         <div className="flex gap-4">
                                             <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${n.isRead === 'no' ? 'bg-background border-primary/20 shadow-sm' : 'bg-muted/50 border-transparent'

@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Shield, Settings as SettingsIcon, Globe, Loader2, Lock, Unlock } from "lucide-react";
-import { updateSettings, getSettings } from "@/app/actions/settings";
+import { Shield, Settings as SettingsIcon, Globe, Loader2, Lock, Unlock, AlertTriangle } from "lucide-react";
+import { updateSettings, getSettings, flushAuthCache } from "@/app/actions/settings";
 import { toast } from "sonner";
+import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
+import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
 // import { Switch } from "@/components/ui/switch"; // Removed unused component
 
 export default function AdminSettingsPage() {
@@ -19,10 +21,18 @@ export default function AdminSettingsPage() {
         async function loadSettings() {
             const data = await getSettings();
             setSettings(data);
+            setInitialSettings(data);
             setIsLocked(data.isSettingsLocked === 'yes');
         }
         loadSettings();
     }, []);
+
+    const [initialSettings, setInitialSettings] = useState<any>(null);
+    const isDirty = initialSettings && settings && (
+        settings.platformName !== initialSettings.platformName ||
+        settings.defaultCurrency !== initialSettings.defaultCurrency ||
+        isLocked !== (initialSettings.isSettingsLocked === 'yes')
+    );
 
     async function handleSubmit(formData: FormData) {
         // If it's a switch, we need to manually add it if it's off, or handle its value
@@ -33,6 +43,7 @@ export default function AdminSettingsPage() {
                 toast.success("Settings updated successfully");
                 const data = await getSettings();
                 setSettings(data);
+                setInitialSettings(data);
                 setIsLocked(data.isSettingsLocked === 'yes');
             } else {
                 toast.error(result.error || "Failed to update settings");
@@ -87,6 +98,7 @@ export default function AdminSettingsPage() {
                                     name="siteName"
                                     defaultValue={settings.platformName}
                                     disabled={isLocked}
+                                    onChange={(e) => setSettings({ ...settings, platformName: e.target.value })}
                                     className="bg-background disabled:opacity-70"
                                 />
                             </div>
@@ -97,7 +109,7 @@ export default function AdminSettingsPage() {
                                     name="currency"
                                     defaultValue={settings.defaultCurrency}
                                     disabled={isLocked}
-                                    className="bg-background disabled:opacity-70"
+                                    onChange={(e) => setSettings({ ...settings, defaultCurrency: e.target.value })}
                                 />
                             </div>
                         </div>
@@ -118,8 +130,26 @@ export default function AdminSettingsPage() {
                                 <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
                                 <Input id="sessionTimeout" name="sessionTimeout" type="number" defaultValue="30" className="bg-background" />
                             </div>
+                            <div className="grid gap-2">
+                                <Label>Two-Factor Authentication (2FA)</Label>
+                                <TwoFactorSetup isEnabled={settings.isTwoFactorEnabled} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
                             <div className="grid gap-2 flex items-end">
-                                <Button type="button" variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50/50 border-red-100">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full text-red-500 hover:text-red-600 hover:bg-red-50/50 border-red-100"
+                                    onClick={async () => {
+                                        const result = await flushAuthCache();
+                                        if (result.success) {
+                                            toast.success("Authorization cache flushed");
+                                        } else {
+                                            toast.error(result.error);
+                                        }
+                                    }}
+                                >
                                     Flush Auth Cache
                                 </Button>
                             </div>
@@ -127,23 +157,53 @@ export default function AdminSettingsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="hover:shadow-md transition-shadow border-dashed">
+                <Card className="hover:shadow-md transition-shadow border-dashed opacity-50 grayscale pointer-events-none">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <Globe className="h-5 w-5 text-amber-600" />
-                            <CardTitle>AI & Data Benchmarks</CardTitle>
+                            <CardTitle>AI & Advanced Benchmarks (Beta)</CardTitle>
                         </div>
-                        <CardDescription>Configure AI model parameters and market intelligence thresholds.</CardDescription>
+                        <CardDescription>Configure AI model parameters (Feature coming soon).</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="grid gap-2">
                                 <Label htmlFor="benchmarkingInterval">Market Data Refresh (Days)</Label>
-                                <Input id="benchmarkingInterval" name="benchmarkingInterval" type="number" defaultValue="7" className="bg-background" />
+                                <Input id="benchmarkingInterval" name="benchmarkingInterval" type="number" defaultValue="7" className="bg-background" disabled />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="aiHighPickScore">AI "Top Pick" Threshold (%)</Label>
-                                <Input id="aiHighPickScore" name="aiHighPickScore" type="number" defaultValue="85" className="bg-background" />
+                                <Input id="aiHighPickScore" name="aiHighPickScore" type="number" defaultValue="85" className="bg-background" disabled />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow border-red-500/20 bg-red-50/5">
+                    <CardHeader>
+                        <div className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            <CardTitle className="font-black uppercase tracking-tighter">System Maintenance</CardTitle>
+                        </div>
+                        <CardDescription>Critical system utilities for administrative use.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-bold text-red-700 uppercase tracking-tight">Warning: Data Purge</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Performing a database reset will wipe ALL procurement history, suppliers, and parts.
+                                    This is typically used during handover or environment migrations.
+                                </p>
+                            </div>
+                            <div className="flex items-center">
+                                {settings.role === 'admin' ? (
+                                    <ResetDatabaseButton />
+                                ) : (
+                                    <div className="p-4 border border-red-200 bg-red-50 text-red-700 rounded-lg text-xs font-bold uppercase tracking-tighter">
+                                        Administrative Access Required
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -151,7 +211,7 @@ export default function AdminSettingsPage() {
 
                 <div className="flex justify-end gap-3 mt-4">
                     <Button type="button" variant="ghost">Reset Defaults</Button>
-                    <Button type="submit" disabled={isPending} className="min-w-[140px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100">
+                    <Button type="submit" disabled={isPending || !isDirty} className="min-w-[140px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
                         {isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

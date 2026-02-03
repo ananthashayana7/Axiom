@@ -3,8 +3,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/auth";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+import { getAiModel } from "@/lib/ai-provider";
+
+// Providers are now managed by getAiModel()
 
 /**
  * Offer Parsing Agent
@@ -28,9 +29,11 @@ export async function parseOffer(fileData: string, fileName: string) {
             6. paymentTerms: string
 
             Ensure you convert all currency values to numbers. If a field is not found, return null.
+            GROUNDING: Answer ONLY based on the provided document. If data is missing, return null.
             Return ONLY the JSON.
         `;
 
+        const model = await getAiModel("gemini-1.5-flash");
         // fileData is expected to be a base64 encoded string
         const result = await model.generateContent([
             prompt,
@@ -78,6 +81,7 @@ export async function analyzeCompliance(documents: { name: string, content: stri
             3. Delivery timeline compliance.
             4. Any red flags or non-standard clauses.
 
+            GROUNDING: Answer ONLY based on the provided documents.
             Return a detailed assessment in JSON format:
             {
                 status: "compliant" | "partial" | "non-compliant",
@@ -86,6 +90,7 @@ export async function analyzeCompliance(documents: { name: string, content: stri
             }
         `;
 
+        const model = await getAiModel("gemini-1.5-flash");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -125,6 +130,7 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
             2. Potential for negotiation based on market trends.
             3. Total estimated savings if should-cost is achieved.
 
+            GROUNDING: Use historical data explicitly. If missing, say so.
             Return JSON:
             {
                 variances: [ { sku: string, variancePercentage: number, trend: "up" | "down" | "stable" } ],
@@ -133,6 +139,7 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
             }
         `;
 
+        const model = await getAiModel("gemini-1.5-flash");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -173,6 +180,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
             3. ESG compliance risks.
             4. External disruption risks (Geopolitical, Logistics).
 
+            GROUNDING: Base risk score ONLY on provided metrics.
             Return JSON:
             {
                 overallRiskLevel: "low" | "medium" | "high" | "critical",
@@ -182,6 +190,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
             }
         `;
 
+        const model = await getAiModel("gemini-1.5-flash");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -221,6 +230,7 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
             2. High-volume parts that could benefit from long-term contracts.
             3. Price variations for the same SKU across different suppliers.
 
+            GROUNDING: Analyze ONLY the provided orders and suppliers.
             Return JSON:
             {
                 totalSavingPotential: number,
@@ -229,6 +239,7 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
             }
         `;
 
+        const model = await getAiModel("gemini-1.5-flash");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -242,5 +253,58 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
     } catch (error) {
         console.error("Spend Analysis Error:", error);
         return { success: false, error: "Failed to analyze spend" };
+    }
+}
+/**
+ * Contract Intelligence Agent
+ * Extracts legal terms from contract documents
+ */
+export async function parseContractDocument(fileData: string, fileName: string) {
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
+
+    try {
+        const prompt = `
+            You are a specialized Legal AI Agent. Your task is to extract key legal terms from the attached contract document.
+            File Name: ${fileName}
+            
+            Extract the following fields in JSON format:
+            1. effectiveDate: string (ISO date format YYYY-MM-DD if found)
+            2. expirationDate: string (ISO date format YYYY-MM-DD if found)
+            3. noticePeriodDays: number (notice required for termination/renewal)
+            4. liabilityCapAmount: number (monetary value of liability cap)
+            5. priceLockDurationMonths: number (how long prices are fixed)
+            6. autoRenewal: boolean (true if the contract auto-renews)
+            7. summary: string (1-2 sentence summary of the contract purpose)
+
+            If a field is not found, return null. 
+            For liabilityCapAmount, convert "2x contract value" or similar relative terms to a best-guess number if possible, or null.
+            GROUNDING: Extract ONLY from provided contract text.
+            Return ONLY the JSON.
+        `;
+
+        const model = await getAiModel("gemini-1.5-flash");
+        const result = await model.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    data: fileData,
+                    mimeType: fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+                }
+            }
+        ]);
+
+        const response = await result.response;
+        const text = response.text();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            return { success: true, data: JSON.parse(jsonMatch[0]) };
+        }
+
+        return { success: false, error: "Failed to parse legal data from AI response" };
+    } catch (error) {
+        console.error("Contract Parsing Error:", error);
+        return { success: false, error: "Failed to process contract document" };
     }
 }

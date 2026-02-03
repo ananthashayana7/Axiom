@@ -27,6 +27,24 @@ export async function getUsers() {
     }
 }
 
+export async function getDepartmentLeads() {
+    try {
+        const leads = await db.select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            department: users.department,
+        })
+            .from(users)
+            .where(ne(users.department, ""));
+
+        return leads;
+    } catch (error) {
+        console.error("Failed to fetch department leads:", error);
+        return [];
+    }
+}
+
 export async function createUser(formData: FormData) {
     const session = await auth();
     if ((session?.user as any)?.role !== 'admin') {

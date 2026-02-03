@@ -1,27 +1,27 @@
 :root {
-  /* Primary – deep teal */
-  --color-primary: #0d6efd;
-  --color-primary-dark: #0a58ca;
-  --color-primary-light: #3fa9ff;
+  /* Primary – Industrial Emerald */
+  --color-primary: #10634a;
+  --color-primary-dark: #0a4d39;
+  --color-primary-light: #2da17d;
 
   /* Secondary – cool slate */
-  --color-secondary: #6c757d;
-  --color-secondary-dark: #5a6268;
-  --color-secondary-light: #adb5bd;
+  --color-secondary: #64748b;
+  --color-secondary-dark: #475569;
+  --color-secondary-light: #94a3b8;
 
-  /* Accent – warm amber */
-  --color-accent: #ffb800;
-  --color-accent-dark: #cc9500;
-  --color-accent-light: #ffd966;
+  /* Accent – Slate Shadow */
+  --color-accent: #334155;
+  --color-accent-dark: #1e293b;
+  --color-accent-light: #475569;
 
   /* Neutrals */
   --color-bg: #f8fafc;
   /* very light gray */
   --color-surface: #ffffff;
   /* cards */
-  --color-text: #212529;
+  --color-text: #0f172a;
   /* main text */
-  --color-muted: #6c757d;
+  --color-muted: #64748b;
   /* secondary text */
 }
 

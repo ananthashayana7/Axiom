@@ -27,12 +27,24 @@ export async function getRiskComplianceStats() {
             avgSoc: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgSocialScore || 0), 0) / allSuppliers.length) || 0,
             avgGov: Math.round(allSuppliers.reduce((acc, s) => acc + (s.esgGovernanceScore || 0), 0) / allSuppliers.length) || 0,
 
-            // Tier Distribution
             tiers: {
                 tier_1: allSuppliers.filter(s => s.tierLevel === 'tier_1' || s.tierLevel === 'critical').length,
                 tier_2: allSuppliers.filter(s => s.tierLevel === 'tier_2').length,
                 tier_3: allSuppliers.filter(s => s.tierLevel === 'tier_3' || !s.tierLevel).length,
-            }
+            },
+
+            // Map Data
+            locations: allSuppliers
+                .filter(s => s.latitude && s.longitude)
+                .map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    lat: Number(s.latitude),
+                    lng: Number(s.longitude),
+                    riskScore: s.riskScore || 0,
+                    city: s.city,
+                    country: s.countryCode
+                }))
         };
 
         return stats;

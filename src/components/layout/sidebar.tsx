@@ -13,7 +13,9 @@ import {
     Sparkles,
     BookOpen,
     Atom,
-    Terminal
+    Terminal,
+    CreditCard,
+    Truck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
@@ -21,6 +23,7 @@ import { auth } from "@/auth";
 const adminLinks = [
     { label: "User Management", icon: UserCog, href: "/admin/users" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
+    { label: "Financial Matching", icon: CreditCard, href: "/sourcing/invoices?mode=match" },
     { label: "Spend Intelligence", icon: BarChart3, href: "/admin/analytics" },
     { label: "Risk Intelligence", icon: ShieldAlert, href: "/admin/risk" },
     { label: "Admin Settings", icon: Settings, href: "/admin/settings" },
@@ -38,7 +41,7 @@ export async function Sidebar({ className }: { className?: string }) {
     const role = (session?.user as any)?.role;
 
     return (
-        <div className={cn("w-64 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden", className)}>
+        <div className={cn("w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
             <div className="flex-1 overflow-y-auto min-h-0 pt-2 pb-10 scrollbar-thin scrollbar-thumb-muted">
                 <div className="px-3 py-2">
                     <div className="mb-4 px-4 flex items-center gap-4">
@@ -77,7 +80,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             </Link>
                         )}
                         <Link href="/copilot">
-                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary font-semibold transition-colors">
+                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary dark:text-primary font-bold transition-colors">
                                 <Sparkles className="mr-2 h-4 w-4" />
                                 Axiom Copilot
                             </span>
@@ -113,6 +116,18 @@ export async function Sidebar({ className }: { className?: string }) {
                                 <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     Orders
+                                </span>
+                            </Link>
+                            <Link href="/sourcing/goods-receipts">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <Truck className="mr-2 h-4 w-4" />
+                                    Goods Receipts
+                                </span>
+                            </Link>
+                            <Link href="/sourcing/invoices">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Invoice Records
                                 </span>
                             </Link>
                             <Link href="/sourcing/contracts">
@@ -163,7 +178,7 @@ export async function Sidebar({ className }: { className?: string }) {
                 )}
 
                 {(role === 'admin' || role === 'user') && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2 text-sidebar-foreground">
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
                         <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             {role === 'admin' ? "Admin Control" : "Intelligence & Audit"}
                         </h2>

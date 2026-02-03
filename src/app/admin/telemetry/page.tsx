@@ -43,10 +43,6 @@ export default async function TelemetryDashboard() {
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <Badge variant="outline" className="h-10 px-4 gap-2 border-indigo-200 bg-indigo-50 text-indigo-700">
-                        <Zap className="h-4 w-4" />
-                        Live Instrumentation
-                    </Badge>
                 </div>
             </div>
 

@@ -74,7 +74,12 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
             new Date(log.createdAt).toISOString()
         ]);
 
+        const reportDate = new Date().toLocaleString();
         const csvContent = [
+            `"Axiom Audit Trail Report"`,
+            `"Generated On:","${reportDate}"`,
+            `"Record Count:","${filteredLogs.length}"`,
+            "",
             headers.join(","),
             ...rows.map(row => row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(","))
         ].join("\n");
@@ -206,9 +211,9 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
                                             <Badge
                                                 variant="secondary"
                                                 className={`font-mono text-[10px] tracking-tighter uppercase ${log.action === 'CREATE' ? 'bg-green-100 text-green-700' :
-                                                        log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
-                                                            log.action === 'DELETE' ? 'bg-red-100 text-red-700' :
-                                                                'bg-gray-100 text-gray-700'
+                                                    log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
+                                                        log.action === 'DELETE' ? 'bg-red-100 text-red-700' :
+                                                            'bg-gray-100 text-gray-700'
                                                     }`}
                                             >
                                                 {log.action}

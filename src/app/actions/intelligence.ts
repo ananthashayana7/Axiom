@@ -5,15 +5,15 @@ import { db } from "@/db";
 import { rfqs } from "@/db/schema";
 import { desc } from "drizzle-orm";
 
-const genAI = new GoogleGenerativeAI("AIzaSyApARgWwswo5nb2TVGrj6Wn4BULeLIBOM0");
+import { getAiModel } from "@/lib/ai-provider";
 
 export async function getMarketTrend(partName: string, category: string) {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const prompt = `Supply chain intelligence for ${partName} (${category}) in 2026. Return JSON {trend: "up"|"down"|"stable"|"volatile", reason: "1-sentence context"}`;
+        const model = await getAiModel("gemini-1.5-flash");
+        const prompt = `Provide supply chain intelligence and predictive market forecasting for ${partName} (${category}). Return JSON {trend: "up"|"down"|"stable"|"volatile", reason: "1-sentence context", source: "Axiom Predictive Engine (Gemini 1.5)"}`;
         const result = await model.generateContent(prompt);
         const jsonMatch = result.response.text().match(/\{[\s\S]*\}/);
-        return jsonMatch ? JSON.parse(jsonMatch[0]) : { trend: "up", reason: "Anticipated 2026 volatility." };
+        return jsonMatch ? JSON.parse(jsonMatch[0]) : { trend: "up", reason: "General market volatility forecasted.", source: "Axiom Predictive Engine (Standard)" };
     } catch (e) {
         return { trend: "stable", reason: "Market visibility limited." };
     }

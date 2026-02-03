@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Plus, Shield as ShieldIcon } from "lucide-react";
+import { Plus, Shield as ShieldIcon, Users as UsersIcon, Building2, UserCheck, Mail } from "lucide-react";
 
 import { createUser, deleteUser, updateUser } from "@/app/actions/users";
 
@@ -73,8 +73,8 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
         <div className="flex min-h-screen flex-col bg-muted/40 p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-                    <p className="text-muted-foreground mt-1">Create and manage user accounts.</p>
+                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">Access Control</h1>
+                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-2">Departmental mapping & permissions</p>
                 </div>
 
                 {currentUserRole === 'admin' && (
@@ -146,10 +146,43 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                 )}
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>All Users</CardTitle>
-                    <CardDescription>Users who can access the platform.</CardDescription>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+                <Card className="glass-card border-l-4 border-l-indigo-600">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Users</CardTitle>
+                        <UsersIcon className="h-4 w-4 text-indigo-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black text-slate-900">{users.length}</div>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Authorized platform accounts</p>
+                    </CardContent>
+                </Card>
+
+                {DEPARTMENTS.slice(0, 3).map((dept) => {
+                    const count = users.filter(u => u.department === dept).length;
+                    return (
+                        <Card key={dept} className="glass-card border-l-4 border-l-slate-400">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{dept.split(' ')[0]}</CardTitle>
+                                <Building2 className="h-4 w-4 text-slate-400" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-slate-900">{count}</div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
+
+            <Card className="glass-card border-none shadow-2xl overflow-hidden">
+                <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 px-6 py-6 border-slate-100">
+                    <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
+                        <UserCheck className="h-5 w-5 text-indigo-600" />
+                        Directory
+                    </CardTitle>
+                    <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                        Comprehensive list of all platform operators
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="rounded-md border">

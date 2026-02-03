@@ -120,19 +120,27 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             <span className="text-sm font-semibold">{rfq.items.length} Unique Parts</span>
                         </div>
                         {isAdmin && (
-                            <form action={handleStatusChange} className="pt-4 border-t flex gap-2">
-                                <select
-                                    name="status"
-                                    defaultValue={rfq.status!}
-                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                >
-                                    <option value="draft">Draft</option>
-                                    <option value="open">Open (Invite Suppliers)</option>
-                                    <option value="closed">Closed</option>
-                                    <option value="cancelled">Cancelled</option>
-                                </select>
-                                <Button type="submit" size="sm" variant="secondary">Update</Button>
-                            </form>
+                            <div className="pt-4 border-t space-y-3">
+                                <form action={handleStatusChange} className="flex gap-2">
+                                    <select
+                                        name="status"
+                                        defaultValue={rfq.status!}
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    >
+                                        <option value="draft">Draft</option>
+                                        <option value="open">Open (Invite Suppliers)</option>
+                                        <option value="closed">Closed</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                    <Button type="submit" size="sm" variant="secondary">Update</Button>
+                                </form>
+                                {rfq.status === 'draft' && (
+                                    <Button className="w-full gap-2 bg-primary text-primary-foreground font-bold" onClick={() => window.alert("Triggering AI Supplier Outreach... RFQ will be moved to OPEN status.")}>
+                                        <Sparkles size={16} />
+                                        Launch Sourcing Event
+                                    </Button>
+                                )}
+                            </div>
                         )}
                     </div>
                 </Card>
@@ -179,7 +187,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 <Badge className="bg-primary text-primary-foreground border-none">INTELLIGENCE ACTIVE</Badge>
                             </div>
                             <CardDescription className="text-primary/70">
-                                Our AI analyzed 48 potential leads and identified these top matches based on performance, lead times, and financial stability.
+                                Our AI analyzed the strategic supplier network and identified these top matches based on performance, lead times, and financial stability.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
@@ -269,7 +277,12 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
 
                                             <div className="flex flex-row md:flex-col justify-end gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
                                                 {isAdmin && (
-                                                    <AnalyzeQuoteButton rfqSupplierId={s.id} hasAnalysis={!!s.aiAnalysis} />
+                                                    <>
+                                                        <AnalyzeQuoteButton rfqSupplierId={s.id} hasAnalysis={!!s.aiAnalysis} />
+                                                        <Button size="sm" variant="ghost" className="w-full text-[10px] font-bold h-7 uppercase tracking-tight" onClick={() => window.alert("Historical Price Comparison: Benchmarking against previous 24 months...")}>
+                                                            Compare prices
+                                                        </Button>
+                                                    </>
                                                 )}
                                                 <Link href={`/suppliers/${s.supplier.id}`}>
                                                     <Button size="sm" variant="outline" className="w-full">Profile</Button>

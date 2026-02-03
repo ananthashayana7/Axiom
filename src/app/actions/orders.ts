@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts } from "@/db/schema";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections } from "@/db/schema";
 import { eq, and, sql, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -16,13 +16,23 @@ export async function getOrders() {
     const supplierId = (session.user as any).supplierId;
 
     try {
-        const allOrders = await db.query.procurementOrders.findMany({
-            where: role === 'supplier' ? eq(procurementOrders.supplierId, supplierId) : undefined,
-            with: {
-                supplier: true,
-            }
-        });
-        return allOrders;
+        const allOrdersRaw = await db
+            .select({
+                id: procurementOrders.id,
+                supplierId: procurementOrders.supplierId,
+                status: procurementOrders.status,
+                totalAmount: procurementOrders.totalAmount,
+                createdAt: procurementOrders.createdAt,
+                supplierName: suppliers.name,
+            })
+            .from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(role === 'supplier' ? eq(procurementOrders.supplierId, supplierId) : undefined);
+
+        return allOrdersRaw.map(order => ({
+            ...order,
+            supplier: { name: order.supplierName }
+        }));
     } catch (error) {
         console.error("Failed to fetch orders:", error);
         return [];
@@ -220,15 +230,31 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     }
 }
 
-export async function recordGoodsReceipt(orderId: string, notes?: string) {
+export async function recordGoodsReceipt(orderId: string, data: {
+    notes?: string,
+    visualInspectionPassed: boolean,
+    quantityVerified: boolean,
+    documentMatch: boolean
+}) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
     try {
-        await db.insert(goodsReceipts).values({
+        const [receipt] = await db.insert(goodsReceipts).values({
             orderId,
             receivedById: (session.user as any).id,
-            notes
+            notes: data.notes
+        }).returning();
+
+        // 2. Create QC Inspection Record
+        await db.insert(qcInspections).values({
+            receiptId: receipt.id,
+            inspectorId: (session.user as any).id,
+            status: (data.visualInspectionPassed && data.quantityVerified && data.documentMatch) ? 'passed' : 'failed',
+            visualInspectionPassed: data.visualInspectionPassed ? 'yes' : 'no',
+            quantityVerified: data.quantityVerified ? 'yes' : 'no',
+            documentMatch: data.documentMatch ? 'yes' : 'no',
+            notes: data.notes,
         });
 
         await db.update(procurementOrders)
@@ -236,10 +262,38 @@ export async function recordGoodsReceipt(orderId: string, notes?: string) {
             .where(eq(procurementOrders.id, orderId));
 
         revalidatePath(`/sourcing/orders/${orderId}`);
+        revalidatePath("/sourcing/goods-receipts");
         return { success: true };
     } catch (error) {
         console.error("Goods receipt recording failed:", error);
-        return { success: false };
+        return { success: false, error: "Failed to record receipt and inspection" };
+    }
+}
+
+export async function updateOrderLogistics(orderId: string, data: {
+    carrier: string,
+    trackingNumber: string,
+    estimatedArrival: string
+}) {
+    const session = await auth();
+    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        await db.update(procurementOrders)
+            .set({
+                carrier: data.carrier,
+                trackingNumber: data.trackingNumber,
+                estimatedArrival: data.estimatedArrival ? new Date(data.estimatedArrival) : null
+            })
+            .where(eq(procurementOrders.id, orderId));
+
+        await logActivity('UPDATE', 'order', orderId, `Logistics updated: ${data.carrier} tracking #${data.trackingNumber}`);
+
+        revalidatePath(`/sourcing/orders/${orderId}`);
+        return { success: true };
+    } catch (error) {
+        console.error("Logistics update failed:", error);
+        return { success: false, error: "Failed to update logistics" };
     }
 }
 
@@ -274,18 +328,27 @@ export async function validateThreeWayMatch(orderId: string) {
             const [po] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
             if (!po) return { success: false, error: "Order not found" };
 
-            // Check for Goods Receipt
+            // 1. Check for Goods Receipt
             const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
             const hasReceipt = receipts.length > 0;
 
-            // Check for Invoices
+            // 2. Check for QC Pass
+            let qcPassed = false;
+            if (hasReceipt) {
+                const inspections = await db.select()
+                    .from(qcInspections)
+                    .where(eq(qcInspections.receiptId, receipts[0].id));
+                qcPassed = inspections.some(ins => ins.status === 'passed');
+            }
+
+            // 3. Check for Invoices
             const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
             const totalInvoiceAmount = orderInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
 
             const poAmount = parseFloat(po.totalAmount || "0");
             const isPriceMatched = Math.abs(totalInvoiceAmount - poAmount) < 0.01;
 
-            if (hasReceipt && isPriceMatched) {
+            if (hasReceipt && qcPassed && isPriceMatched) {
                 await db.update(invoices)
                     .set({ status: 'matched', matchedAt: new Date() })
                     .where(eq(invoices.orderId, orderId));
@@ -297,10 +360,11 @@ export async function validateThreeWayMatch(orderId: string) {
             await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_pending", {
                 orderId,
                 hasReceipt,
+                qcPassed,
                 isPriceMatched,
                 variance: totalInvoiceAmount - poAmount
             });
-            return { success: true, status: 'PENDING_MATCH' };
+            return { success: true, status: 'PENDING_MATCH', reason: !qcPassed ? "QC_PENDING_OR_FAILED" : "PRICE_MISMATCH" };
         });
     } catch (error) {
         await TelemetryService.trackError("FinancialCompliance", "match_validation_error", error, { orderId });
@@ -325,5 +389,19 @@ export async function getOrderFinanceDetails(orderId: string) {
     } catch (error) {
         console.error("Failed to fetch order finance details:", error);
         return null;
+    }
+}
+
+export async function deleteOrder(id: string) {
+    const session = await auth();
+    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+
+    try {
+        await db.delete(procurementOrders).where(eq(procurementOrders.id, id));
+        revalidatePath("/sourcing/orders");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete order:", error);
+        return { success: false, error: "Failed to delete" };
     }
 }

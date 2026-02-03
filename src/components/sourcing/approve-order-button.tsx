@@ -26,7 +26,8 @@ export function ApproveOrderButton({ rfqId, supplierId, variant = "default" }: A
                 });
                 router.push("/sourcing/orders");
             } else {
-                toast.error(res.error || "Failed to process order");
+                const errorMsg = 'error' in res ? res.error : "Failed to process order";
+                toast.error(errorMsg);
             }
         });
     };
