@@ -1,8 +1,7 @@
 'use server'
 
-import { signIn } from '@/auth';
+import { signIn, auth } from '@/auth';
 import { AuthError } from 'next-auth';
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -34,35 +33,34 @@ export async function authenticate(
             throw error;
         }
 
-        console.log("[AUTH ACTION] Caught error type:", typeof error, "isAuthError:", error instanceof AuthError);
-        console.log("[AUTH ACTION] Error Message:", error.message);
-        console.log("[AUTH ACTION] Error Cause:", JSON.stringify(error.cause, null, 2));
+        // Avoid JSON.stringify(error.cause) as it can cause circular reference crashes
+        console.warn("[AUTH ACTION] Sign-in failure detected");
 
-        // Robust check for the internal 2FA signal
         const errorMsg = error.message || '';
-        const causeMsg = error.cause?.err?.message || error.cause?.message || '';
+        // Safer way to access cause-bound messages
+        let causeMsg = '';
+        if (error.cause && typeof error.cause === 'object') {
+            const cause = error.cause as any;
+            causeMsg = cause.err?.message || cause.message || '';
+        }
 
         if (errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
-            console.log("[AUTH ACTION] Require 2FA signal detected");
             return 'require-2fa';
         }
 
         if (errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
-            console.log("[AUTH ACTION] Setup 2FA signal detected");
             return 'setup-2fa';
         }
 
         if (error instanceof AuthError) {
-            console.log("[AUTH ACTION] AuthError detected:", error.type);
-            switch (error.type) {
-                case 'CredentialsSignin':
-                    return 'Invalid credentials.';
-                default:
-                    return 'Something went wrong.';
+            const type = error.type as string;
+            if (type === 'CredentialsSignin') {
+                return 'Invalid credentials. Please verify your employee ID and password.';
             }
+            return `Authentication Error: ${type}`;
         }
 
-        return 'An unexpected error occurred. Please try again.';
+        return error.message || 'An unexpected error occurred. Please try again.';
     }
 }
 
