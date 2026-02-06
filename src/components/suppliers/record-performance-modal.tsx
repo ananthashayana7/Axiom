@@ -57,7 +57,7 @@ export function RecordPerformanceModal({ supplierId }: { supplierId: string }) {
                 toast.success("Performance Snapshot Recorded");
                 setOpen(false);
             } else {
-                toast.error(res.error || "Failed to save log");
+                toast.error('error' in res ? res.error : "Failed to save log");
             }
         });
     };

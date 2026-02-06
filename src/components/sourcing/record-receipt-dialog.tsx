@@ -41,7 +41,7 @@ export function RecordReceiptDialog({ orderId, trigger }: { orderId: string, tri
             toast.success("Goods receipt recorded successfully")
             setOpen(false)
         } else {
-            toast.error(res.error || "Failed to record receipt")
+            toast.error('error' in res ? res.error : "Failed to record receipt")
         }
         setLoading(false)
     }

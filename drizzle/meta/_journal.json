@@ -36,6 +36,13 @@
       "when": 1769858493655,
       "tag": "0004_fluffy_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770362361360,
+      "tag": "0005_white_thanos",
+      "breakpoints": true
     }
   ]
 }

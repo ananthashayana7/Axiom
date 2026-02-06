@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert, TrendingUp, Boxes, RefreshCcw } from "lucide-react";
+import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert, TrendingUp, Boxes, RefreshCcw, Brain } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
@@ -18,6 +18,8 @@ import { auth } from "@/auth";
 import { AiInsights } from "@/components/dashboard/ai-insights";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
+import { CommandCenter } from "@/components/dashboard/command-center";
+
 
 export default async function Home() {
   const session = await auth();
@@ -147,7 +149,6 @@ export default async function Home() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
           <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
-          {isAgent && <AiInsights />}
         </div>
         <div className="col-span-3 space-y-6">
           <CommunicationHub leads={leads} />

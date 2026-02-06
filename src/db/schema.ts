@@ -340,6 +340,123 @@ export const invoices = pgTable('invoices', {
     invoiceStatusIdx: index('invoice_status_idx').on(table.status),
 }));
 
+// ============================================================================
+// AI AGENT INFRASTRUCTURE TABLES
+// ============================================================================
+
+export const agentExecutionStatusEnum = pgEnum('agent_execution_status', ['queued', 'running', 'success', 'failed', 'cancelled']);
+export const agentRecommendationStatusEnum = pgEnum('agent_recommendation_status', ['pending', 'approved', 'dismissed', 'expired']);
+export const recommendationImpactEnum = pgEnum('recommendation_impact', ['low', 'medium', 'high', 'critical']);
+
+export const agentExecutions = pgTable('agent_executions', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    agentName: text('agent_name').notNull(),
+    status: agentExecutionStatusEnum('status').default('queued'),
+    inputContext: text('input_context'),
+    outputData: text('output_data'),
+    confidenceScore: integer('confidence_score'),
+    tokenUsage: integer('token_usage'),
+    executionTimeMs: integer('execution_time_ms'),
+    errorMessage: text('error_message'),
+    triggeredBy: text('triggered_by').default('manual'),
+    userId: uuid('user_id').references(() => users.id),
+    createdAt: timestamp('created_at').defaultNow(),
+    completedAt: timestamp('completed_at'),
+}, (table: any) => ({
+    agentNameIdx: index('agent_exec_name_idx').on(table.agentName),
+    agentStatusIdx: index('agent_exec_status_idx').on(table.status),
+    agentCreatedIdx: index('agent_exec_created_idx').on(table.createdAt),
+}));
+
+export const agentRecommendations = pgTable('agent_recommendations', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    agentName: text('agent_name').notNull(),
+    recommendationType: text('recommendation_type').notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    impact: recommendationImpactEnum('impact').default('medium'),
+    estimatedSavings: decimal('estimated_savings', { precision: 12, scale: 2 }),
+    actionPayload: text('action_payload'),
+    status: agentRecommendationStatusEnum('status').default('pending'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at'),
+    expiresAt: timestamp('expires_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    agentRecNameIdx: index('agent_rec_name_idx').on(table.agentName),
+    agentRecStatusIdx: index('agent_rec_status_idx').on(table.status),
+    agentRecImpactIdx: index('agent_rec_impact_idx').on(table.impact),
+}));
+
+export const demandForecasts = pgTable('demand_forecasts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    partId: uuid('part_id').references(() => parts.id).notNull(),
+    forecastDate: timestamp('forecast_date').notNull(),
+    predictedQuantity: integer('predicted_quantity').notNull(),
+    confidenceLower: integer('confidence_lower'),
+    confidenceUpper: integer('confidence_upper'),
+    trend: text('trend').default('stable'),
+    seasonalityFactor: decimal('seasonality_factor', { precision: 5, scale: 2 }),
+    factors: text('factors'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    forecastPartIdx: index('forecast_part_idx').on(table.partId),
+    forecastDateIdx: index('forecast_date_idx').on(table.forecastDate),
+}));
+
+export const marketPriceIndex = pgTable('market_price_index', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    partCategory: text('part_category').notNull(),
+    commodity: text('commodity'),
+    benchmarkPrice: decimal('benchmark_price', { precision: 12, scale: 4 }),
+    source: text('source'),
+    validFrom: timestamp('valid_from'),
+    validTo: timestamp('valid_to'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    priceIdxCategory: index('price_idx_category').on(table.partCategory),
+}));
+
+export const fraudAlerts = pgTable('fraud_alerts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    alertType: text('alert_type').notNull(),
+    severity: text('severity').default('medium'),
+    description: text('description').notNull(),
+    indicators: text('indicators'),
+    suggestedAction: text('suggested_action'),
+    falsePositiveProbability: decimal('false_positive_probability', { precision: 5, scale: 2 }),
+    status: text('status').default('open'),
+    resolvedBy: uuid('resolved_by').references(() => users.id),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    fraudEntityIdx: index('fraud_entity_idx').on(table.entityType, table.entityId),
+    fraudSeverityIdx: index('fraud_severity_idx').on(table.severity),
+    fraudStatusIdx: index('fraud_status_idx').on(table.status),
+}));
+
+export const paymentOptimizations = pgTable('payment_optimizations', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id').references(() => procurementOrders.id).notNull(),
+    invoiceId: uuid('invoice_id').references(() => invoices.id),
+    supplierName: text('supplier_name').notNull(),
+    invoiceAmount: decimal('invoice_amount', { precision: 12, scale: 2 }).notNull(),
+    discountTerms: text('discount_terms'),
+    currentDueDate: timestamp('current_due_date'),
+    suggestedPaymentDate: timestamp('suggested_payment_date'),
+    potentialSavings: decimal('potential_savings', { precision: 12, scale: 2 }),
+    savingsType: text('savings_type'),
+    reason: text('reason'),
+    annualizedReturn: decimal('annualized_return', { precision: 5, scale: 2 }),
+    status: text('status').default('pending'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    payOptOrderIdx: index('pay_opt_order_idx').on(table.orderId),
+    payOptStatusIdx: index('pay_opt_status_idx').on(table.status),
+}));
+
 
 export const ordersRelations = relations(procurementOrders, ({ one, many }: any) => ({
     supplier: one(suppliers, {
@@ -525,3 +642,9 @@ export type Contract = typeof contracts.$inferSelect;
 export type SystemTelemetry = typeof systemTelemetry.$inferSelect;
 export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
 export type QCInspection = typeof qcInspections.$inferSelect;
+export type AgentExecution = typeof agentExecutions.$inferSelect;
+export type AgentRecommendation = typeof agentRecommendations.$inferSelect;
+export type DemandForecast = typeof demandForecasts.$inferSelect;
+export type MarketPriceIndex = typeof marketPriceIndex.$inferSelect;
+export type FraudAlert = typeof fraudAlerts.$inferSelect;
+export type PaymentOptimization = typeof paymentOptimizations.$inferSelect;

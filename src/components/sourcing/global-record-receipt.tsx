@@ -33,13 +33,18 @@ export function GlobalRecordReceipt({ orders }: { orders: any[] }) {
         const formData = new FormData(e.currentTarget)
         const notes = formData.get("notes") as string
 
-        const res = await recordGoodsReceipt(selectedOrderId, notes)
+        const res = await recordGoodsReceipt(selectedOrderId, {
+            notes,
+            visualInspectionPassed: true,
+            quantityVerified: true,
+            documentMatch: true
+        })
         if (res.success) {
             toast.success("Goods receipt recorded successfully")
             setOpen(false)
             setSelectedOrderId("")
         } else {
-            toast.error(res.error || "Failed to record receipt")
+            toast.error('error' in res ? res.error : "Failed to record receipt")
         }
         setLoading(false)
     }

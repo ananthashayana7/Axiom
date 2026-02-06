@@ -75,7 +75,7 @@ export function CreateRFQModal({ parts }: CreateRFQModalProps) {
                 setOpen(false);
                 setItems([{ partId: "", quantity: 1 }]);
             } else {
-                toast.error(result.error || "Failed to create RFQ");
+                toast.error('error' in result ? result.error : "Failed to create RFQ");
             }
         });
     };

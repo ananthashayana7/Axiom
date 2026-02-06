@@ -8,6 +8,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --font-sans: "Lucida Sans Unicode", "Lucida Grande", "Lucida Sans", Geneva, Verdana, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --background: oklch(0.98 0.01 240);
   --foreground: oklch(0.15 0.02 240);
   --card: oklch(1 0 0);

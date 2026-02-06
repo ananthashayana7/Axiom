@@ -2,21 +2,51 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { getInvoices } from "@/app/actions/invoices";
 import { Badge } from "@/components/ui/badge";
-import { IndianRupee, FileText, CheckCircle2, Clock } from "lucide-react";
+import { IndianRupee, FileText, CheckCircle2, Clock, CreditCard, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
 
 export const dynamic = 'force-dynamic'
 
-export default async function InvoicesPage() {
-    const invoicesList = await getInvoices();
+export default async function InvoicesPage({
+    searchParams
+}: {
+    searchParams: { mode?: string }
+}) {
+    const isMatchMode = (await searchParams).mode === 'match';
+    let invoicesList = await getInvoices();
+
+    if (isMatchMode) {
+        // Sort to put 'pending' at the top
+        invoicesList = [...invoicesList].sort((a, b) => {
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (a.status !== 'pending' && b.status === 'pending') return 1;
+            return 0;
+        });
+    }
 
     return (
         <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Enterprise Invoices</h1>
-                    <p className="text-muted-foreground mt-1">Audit and process supplier payment requests.</p>
+                    <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+                        {isMatchMode ? (
+                            <>
+                                <CreditCard className="h-8 w-8 text-primary" />
+                                Financial Matching & Compliance
+                            </>
+                        ) : (
+                            <>
+                                <FileText className="h-8 w-8 text-primary" />
+                                Enterprise Invoices
+                            </>
+                        )}
+                    </h1>
+                    <p className="text-muted-foreground mt-1 font-medium">
+                        {isMatchMode
+                            ? "Three-way verification across PO, Goods Receipt, and Invoice nodes."
+                            : "Audit and process supplier payment requests across the organization."}
+                    </p>
                 </div>
             </div>
 
@@ -66,6 +96,7 @@ export default async function InvoicesPage() {
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Invoice #</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order Ref</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
+                                        {isMatchMode && <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">3-Way Match</th>}
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Amount</th>
                                         <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
@@ -80,8 +111,8 @@ export default async function InvoicesPage() {
                                                     {invoice.invoiceNumber}
                                                 </div>
                                             </td>
-                                            <td className="p-4 align-middle font-mono text-xs text-muted-foreground">
-                                                {invoice.orderId.slice(0, 8)}...
+                                            <td className="p-4 align-middle font-mono text-xs text-muted-foreground whitespace-nowrap">
+                                                {invoice.orderId?.slice(0, 8) || 'N/A'}...
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <Badge variant={
@@ -95,10 +126,25 @@ export default async function InvoicesPage() {
                                                     {invoice.status}
                                                 </Badge>
                                             </td>
-                                            <td className="p-4 align-middle text-muted-foreground">
+                                            {isMatchMode && (
+                                                <td className="p-4 align-middle">
+                                                    {invoice.status === 'matched' || invoice.status === 'paid' ? (
+                                                        <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
+                                                            <CheckCircle2 size={14} />
+                                                            Verified
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs">
+                                                            <AlertTriangle size={14} />
+                                                            Unmatched
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            )}
+                                            <td className="p-4 align-middle text-muted-foreground font-medium">
                                                 {new Date(invoice.createdAt).toLocaleDateString()}
                                             </td>
-                                            <td className="p-4 align-middle font-black">
+                                            <td className="p-4 align-middle font-black tabular-nums">
                                                 ₹{Number(invoice.amount).toLocaleString()}
                                             </td>
                                             <td className="p-4 align-middle text-right">
@@ -108,7 +154,7 @@ export default async function InvoicesPage() {
                                     ))}
                                     {invoicesList.length === 0 && (
                                         <tr className="border-b transition-colors hover:bg-muted/50">
-                                            <td colSpan={5} className="p-8 text-center text-muted-foreground italic">
+                                            <td colSpan={isMatchMode ? 7 : 6} className="p-12 text-center text-muted-foreground italic">
                                                 No enterprise data found in this category.
                                             </td>
                                         </tr>

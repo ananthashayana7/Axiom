@@ -22,164 +22,147 @@ import {
     CheckCircle2,
     Info,
     RefreshCcw,
-    Scale
+    Scale,
+    Database,
+    Cpu,
+    Lock,
+    History,
+    Cloud,
+    Terminal,
+    HardDrive,
+    Fingerprint,
+    Activity
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const SECTIONS = [
     {
         id: "overview",
-        title: "Platform Overview",
+        title: "Platform Vision",
         icon: LayoutDashboard,
-        content: "Axiom is a high-performance Procurement Intelligence platform. It turns fragmented data into clear, strategic actions. Our mission is to move you away from 'buying' and towards 'Strategic Sourcing'.",
+        content: "Axiom is a high-performance Procurement Intelligence platform designed to turn fragmented supply chain data into strategic leverage. It moves organizations from reactive 'buying' to proactive 'Strategic Sourcing'.",
         steps: [
-            "Visibility — Stop guessing where your money goes. Axiom tracks every cent across suppliers and departments.",
-            "Intelligence — We use AI to spot risks and savings that humans often miss.",
-            "Accountability — Every action is recorded in the Audit Trail. There are no 'shadow' purchases here.",
-            "Efficiency — Automated workflows replace slow email chains and spreadsheets."
+            "Visibility — Unified data layer eliminates 'Shadow Spend' by tracking every transaction across all departments.",
+            "Intelligence — Native AI integration identifies risk patterns and cost-saving opportunities in real-time.",
+            "Accountability — Every single change in the system is cryptographically linked to a user via the Audit Trail.",
+            "Efficiency — Automated reorder loops and 3-way matching replace manual administrative overhead.",
+            "Strategic Depth — Move beyond transactions to manage Supplier Lifecycle, ESG compliance, and Risk Control Towers."
+        ]
+    },
+    {
+        id: "tech_stack",
+        title: "Architecture & Stack",
+        icon: Database,
+        content: "Modern, scalable, and secure. Axiom is built on a 'Full-Stack TypeScript' philosophy for maximum speed and type safety.",
+        steps: [
+            "Frontend — Next.js 14 (App Router) with React Server Components for near-instant page loads and optimal SEO.",
+            "Styling — Vanilla CSS with Tailwind utilities and Framer Motion for high-fidelity, fluid user experiences.",
+            "Database — PostgreSQL with Drizzle ORM for type-safe, performance-optimized relational queries and migrations.",
+            "State Management — React Hooks and Server Actions for a 'zero-client-side-boilerplate' architecture.",
+            "Deployment — Dockerized environment ensuring identical behavior across Local, Staging, and Production environments."
+        ]
+    },
+    {
+        id: "ai_engine",
+        title: "AI Intelligence Engine",
+        icon: Cpu,
+        content: "Powering the Axiom Copilot and Automated Insights. We use Retrieval-Augmented Generation (RAG) to keep AI grounded in your actual data snapshot.",
+        steps: [
+            "LLM Integration — Powered by Google Gemini AI (1.5 Flash/Pro) for massive context window and rapid processing.",
+            "RAG Architecture — The system injects live DB context (Spend, Risks, Parts) into prompts before AI processing.",
+            "Deterministic Fallbacks — If the AI API is unreachable, heuristic-based scrapers maintain core analysis functionality.",
+            "Natural Language Queries — 'Axiom Copilot' understands complex procurement intents like 'Show me suppliers with risk > 50'.",
+            "Auto-Replenishment AI — Predictive stock monitoring triggers Requisition Drafts based on historical consumption velocity."
+        ]
+    },
+    {
+        id: "traceability",
+        title: "Audit & Traceability",
+        icon: History,
+        content: "In procurement, 'Who' and 'When' are as important as 'What'. Axiom maintains an immutable record of every action.",
+        steps: [
+            "The Activity Log — Every Create, Update, or Delete action is recorded in the `audit_logs` table automatically.",
+            "Identity Mapping — Log entries capture User ID, Action Type, Entity ID (Part/PO/Supplier), and a technical summary.",
+            "Immutable Trail — Audit logs are write-only to ensure they remains a 'Source of Truth' for annual external audits.",
+            "System Telemetry — Real-time performance monitoring tracks AI latency, token usage, and database query health.",
+            "Data Versioning — Ability to trace back an Invoice to the specific RFQ and Quote that originated 6 months prior."
+        ]
+    },
+    {
+        id: "data_modeling",
+        title: "Data Modeling & Logic",
+        icon: HardDrive,
+        content: "Transparent and robust data structures. Our schema is designed for high-performance relational analytics.",
+        steps: [
+            "Relational Core — Highly normalized schema linking Users, Suppliers, Parts, and Orders with strict Foreign Keys.",
+            "Enums & Constraints — Standardized statuses (Active/Blacklisted/Draft) ensure data integrity at the DB level.",
+            "Complex Joins — Optimized Drizzle queries handle deep relations like 'Order -> Supplier -> Performance Logs' efficiently.",
+            "Telemetry Streams — A dedicated table tracks System Events, Metrics, and Errors for dev-ops visibility.",
+            "Flexible Documentation — Documents table handles multi-type attachments (Invoices, Contracts) linked to any entity."
         ]
     },
     {
         id: "foundations",
-        title: "Procurement 101",
+        title: "Procurement Workflows",
         icon: BookOpen,
-        content: "Before you click anything, understand the 'Golden Rule': Never spend company money without a digital trail. Here is how professional procurement works.",
+        content: "Axiom enforces industry-standard procurement cycles to ensure financial discipline and legal compliance.",
         steps: [
-            "1. The Identification — It starts with a need (e.g., 'We need 50 laptops'). This is not an order yet; it's just a request.",
-            "2. The Sourcing (RFQ) — Don't buy from the first seller. Ask at least 3 companies for their best price. This is 'Request for Quote'.",
-            "3. The Award — Choose a winner based on Price, Quality, and Speed. AI can help you calculate this 'Best Pick' automatically.",
-            "4. The Contract — Convert the winning quote into a Purchase Order (PO). This is a legal promise to pay.",
-            "5. The Receipt — When goods arrive, verify them immediately. If you don't mark them 'Fulfilled', finance won't pay the bill.",
-            "PRO-TIP: Always aim for a 3-Way Match. Ensure the Order, the Delivery Note, and the Invoice all show the same quantity and price.",
-            "PITFALL: Buying 'Off-Contract' (Maverick Spend) is the #1 way companies lose money. If it's not in Axiom, don't buy it."
+            "1. Material Catalog — Defining the 'Digital Twin' of every part with SKU, Category, and Benchmark Pricing.",
+            "2. Demand Generation — Needs enter as Requisitions. Managers approve based on live department budget visibility.",
+            "3. Competitive Sourcing (RFQ) — Multi-vendor bidding (Rule of Three) ensures the organization gets the 'Best Pick'.",
+            "4. The Commitment (PO) — Winning quotes become legal Purchase Orders, locking in price, lead time, and terms.",
+            "5. Supply Chain Execution — Goods Receipt (GRN) marking at the warehouse triggers the financial downstream flow."
         ]
     },
     {
-        id: "parts",
-        title: "Parts & Catalog",
-        icon: Package,
-        content: "The Catalog is your 'Single Source of Truth'. If the data here is messy, your analytics will be useless. Keep it clean.",
+        id: "compliance",
+        title: "Financial Compliance",
+        icon: Scale,
+        content: "Closing 'The Loop'. Axiom's matching engine prevents overpayment, fraud, and maverick spend.",
         steps: [
-            "Naming Conventions — Use 'Noun, Descriptor' format (e.g., 'Laptop, Dell XPS' instead of 'My New XPS Laptop'). This makes searching easy.",
-            "Category Accuracy — Select the right category (Mechanical, HR, IT). This determines how we analyze your department's budget.",
-            "Standard Pricing — Set a realistic 'Benchmark Price'. Axiom uses this to tell you if a supplier is overcharging you in the future.",
-            "The 2-Minute Rule — If you see a duplicate part or a typo, fix it immediately. Data debt grows like high interest.",
-            "PRO-TIP: Use the 'Critical' flag for items that stop production. It helps the buying team prioritize their workload.",
-            "PITFALL: Creating duplicate SKUs for the same item. Check the search bar twice before adding a new part."
+            "The 3-Way Match — The system automatically flags discrepancies between PO Price, GRN Quantity, and Invoice Amount.",
+            "Dispute Management — Orders with mismatch (Amber status) are locked from payment until a Buyer resolves the data.",
+            "Performance Scoring — Suppliers are dynamically graded on delivery accuracy (OIF) and quality consistency.",
+            "ESG Validation — Tracking 'Green Energy' usage and Labor Compliance as mandatory gates in the onboarding process.",
+            "Risk Control Tower — Real-time monitoring of supplier risk scores based on financial health and delivery history."
         ]
     },
     {
-        id: "rfqs",
-        title: "Strategic Sourcing (RFQs)",
-        icon: FileText,
-        content: "This is the 'War Room' for price negotiation. Use RFQs to create competition among your suppliers and drive costs down.",
+        id: "security",
+        title: "Enterprise Security",
+        icon: Lock,
+        content: "Multi-layered defense for sensitive financial data. Axiom prioritizes the 'Principle of Least Privilege'.",
         steps: [
-            "Rule of Three — Never launch an RFQ with fewer than 3 suppliers. Competition is your only leverage.",
-            "Specific Specs — Upload clear documents. Suppliers will quote lower if they have zero uncertainty about what you want.",
-            "AI Analysis — Once quotes arrive, click 'AI Comparison'. It will highlight 'Low-Ball' offers that seem too good to be true.",
-            "Closing the RFQ — Always send a 'Thank You' or 'Regret' note to every participant. Professionalism ensures they quote again next time.",
-            "PRO-TIP: Check the 'Lead Time' as much as the 'Price'. A cheap part that arrives 6 months late is actually very expensive.",
-            "PITFALL: Forgetting to set a 'Closing Date'. Suppliers need a deadline to move quickly."
+            "RBAC Control — Role-Based Access (Admin/User/Supplier) ensures restricted visibility of financial PII.",
+            "2FA Enforcement — Two-Factor Authentication via TOTP (Authenticator Apps) for all high-authority accounts.",
+            "Secure Auth — Built on Auth.js (NextAuth) using industry-standard JWT and database-backed session logic.",
+            "Row-Level Logic — Application-level middleware prevents cross-tenant data access attempts.",
+            "Encryption at Rest — Sensitive fields like 2FA secrets and API keys are stored with high-entropy encryption."
         ]
     },
     {
-        id: "contracts",
-        title: "Framework Agreements",
-        icon: ShieldCheck,
-        content: "Legal safety for long-term relationships. Framework Agreements ensure you are always buying at pre-negotiated terms without launching an RFQ every single time.",
+        id: "connectivity",
+        title: "Global Connectivity",
+        icon: Cloud,
+        content: "Axiom isn't just a local app. It bridges the gap between your desktop and the global supply chain.",
         steps: [
-            "Contract Activation — New contracts start as 'Draft'. You must 'Activate' them before they can be linked to any Purchase Order.",
-            "Linking Orders — When creating an order, select the 'Contract' field. This automatically inherits the agreed-upon Incoterms and legal protections.",
-            "Renewal Alerts — Axiom monitors the 'Valid To' date. Check the 'Contracts' page regularly to spot agreements that are about to expire.",
-            "Termination — If a supplier fails their SLA, use the 'Terminate' action to block any new spend against that contract.",
-            "PRO-TIP: Use 'Auto-Renew' for low-risk, high-volume service contracts to avoid service interruptions.",
-            "PITFALL: Buying without a contract when one exists. Always link your PO to the Framework Agreement to ensure pricing compliance."
+            "LocalTunnel Integration — Instantly share your local development instance with remote stakeholders via secure tunnels.",
+            "Electron Framework — Portable `.exe` and `.dmg` builds allow Axiom to run as a native desktop application.",
+            "Static Optimization — High-performance document serving and caching for large-scale procurement catalogs.",
+            "External API Support — Ready for integration with external ERPs (SAP/Oracle) via standard REST patterns."
         ]
     },
     {
-        id: "requisitions",
-        title: "Internal Requests",
-        icon: ShoppingCart,
-        content: "For people who need things but don't have the authority to spend. Think of this as a formal 'Proposal' to your manager.",
+        id: "devops",
+        title: "System Operations",
+        icon: Terminal,
+        content: "Maintaining the engine. Axiom is designed for developer ease and operational stability.",
         steps: [
-            "Clarity is Value — Don't just say 'Tools'. List the part numbers and why you need them. Managers hate vague requests.",
-            "Budget Check — Ensure you have the budget before submitting. The 'Estimated Amount' must include taxes and shipping.",
-            "Approval Hierarchy — Once you hit submit, your manager gets a notification. They can Approve, Reject, or ask for more info.",
-            "Notification Tracking — Click the Bell icon in the header. You will get a ping the second your request is green-lit.",
-            "PRO-TIP: Batch your needs. One requisition for 10 items is processed 5x faster than 10 separate requisitions.",
-            "PITFALL: Submitting 'Emergency' requests for things that weren't actually emergencies. It destroys your credibility."
-        ]
-    },
-    {
-        id: "orders",
-        title: "Purchase Orders (PO)",
-        icon: ShoppingCart,
-        content: "The PO is a legal contract. It protects the company by locking in prices and delivery dates before money moves.",
-        steps: [
-            "Auto-Creation — Always convert an Approved Requisition or RFQ into a PO. Do not type details manually to avoid errors.",
-            "The Tracking Loop — Once a PO is 'Sent', the clock starts. Use the 'Status' column to monitor if the supplier is late.",
-            "The Three-Way Match — A critical audit step. Axiom compares the PO Amount, the Goods Receipt (GRN), and the Invoice. If they don't match, it is flagged as 'Disputed'.",
-            "Receipting (GRN) — When the box hits the warehouse, mark it as 'Fulfilled' in Axiom. This is the only way to trigger a payment.",
-            "Closing the Loop — A 'Fulfilled' order moves to the 'History' tab for your next year's budget planning.",
-            "PRO-TIP: If a supplier sends 95% of an order, don't mark as fulfilled. Keep it open until the last 5% arrives.",
-            "PITFALL: Verbally telling a supplier to 'send it' without a PO in the system. If it's not in Axiom, it doesn't exist."
-        ]
-    },
-    {
-        id: "suppliers",
-        title: "Supplier Risk & Health",
-        icon: Users,
-        content: "Your suppliers are your biggest risk. We monitor their 'Vital Signs' to ensure they don't go bust or fail you.",
-        steps: [
-            "Red Flag: Performance — If a score drops below 60, stop giving them new work until they explain why they are late.",
-            "Red Flag: Risk — A high risk score (80+) means they might be financially unstable or have ethical issues.",
-            "ESG Compliance — Monitor if your partners are using green energy or ethical labor. This protects your brand's reputation.",
-            "Manual Performance Audits — Go to a Supplier's page and click 'Record Performance'. This calculates a live scorecard based on Delivery, Quality, and Collaboration.",
-            "The Master List — Only buy from 'Active' suppliers. 'Blacklisted' suppliers are blocked from the system for a reason.",
-            "PRO-TIP: Review your Top 10 suppliers every quarter. Don't let your business depend too heavily on just one partner.",
-            "PITFALL: Ignoring the 'Reliability' metric. A supplier who is 'always just 2 days late' is costing you hours of project delay."
-        ]
-    },
-    {
-        id: "analytics",
-        title: "Telemetry & Intelligence",
-        icon: Sparkles,
-        content: "Data is just noise until you use Telemetry. This section turns your spending habits into a clear roadmap for savings.",
-        steps: [
-            "The Spend Spike — Look for sudden jumps in costs. It usually means a part price changed or a department is overspending.",
-            "Savings Realized — This metric shows the boss how much money *you* saved the company through smart negotiation.",
-            "AI Insights — The AI looks across the whole company. It might notice that 'Site A' is paying 20% more than 'Site B' for the same part.",
-            "Technical Health — Check the 'System Telemetry' in the header to ensure all AI integrations and data streams are live.",
-            "PRO-TIP: Download the 'Monthly Recap' PDF and send it to your manager. It proves your value every single month.",
-            "PITFALL: Looking at the charts but taking no action. Analytics are a compass, not a trophy."
-        ]
-    },
-    {
-        id: "sharing",
-        title: "Onboarding & Access",
-        icon: Share2,
-        content: "Axiom works best when the whole team is inside. Here is how to bring your colleagues into the project safely.",
-        steps: [
-            "The Invite — Go to 'User Management' to add your team. Assign them roles (User, Admin, or Supplier).",
-            "The Local Link — If you are in the office, share your internal IP address (e.g., http://192.168.1.5:3001).",
-            "The Global Tunnel — To share with people working from home, use the 'Tunnel' method. Run `npx localtunnel --port 3001` in your console.",
-            "Security First — Tell your team to *never* share their passwords. Use the 'Inactivity Tracker'—Axiom will auto-log-out for safety.",
-            "PRO-TIP: Make 'Procurement 101' mandatory reading for every new hire before they get their login.",
-            "PITFALL: Sharing one login between multiple people. It destroys the 'Audit Trail'—you won't know who actually made a mistake."
-        ]
-    },
-    {
-        id: "maintenance",
-        title: "System Maintenance",
-        icon: RefreshCcw,
-        content: "Keeping the engine running. As an Admin, you have the power to reset data and manage the technical health of the workspace.",
-        steps: [
-            "The Reset Utility — Found in Admin Settings. This wipes all orders, suppliers, and parts while keeping your User account intact.",
-            "Database Hygiene — Always ensure your DATABASE_URL is backed up before a reset. These actions are permanent and irreversible.",
-            "Audit Trail Integrity — Axiom logs every major system action. If you reset the database, the activity logs are also cleared to start fresh.",
-            "Role Management — Regularly audit who has 'Admin' access. Restricted access is the best defense against data accidents.",
-            "PRO-TIP: Perform a 'Workspace Reset' only after your annual audit is complete and data is archived.",
-            "PITFALL: Resetting the database during active procurement cycles. This will disconnect suppliers and cancel pending orders."
+            "Docker Orchestration — Single-command `docker-compose up` spins up Next.js, Postgres, and Adminer.",
+            "Next.js Standalone — Optimized build output for containerized environments to minimize image size.",
+            "Database Hygiene — Integrated Reset Utilities allow admins to clear transactional data while preserving configurations.",
+            "Real-time Logs — Telemetry-driven error tracking provides deep visibility into server-side failures.",
+            "CI/CD Ready — Built-in linting and type-checking ensure code quality remains high during iterative development."
         ]
     }
 ];

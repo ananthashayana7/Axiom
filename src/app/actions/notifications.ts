@@ -49,10 +49,16 @@ export async function createNotification(data: {
 }
 
 export async function markNotificationAsRead(id: string) {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
     try {
         await db.update(notifications)
             .set({ isRead: 'yes' })
-            .where(eq(notifications.id, id));
+            .where(and(
+                eq(notifications.id, id),
+                eq(notifications.userId, session.user.id)
+            ));
 
         revalidatePath("/");
         return { success: true };

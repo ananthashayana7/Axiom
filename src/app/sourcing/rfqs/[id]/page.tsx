@@ -23,10 +23,13 @@ import { ApproveOrderButton } from "@/components/sourcing/approve-order-button";
 import { getAuditLogs, getComments } from "@/app/actions/activity";
 import { ComplianceStatus } from "@/components/sourcing/compliance-status";
 import { CostIntelligence } from "@/components/sourcing/cost-intelligence";
+import { getSuppliers } from "@/app/actions/suppliers";
+import { ManualInviteDialog } from "@/components/sourcing/manual-invite-dialog";
 import { getParts } from "@/app/actions/parts";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import type { Supplier, Part } from "@/db/schema";
+import { LaunchSourcingButton, ComparePricesButton } from "@/components/sourcing/rfq-action-buttons";
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +84,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
 
     const initialComments = await getComments('rfq' as any, id);
     const auditLogs = isAdmin ? await getAuditLogs('rfq' as any, id) : [];
+    const allSuppliersMaster = await getSuppliers();
     const allParts = await getParts();
 
     const handleStatusChange = async (formData: FormData) => {
@@ -135,10 +139,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                     <Button type="submit" size="sm" variant="secondary">Update</Button>
                                 </form>
                                 {rfq.status === 'draft' && (
-                                    <Button className="w-full gap-2 bg-primary text-primary-foreground font-bold" onClick={() => window.alert("Triggering AI Supplier Outreach... RFQ will be moved to OPEN status.")}>
-                                        <Sparkles size={16} />
-                                        Launch Sourcing Event
-                                    </Button>
+                                    <LaunchSourcingButton rfqId={rfq.id} />
                                 )}
                             </div>
                         )}
@@ -146,27 +147,27 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                 </Card>
             </div>
 
-            <div className="grid gap-8 grid-cols-1 lg:grid-cols-3">
+            <div className="grid gap-8 grid-cols-1 lg:grid-cols-3 mb-10">
                 {/* Left: Items List */}
                 <div className="lg:col-span-1 space-y-6">
-                    <Card className="h-full border-accent/20">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <FileText className="h-5 w-5 text-primary" />
-                                Requested Items
+                    <Card className="h-full border-accent/20 rounded-3xl shadow-sm bg-background/50 backdrop-blur-sm">
+                        <CardHeader className="pb-4 border-b border-muted">
+                            <CardTitle className="text-xl font-black tracking-tight flex items-center gap-2">
+                                <FileText className="h-6 w-6 text-primary" />
+                                Line Item Spec
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-6">
                             <div className="space-y-4">
                                 {rfq.items.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
-                                        <div>
-                                            <p className="font-semibold text-sm">{item.part.name}</p>
-                                            <p className="text-[10px] text-muted-foreground font-mono">{item.part.sku}</p>
+                                    <div key={item.id} className="flex items-center justify-between p-4 rounded-2xl border bg-muted/30 hover:bg-muted/50 transition-colors">
+                                        <div className="space-y-1">
+                                            <p className="font-bold text-sm text-foreground">{item.part.name}</p>
+                                            <p className="text-[10px] text-muted-foreground font-mono bg-background px-1.5 py-0.5 rounded border inline-block">{item.part.sku}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold">{item.quantity} Units</p>
-                                            <Badge variant="outline" className="text-[10px] h-4 px-1">{item.part.category}</Badge>
+                                            <p className="font-black text-primary">{item.quantity} Units</p>
+                                            <Badge variant="outline" className="text-[10px] font-bold h-4 px-1.5 uppercase opacity-60 mt-1">{item.part.category}</Badge>
                                         </div>
                                     </div>
                                 ))}
@@ -176,21 +177,32 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                 </div>
 
                 {/* Right: AI Selection & Insights */}
-                <div className="lg:col-span-2 space-y-6">
-                    <Card className="border-primary/20 bg-primary/5 shadow-md">
-                        <CardHeader className="pb-3">
+                <div className="lg:col-span-2 space-y-8">
+                    <Card className="border-primary/20 bg-emerald-50/10 shadow-xl rounded-[2rem] overflow-hidden border-2">
+                        <CardHeader className="pb-6 border-b border-primary/10 bg-primary/5">
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-                                    AI Supplier Recommendations
+                                <CardTitle className="text-2xl font-black tracking-tighter flex items-center gap-3">
+                                    <Sparkles className="h-7 w-7 text-primary" />
+                                    Sourcing Intelligence
                                 </CardTitle>
-                                <Badge className="bg-primary text-primary-foreground border-none">INTELLIGENCE ACTIVE</Badge>
+                                <div className="flex items-center gap-3">
+                                    {isAdmin && (
+                                        <ManualInviteDialog
+                                            rfqId={id}
+                                            suppliers={allSuppliersMaster}
+                                            alreadyInvitedIds={rfq.suppliers.map(s => s.supplierId)}
+                                        />
+                                    )}
+                                    <Badge variant="outline" className="bg-emerald-600 text-white border-none font-bold uppercase text-[10px] py-1.5 px-4 shadow-lg shadow-emerald-200">
+                                        ENGINE ACTIVE
+                                    </Badge>
+                                </div>
                             </div>
-                            <CardDescription className="text-primary/70">
-                                Our AI analyzed the strategic supplier network and identified these top matches based on performance, lead times, and financial stability.
+                            <CardDescription className="text-muted-foreground mt-2 font-medium">
+                                Multidimensional supplier evaluation using procurement telemetry and financial risk modeling.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-8 pt-8 px-8 pb-10">
                             {sortedSuppliers.map((s) => {
                                 const analysis = s.aiAnalysis ? JSON.parse(s.aiAnalysis) : null;
                                 const isTop = s.id === topSupplierId;
@@ -199,54 +211,62 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 const matchScore = Math.round((performance * 0.7) + ((100 - risk) * 0.3));
 
                                 return (
-                                    <div key={s.id} className={`flex flex-col gap-6 p-6 rounded-xl border transition-all group relative overflow-hidden ${isTop ? 'border-primary/40 bg-primary/5 shadow-sm' : 'bg-background hover:border-accent'}`}>
-                                        {isTop && (
-                                            <div className="absolute top-0 right-0">
-                                                <Badge className="rounded-tr-none rounded-bl-xl bg-primary text-primary-foreground border-none">AI TOP PICK</Badge>
-                                            </div>
-                                        )}
+                                    <div key={s.id} className={`flex flex-col gap-8 p-10 rounded-[2rem] border transition-all group relative overflow-hidden ${isTop ? 'border-primary/30 bg-white shadow-2xl scale-[1.02] z-10' : 'bg-background hover:border-accent hover:shadow-lg opacity-90 hover:opacity-100'}`}>
 
-                                        <div className="flex flex-col md:flex-row justify-between gap-6">
-                                            <div className="flex-1 space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                                        <div className="flex flex-col xl:flex-row justify-between gap-10">
+                                            <div className="flex-1 space-y-8">
+                                                <div>
+                                                    <div className="flex items-center gap-4 mb-2 flex-wrap">
+                                                        <h3 className="text-3xl font-black tracking-tighter text-foreground group-hover:text-primary transition-colors">
                                                             {s.supplier.name}
-                                                            <Badge variant="outline" className="text-[10px] uppercase">{s.status}</Badge>
                                                         </h3>
-                                                        <p className="text-xs text-muted-foreground mt-0.5">Automated Match Score: <span className="text-primary font-bold">{matchScore}%</span></p>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest h-6 bg-primary/5 text-primary border-primary/20 px-3 shrink-0">
+                                                                {s.status}
+                                                            </Badge>
+                                                            {isTop && (
+                                                                <Badge className="bg-primary text-primary-foreground font-black text-[10px] uppercase h-6 px-3 flex items-center gap-1.5 shadow-md shadow-primary/20 border-none whitespace-nowrap">
+                                                                    <Sparkles size={10} />
+                                                                    Recommended Strategy
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
+                                                    <p className="text-base text-muted-foreground font-medium flex items-center gap-2">
+                                                        AI Intentionality Match:
+                                                        <span className="text-primary font-black bg-primary/10 px-2 py-0.5 rounded-full">{matchScore}%</span>
+                                                    </p>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Performance</p>
-                                                        <div className="flex items-center gap-1.5 font-semibold text-sm">
-                                                            <TrendingUp size={14} className="text-green-500" />
+                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+                                                    <div className="space-y-2">
+                                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Performance</p>
+                                                        <div className="flex items-center gap-2 font-black text-2xl text-foreground">
+                                                            <TrendingUp size={24} className="text-green-500" />
                                                             {performance}%
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Risk Profile</p>
-                                                        <div className="flex items-center gap-1.5 font-semibold text-sm">
-                                                            <ShieldCheck size={14} className={risk > 30 ? 'text-red-500' : 'text-blue-500'} />
-                                                            {risk <= 20 ? 'Low' : risk <= 50 ? 'Medium' : 'High'}
+                                                    <div className="space-y-2">
+                                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Risk Intelligence</p>
+                                                        <div className="flex items-center gap-2 font-black text-2xl text-foreground">
+                                                            <ShieldCheck size={24} className={risk > 30 ? 'text-red-500' : 'text-blue-500'} />
+                                                            {risk <= 20 ? 'Verified' : risk <= 50 ? 'Moderate' : 'Critical'}
                                                         </div>
                                                     </div>
                                                     {analysis && (
                                                         <>
-                                                            <div className="space-y-1">
-                                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Quote Total</p>
-                                                                <div className="flex items-center gap-1.5 font-bold text-sm text-primary">
-                                                                    <Wallet size={14} />
+                                                            <div className="space-y-2">
+                                                                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Financial Quote</p>
+                                                                <div className="flex items-center gap-2 font-black text-2xl text-primary">
+                                                                    <Wallet size={24} />
                                                                     ₹{parseFloat(s.quoteAmount || '0').toLocaleString()}
                                                                 </div>
                                                             </div>
-                                                            <div className="space-y-1">
-                                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Lead Time</p>
-                                                                <div className="flex items-center gap-1.5 font-semibold text-sm">
-                                                                    <Clock size={14} />
-                                                                    {analysis.deliveryWeeks} Weeks
+                                                            <div className="space-y-2">
+                                                                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Fulfillment</p>
+                                                                <div className="flex items-center gap-2 font-black text-2xl text-foreground">
+                                                                    <Clock size={24} />
+                                                                    {analysis.deliveryWeeks}w
                                                                 </div>
                                                             </div>
                                                         </>
@@ -254,44 +274,53 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                 </div>
 
                                                 {analysis && (
-                                                    <div className="bg-muted/30 p-3 rounded-lg border border-muted-foreground/10">
-                                                        <p className="text-[10px] font-bold text-muted-foreground mb-2 flex items-center gap-1">
-                                                            <Sparkles size={10} className="text-primary" />
-                                                            AI EXTRACTION HIGHLIGHTS
+                                                    <div className="bg-primary/5 p-5 rounded-2xl border border-primary/10 shadow-inner">
+                                                        <p className="text-[10px] font-black text-primary mb-3 flex items-center gap-2 uppercase tracking-widest">
+                                                            <Sparkles size={12} />
+                                                            AI Deep-Extract Summary
                                                         </p>
-                                                        <ul className="text-xs space-y-1">
-                                                            {analysis.highlights.map((h: string, i: number) => (
-                                                                <li key={i} className="flex items-center gap-2">
-                                                                    <CheckCircle2 size={10} className="text-green-500" />
-                                                                    {h}
-                                                                </li>
-                                                            ))}
-                                                            <li className="flex items-center gap-2 text-muted-foreground italic">
-                                                                <Info size={10} />
-                                                                Payment Terms: {analysis.terms}
-                                                            </li>
-                                                        </ul>
+                                                        <div className="grid md:grid-cols-2 gap-4">
+                                                            <ul className="text-sm space-y-2">
+                                                                {analysis.highlights.map((h: string, i: number) => (
+                                                                    <li key={i} className="flex items-start gap-2 font-medium text-foreground/80">
+                                                                        <CheckCircle2 size={14} className="text-green-500 mt-0.5 shrink-0" />
+                                                                        {h}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                            <div className="border-l border-primary/10 pl-4 flex flex-col justify-center">
+                                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Commercial Terms</p>
+                                                                <p className="text-xs font-bold text-primary italic leading-relaxed">
+                                                                    "{analysis.terms}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="flex flex-row md:flex-col justify-end gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
+                                            <div className="flex flex-col gap-4 shrink-0 xl:pl-10 xl:border-l border-muted-foreground/10 w-full xl:w-[260px] justify-center pt-8 xl:pt-0">
                                                 {isAdmin && (
-                                                    <>
+                                                    <div className="space-y-4">
+                                                        <ApproveOrderButton
+                                                            rfqId={rfq.id}
+                                                            supplierId={s.supplier.id}
+                                                            variant={isTop ? 'default' : 'secondary'}
+                                                        />
                                                         <AnalyzeQuoteButton rfqSupplierId={s.id} hasAnalysis={!!s.aiAnalysis} />
-                                                        <Button size="sm" variant="ghost" className="w-full text-[10px] font-bold h-7 uppercase tracking-tight" onClick={() => window.alert("Historical Price Comparison: Benchmarking against previous 24 months...")}>
-                                                            Compare prices
-                                                        </Button>
-                                                    </>
+                                                        <div className="flex items-center gap-2">
+                                                            <Link href={`/suppliers/${s.supplier.id}`} className="flex-1">
+                                                                <Button size="sm" variant="outline" className="w-full h-10 font-bold text-xs shadow-sm">Supplier Profile</Button>
+                                                            </Link>
+                                                            <ComparePricesButton />
+                                                        </div>
+                                                    </div>
                                                 )}
-                                                <Link href={`/suppliers/${s.supplier.id}`}>
-                                                    <Button size="sm" variant="outline" className="w-full">Profile</Button>
-                                                </Link>
-                                                <ApproveOrderButton
-                                                    rfqId={rfq.id}
-                                                    supplierId={s.supplier.id}
-                                                    variant={isTop ? 'default' : 'secondary'}
-                                                />
+                                                {!isAdmin && (
+                                                    <Link href={`/suppliers/${s.supplier.id}`}>
+                                                        <Button size="lg" variant="outline" className="w-full font-bold shadow-md">Full Intelligence Profile</Button>
+                                                    </Link>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -330,61 +359,70 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                     </Card>
 
                     {quotedSuppliers.length > 1 && (
-                        <Card className="border-primary/30 bg-primary/5 shadow-md">
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Sparkles className="h-6 w-6 text-primary" />
-                                    Comparative Decision Summary
+                        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-2xl rounded-[2.5rem] overflow-hidden border-2 mt-12">
+                            <CardHeader className="pb-8 pt-8 px-10 border-b border-primary/10">
+                                <CardTitle className="text-3xl font-black tracking-tighter flex items-center gap-3">
+                                    <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                                    Strategic Award Intelligence
                                 </CardTitle>
-                                <CardDescription>AI-generated cross-supplier comparison based on extracted data.</CardDescription>
+                                <CardDescription className="text-lg font-medium text-muted-foreground">
+                                    Weighted decision matrix comparing performance, speed, and unit economics.
+                                </CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="p-4 rounded-xl bg-background border flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-green-100 rounded-lg">
-                                                <Wallet className="h-5 w-5 text-green-700" />
+                            <CardContent className="p-10">
+                                <div className="grid md:grid-cols-3 gap-8">
+                                    <div className="p-8 rounded-[2rem] bg-background border-2 border-green-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                                        <div className="space-y-4">
+                                            <div className="p-3 bg-green-100 rounded-2xl w-fit">
+                                                <Wallet className="h-8 w-8 text-green-700" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold">Best Financial Value</p>
-                                                <p className="text-xs text-muted-foreground">Lowest total cost across all identified quotes.</p>
+                                                <p className="text-lg font-black tracking-tight text-green-900">Unit Economic Leader</p>
+                                                <p className="text-sm text-green-600 font-medium">Lowest total cost per unit.</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-green-700">{[...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.supplier.name}</p>
-                                            <p className="text-xs font-medium">₹{parseFloat([...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.quoteAmount || '0').toLocaleString()}</p>
+                                        <div className="mt-8 pt-6 border-t border-green-50">
+                                            <p className="text-2xl font-black text-foreground">
+                                                {[...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.supplier.name}
+                                            </p>
+                                            <p className="text-sm font-black text-green-700 mt-1 uppercase tracking-widest">₹{parseFloat([...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.quoteAmount || '0').toLocaleString()}</p>
                                         </div>
                                     </div>
 
-                                    <div className="p-4 rounded-xl bg-background border flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-blue-100 rounded-lg">
-                                                <Clock className="h-5 w-5 text-blue-700" />
+                                    <div className="p-8 rounded-[2rem] bg-background border-2 border-blue-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                                        <div className="space-y-4">
+                                            <div className="p-3 bg-blue-100 rounded-2xl w-fit">
+                                                <Clock className="h-8 w-8 text-blue-700" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold">Fastest Execution</p>
-                                                <p className="text-xs text-muted-foreground">Shortest lead time from approval to delivery.</p>
+                                                <p className="text-lg font-black tracking-tight text-blue-900">Speed Velocity Pick</p>
+                                                <p className="text-sm text-blue-600 font-medium">Shortest logistical lead time.</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-blue-700">{[...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.supplier.name}</p>
-                                            <p className="text-xs font-medium">{JSON.parse([...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.aiAnalysis!).deliveryWeeks} Weeks</p>
+                                        <div className="mt-8 pt-6 border-t border-blue-50">
+                                            <p className="text-2xl font-black text-foreground">
+                                                {[...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.supplier.name}
+                                            </p>
+                                            <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{JSON.parse([...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.aiAnalysis!).deliveryWeeks} Weeks Arrival</p>
                                         </div>
                                     </div>
 
-                                    <div className="p-4 rounded-xl bg-primary text-primary-foreground flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-primary-foreground/20 rounded-lg">
-                                                <CheckCircle2 className="h-5 w-5" />
+                                    <div className="p-10 rounded-[2rem] bg-primary text-primary-foreground shadow-2xl flex flex-col justify-between relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-500">
+                                            <Sparkles size={120} />
+                                        </div>
+                                        <div className="space-y-4 relative z-10">
+                                            <div className="p-3 bg-white/20 rounded-2xl w-fit backdrop-blur-md">
+                                                <CheckCircle2 className="h-8 w-8 text-white" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold">Recommended Award</p>
-                                                <p className="text-xs opacity-80">Based on weighted score (70% Performance, 30% Cost).</p>
+                                                <p className="text-xl font-black tracking-tight">System Optimal Choice</p>
+                                                <Badge className="bg-white/20 text-white border-none text-[10px] mt-2 font-bold uppercase py-0.5">Weighted Rank #1</Badge>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold">{sortedSuppliers[0]?.supplier.name}</p>
-                                            <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground border-none">Selected by AI</Badge>
+                                        <div className="mt-8 pt-6 border-t border-white/20 relative z-10">
+                                            <p className="text-3xl font-black">{sortedSuppliers[0]?.supplier.name}</p>
+                                            <p className="text-sm font-bold opacity-80 mt-1 italic italic">AI Recommended Outcome</p>
                                         </div>
                                     </div>
                                 </div>

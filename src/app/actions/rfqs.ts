@@ -251,6 +251,37 @@ export async function updateRFQStatus(id: string, status: 'draft' | 'open' | 'cl
     }
 }
 
+export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
+    const session = await auth();
+    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        // Check if already invited
+        const existing = await db.select().from(rfqSuppliers).where(
+            and(
+                eq(rfqSuppliers.rfqId, rfqId),
+                eq(rfqSuppliers.supplierId, supplierId)
+            )
+        ).limit(1);
+
+        if (existing.length > 0) return { success: false, error: "Supplier already invited" };
+
+        await db.insert(rfqSuppliers).values({
+            rfqId,
+            supplierId,
+            status: 'invited'
+        });
+
+        await logActivity('UPDATE', 'rfq', rfqId, `Manually invited supplier ${supplierId}`);
+        revalidatePath(`/sourcing/rfqs/${rfqId}`);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to invite supplier:", error);
+        return { success: false, error: "Failed to invite supplier" };
+    }
+}
+
 export async function processQuotation(rfqSupplierId: string, quoteText: string) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };

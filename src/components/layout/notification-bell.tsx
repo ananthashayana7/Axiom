@@ -38,12 +38,14 @@ export function NotificationBell() {
     const handleMarkRead = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         await markNotificationAsRead(id);
-        setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: 'yes' } : n));
+        // Auto-clear: Remove from local state immediately
+        setNotifications(notifications.filter(n => n.id !== id));
     };
 
     const handleMarkAllRead = async () => {
         await markAllNotificationsAsRead();
-        setNotifications(notifications.map(n => ({ ...n, isRead: 'yes' })));
+        // Auto-clear: Clear all notifications since they are now read
+        setNotifications([]);
     };
 
     const getIcon = (type: string | null) => {
@@ -54,6 +56,9 @@ export function NotificationBell() {
             default: return <Info className="h-4 w-4 text-blue-500" />;
         }
     };
+
+    // Filter for only unread notifications in the dropdown
+    const unreadNotifications = notifications.filter(n => n.isRead === 'no');
 
     return (
         <div className="relative">
@@ -83,7 +88,7 @@ export function NotificationBell() {
                         )}
                     </CardHeader>
                     <CardContent className="p-0 max-h-[450px] overflow-y-auto">
-                        {notifications.length === 0 ? (
+                        {unreadNotifications.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 px-6 text-center space-y-3">
                                 <Bell className="h-10 w-10 text-muted-foreground/20" />
                                 <p className="text-sm font-bold text-muted-foreground">All caught up!</p>
@@ -91,31 +96,28 @@ export function NotificationBell() {
                             </div>
                         ) : (
                             <div className="divide-y divide-border/50">
-                                {notifications.map((n) => (
+                                {unreadNotifications.map((n) => (
                                     <div
                                         key={n.id}
-                                        className={`p-5 hover:bg-muted/50 transition-all cursor-pointer group ${n.isRead === 'no' ? 'bg-primary/5' : ''}`}
+                                        className={`p-5 hover:bg-muted/50 transition-all cursor-pointer group bg-primary/5`}
                                         onClick={() => n.link && router.push(n.link)}
                                     >
                                         <div className="flex gap-4">
-                                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${n.isRead === 'no' ? 'bg-background border-primary/20 shadow-sm' : 'bg-muted/50 border-transparent'
-                                                }`}>
+                                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border bg-background border-primary/20 shadow-sm`}>
                                                 {getIcon(n.type)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start gap-2">
-                                                    <p className={`text-sm font-bold truncate ${n.isRead === 'no' ? 'text-foreground' : 'text-muted-foreground'}`}>{n.title}</p>
-                                                    {n.isRead === 'no' && (
-                                                        <button
-                                                            onClick={(e) => handleMarkRead(n.id, e)}
-                                                            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                                            title="Mark as read"
-                                                        >
-                                                            <Check className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    )}
+                                                    <p className={`text-sm font-bold truncate text-foreground`}>{n.title}</p>
+                                                    <button
+                                                        onClick={(e) => handleMarkRead(n.id, e)}
+                                                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                        title="Mark as read"
+                                                    >
+                                                        <Check className="h-3.5 w-3.5" />
+                                                    </button>
                                                 </div>
-                                                <p className={`text-xs mt-1 leading-relaxed ${n.isRead === 'no' ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
+                                                <p className={`text-xs mt-1 leading-relaxed text-muted-foreground`}>
                                                     {n.message}
                                                 </p>
                                                 <div className="flex items-center gap-3 mt-3">
@@ -137,7 +139,7 @@ export function NotificationBell() {
                     </CardContent>
                     {notifications.length > 0 && (
                         <CardFooter className="py-3 px-6 border-t bg-muted/20 flex justify-center">
-                            <Link href="/admin/activity" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors">
+                            <Link href="/admin/audit" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors">
                                 View Full Audit History
                             </Link>
                         </CardFooter>

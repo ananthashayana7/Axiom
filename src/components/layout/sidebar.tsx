@@ -10,15 +10,15 @@ import {
     FileText,
     Settings,
     History,
+    Bot,
     Sparkles,
     BookOpen,
-    Atom,
-    Terminal,
     CreditCard,
     Truck
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
+import { cn } from "@/lib/utils";
+import { AxiomLogo } from "@/components/shared/axiom-logo";
 
 const adminLinks = [
     { label: "User Management", icon: UserCog, href: "/admin/users" },
@@ -81,10 +81,18 @@ export async function Sidebar({ className }: { className?: string }) {
                         )}
                         <Link href="/copilot">
                             <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary dark:text-primary font-bold transition-colors">
-                                <Sparkles className="mr-2 h-4 w-4" />
+                                <AxiomLogo className="mr-2 h-4 w-4" />
                                 Axiom Copilot
                             </span>
                         </Link>
+                        {role !== 'supplier' && (
+                            <Link href="/admin/agents">
+                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
+                                    <AxiomLogo className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    AI Agents
+                                </span>
+                            </Link>
+                        )}
                     </div>
                 </div>
 
