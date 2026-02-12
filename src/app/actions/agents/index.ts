@@ -3,18 +3,18 @@
  */
 
 // P0 Agents
-export {
+import {
     runDemandForecastingAgent,
     getReplenishmentAlerts
 } from './demand-forecasting';
 
-export {
+import {
     runFraudDetectionAgent,
     getOpenFraudAlerts,
     resolveFraudAlert
 } from './fraud-detection';
 
-export {
+import {
     runPaymentOptimizationAgent,
     getPaymentOptimizationSummary,
     executePaymentOptimization,
@@ -22,45 +22,74 @@ export {
 } from './payment-optimizer';
 
 // P1 Agents
-export {
+import {
     generateNegotiationStrategy,
     generateCounterOfferEmail
 } from './negotiations-autopilot';
 
-export {
+import {
     analyzeContractClauses,
     compareContracts
 } from './contract-clause-analyzer';
 
 // Phase 3: Intelligent Workflows
-export {
+import {
     calculateApprovalRoute,
     processAutoApprovals,
     getApprovalRoutingAnalytics
 } from './smart-approval-routing';
 
-export {
+import {
     detectBottlenecks,
     getBottleneckAnalytics
 } from './predictive-bottleneck';
 
-export {
+import {
     runAutoRemediation,
     getRemediationRules,
     getRemediationHistory
 } from './auto-remediation';
 
 // Phase 4: Advanced Analytics
-export {
+import {
     runScenarioAnalysis,
     compareScenarios,
     getScenarioTemplates
 } from './scenario-modeling';
 
-export {
+import {
     buildSupplierEcosystem,
     analyzeSupplierDependency
 } from './supplier-ecosystem';
+
+export {
+    runDemandForecastingAgent,
+    getReplenishmentAlerts,
+    runFraudDetectionAgent,
+    getOpenFraudAlerts,
+    resolveFraudAlert,
+    runPaymentOptimizationAgent,
+    getPaymentOptimizationSummary,
+    executePaymentOptimization,
+    dismissPaymentOptimization,
+    generateNegotiationStrategy,
+    generateCounterOfferEmail,
+    analyzeContractClauses,
+    compareContracts,
+    calculateApprovalRoute,
+    processAutoApprovals,
+    getApprovalRoutingAnalytics,
+    detectBottlenecks,
+    getBottleneckAnalytics,
+    runAutoRemediation,
+    getRemediationRules,
+    getRemediationHistory,
+    runScenarioAnalysis,
+    compareScenarios,
+    getScenarioTemplates,
+    buildSupplierEcosystem,
+    analyzeSupplierDependency
+};
 
 // Agent metadata for registry
 export const AGENT_REGISTRY = [
@@ -187,3 +216,66 @@ export const AGENT_REGISTRY = [
 ] as const;
 
 export type AgentName = typeof AGENT_REGISTRY[number]['name'];
+
+/**
+ * Centralized dispatcher for running agents from the UI
+ */
+export async function triggerAgentDispatch(agentName: AgentName) {
+    console.log(`[AgentDispatcher] Triggering ${agentName}...`);
+
+    try {
+        switch (agentName) {
+            case 'demand-forecasting':
+                return await runDemandForecastingAgent();
+            case 'fraud-detection':
+                return await runFraudDetectionAgent();
+            case 'payment-optimizer':
+                return await runPaymentOptimizationAgent();
+            case 'negotiations-autopilot':
+                // Requires specific context, but we can run a global analysis as a "pilot"
+                return {
+                    success: false,
+                    error: "Negotiations Autopilot requires a specific RFQ context. Please use the RFQ Detail page.",
+                    agentName: "negotiations-autopilot",
+                    timestamp: new Date(),
+                    executionTimeMs: 0,
+                    confidence: 0
+                };
+            case 'contract-clause-analyzer':
+                return await analyzeContractClauses();
+            case 'smart-approval-routing':
+                return await processAutoApprovals();
+            case 'predictive-bottleneck':
+                return await detectBottlenecks();
+            case 'auto-remediation':
+                return await runAutoRemediation();
+            case 'scenario-modeling':
+                return await runScenarioAnalysis({
+                    scenarioType: 'price_change',
+                    description: 'Global 5% market price volatility analysis',
+                    parameters: { percentChange: 5 }
+                });
+            case 'supplier-ecosystem':
+                return await buildSupplierEcosystem();
+            default:
+                return {
+                    success: false,
+                    error: `Dispatcher not implemented for ${agentName}`,
+                    agentName: "system",
+                    timestamp: new Date(),
+                    executionTimeMs: 0,
+                    confidence: 0
+                };
+        }
+    } catch (error) {
+        console.error(`[AgentDispatcher] Error running ${agentName}:`, error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Internal execution error",
+            agentName: agentName as string,
+            timestamp: new Date(),
+            executionTimeMs: 0,
+            confidence: 0
+        };
+    }
+}

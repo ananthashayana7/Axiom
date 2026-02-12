@@ -9,14 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    Brain, Activity, Shield, CreditCard, FileText,
+    Activity, Shield, CreditCard, FileText,
     Handshake, TrendingUp, AlertTriangle, Zap, BarChart3,
-    Network, Settings, History, Play, ArrowUpRight
+    Network, Settings, History, Play, ArrowUpRight, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { CommandCenter } from "@/components/dashboard/command-center";
 import { AGENT_REGISTRY } from "@/app/actions/agents";
 import { AutonomousTrace } from "@/components/admin/autonomous-trace";
+import { RunAgentButton } from "@/components/admin/run-agent-button";
 
 export const dynamic = 'force-dynamic';
 
@@ -60,8 +61,7 @@ export default async function AdminAgentsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none flex items-center gap-3">
-                        <Brain className="h-10 w-10 text-violet-600" />
+                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">
                         AI Agent Fleet
                     </h1>
                     <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">
@@ -89,7 +89,7 @@ export default async function AdminAgentsPage() {
                     <div key={category}>
                         <div className="flex items-center gap-2 mb-4">
                             <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${categoryColors[category] || 'bg-stone-100'}`}>
-                                {categoryIcons[category] || <Brain className="h-4 w-4" />}
+                                {categoryIcons[category] || <Sparkles className="h-4 w-4" />}
                             </div>
                             <h3 className="text-lg font-semibold capitalize">{category}</h3>
                             <Badge variant="secondary" className="text-xs">
@@ -130,10 +130,7 @@ export default async function AdminAgentsPage() {
                                             <span>Timeout: {agent.timeoutMs / 1000}s</span>
                                         </div>
                                         <div className="flex gap-2 pt-2">
-                                            <Button size="sm" className="flex-1 gap-1">
-                                                <Play className="h-3 w-3" />
-                                                Run
-                                            </Button>
+                                            <RunAgentButton agentName={agent.name} />
                                             {(agent.name === 'scenario-modeling' || agent.name === 'supplier-ecosystem') && (
                                                 <Link href={agent.name === 'scenario-modeling' ? "/admin/scenarios" : "/admin/ecosystem"} className="flex-1">
                                                     <Button size="sm" variant="outline" className="w-full gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50">
