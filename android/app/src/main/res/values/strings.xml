@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Axiom Platform</string>
+    <string name="title_activity_main">Axiom Platform</string>
+    <string name="package_name">com.axiom.procurement</string>
+    <string name="custom_url_scheme">com.axiom.procurement</string>
+</resources>
