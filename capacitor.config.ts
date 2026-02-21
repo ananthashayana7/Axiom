@@ -6,8 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     // IMPORTANT: For production, replace this with your actual hosted platform URL.
-    // Example: url: 'https://axiom-procurement.vercel.app',
-    url: 'http://localhost:3000',
+    url: 'https://axiom-procurement.example.com',
     cleartext: true
   }
 };

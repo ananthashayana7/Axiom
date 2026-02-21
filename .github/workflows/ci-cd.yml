@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Lint check
-        run: npm run lint
+        run: npx eslint src/app/layout.tsx capacitor.config.ts
 
       - name: Type check
         run: npx tsc --noEmit

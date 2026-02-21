@@ -12,13 +12,7 @@ This project is configured with [Capacitor](https://capacitorjs.com/) to allow p
 Since this is a full Next.js application with a backend (NextAuth, Database), it cannot be exported to static HTML. The native app works as a "shell" that loads the platform from a hosted URL.
 
 1.  **Deploy your platform** to a publicly accessible URL (e.g., Vercel, AWS, VPS).
-2.  Update the `url` in `capacitor.config.ts`:
-    ```typescript
-    server: {
-      url: 'https://your-deployment-url.com',
-      cleartext: true
-    }
-    ```
+2.  Update the `url` in `capacitor.config.ts` to match your deployment.
 
 ## Development Commands
 

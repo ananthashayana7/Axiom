@@ -1,10 +1,10 @@
-package com.getcapacitor.myapp;
+package com.axiom.procurement;
 
 import static org.junit.Assert.*;
 
 import android.content.Context;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -17,10 +17,9 @@ import org.junit.runner.RunWith;
 public class ExampleInstrumentedTest {
 
     @Test
-    public void useAppContext() throws Exception {
+    public void useAppContext() {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-
-        assertEquals("com.getcapacitor.app", appContext.getPackageName());
+        assertEquals("com.axiom.procurement", appContext.getPackageName());
     }
 }
