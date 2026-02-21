@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Axiom Platform",
   description: "Advanced procurement intelligence platform.",
   manifest: "/manifest.json",
+  icons: {
+    apple: "/icons/icon-192x192.png",
+  },
 };
 
 export const viewport: Viewport = {

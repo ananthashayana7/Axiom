@@ -9,7 +9,11 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "cap:sync": "npx cap sync",
+    "cap:open-ios": "npx cap open ios",
+    "cap:open-android": "npx cap open android",
+    "cap:assets": "npx capacitor-assets generate"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -49,6 +53,11 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.5.0",
+    "@capacitor/core": "^7.5.0",
+    "@capacitor/ios": "^7.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
