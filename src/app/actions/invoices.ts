@@ -4,10 +4,19 @@ import { db } from "@/db";
 import { invoices, procurementOrders, auditLogs, suppliers } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, sql } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
-export async function getInvoices() {
+export async function getInvoices(filters?: {
+    invoiceNumber?: string;
+    status?: string;
+    country?: string;
+    continent?: string;
+    region?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    currency?: string;
+}) {
     const session = await auth();
     if (!session) return [];
 
@@ -15,16 +24,59 @@ export async function getInvoices() {
         const userRole = (session.user as any).role;
         const userSupplierId = (session.user as any).supplierId;
 
+        const conditions: any[] = [];
+
         if (userRole === 'supplier') {
-            return await db.select()
-                .from(invoices)
-                .where(eq(invoices.supplierId, userSupplierId))
-                .orderBy(desc(invoices.createdAt));
+            conditions.push(eq(invoices.supplierId, userSupplierId));
+        }
+        if (filters?.status && filters.status !== 'all') {
+            conditions.push(eq(invoices.status, filters.status as any));
+        }
+        if (filters?.invoiceNumber) {
+            conditions.push(ilike(invoices.invoiceNumber, `%${filters.invoiceNumber}%`));
+        }
+        if (filters?.country) {
+            conditions.push(ilike(invoices.country, `%${filters.country}%`));
+        }
+        if (filters?.continent) {
+            conditions.push(ilike(invoices.continent, `%${filters.continent}%`));
+        }
+        if (filters?.region) {
+            conditions.push(ilike(invoices.region, `%${filters.region}%`));
+        }
+        if (filters?.currency && filters.currency !== 'all') {
+            conditions.push(eq(invoices.currency, filters.currency));
+        }
+        if (filters?.dateFrom) {
+            conditions.push(gte(invoices.createdAt, new Date(filters.dateFrom)));
+        }
+        if (filters?.dateTo) {
+            conditions.push(lte(invoices.createdAt, new Date(filters.dateTo)));
         }
 
-        return await db.select()
+        const rows = await db
+            .select({
+                id: invoices.id,
+                invoiceNumber: invoices.invoiceNumber,
+                amount: invoices.amount,
+                currency: invoices.currency,
+                status: invoices.status,
+                region: invoices.region,
+                country: invoices.country,
+                continent: invoices.continent,
+                orderId: invoices.orderId,
+                supplierId: invoices.supplierId,
+                matchedAt: invoices.matchedAt,
+                createdAt: invoices.createdAt,
+                supplierName: suppliers.name,
+                supplierCountry: suppliers.countryCode,
+            })
             .from(invoices)
+            .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
+            .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(desc(invoices.createdAt));
+
+        return rows;
     } catch (error) {
         console.error("Failed to fetch invoices:", error);
         return [];

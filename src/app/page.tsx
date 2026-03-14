@@ -20,22 +20,41 @@ import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { CommandCenter } from "@/components/dashboard/command-center";
 
+type SessionUser = {
+  id?: string;
+  role?: string | null;
+};
 
 export default async function Home() {
   const session = await auth();
-  const userRole = (session?.user as any)?.role;
+  const currentUser = session?.user as SessionUser | undefined;
+  const userRole = currentUser?.role;
   const isAdmin = userRole === 'admin';
   const isAgent = userRole === 'admin' || userRole === 'user';
 
-  const stats = await getDashboardStats();
-  const recentOrders = await getRecentOrders();
-  const monthlySpend = await getMonthlySpend();
-  const categorySpend = await getCategorySpend();
-  const riskySuppliers = await getHighRiskSuppliers();
-  const supplierAnalytics = await getSupplierAnalytics();
-  const suppliers = await getSuppliers();
-  const parts = await getParts();
-  const leads = (await getDepartmentLeads()).filter(lead => lead.id !== (session?.user as any)?.id);
+  const [
+    stats,
+    recentOrders,
+    monthlySpend,
+    categorySpend,
+    riskySuppliers,
+    supplierAnalytics,
+    suppliers,
+    parts,
+    departmentLeads,
+  ] = await Promise.all([
+    getDashboardStats(),
+    getRecentOrders(),
+    getMonthlySpend(),
+    getCategorySpend(),
+    getHighRiskSuppliers(),
+    getSupplierAnalytics(),
+    getSuppliers(),
+    getParts(),
+    getDepartmentLeads(),
+  ]);
+
+  const leads = departmentLeads.filter((lead) => lead.id !== currentUser?.id);
 
   const allData = {
     stats,

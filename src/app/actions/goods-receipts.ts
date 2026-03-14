@@ -34,6 +34,14 @@ export async function createGoodsReceipt(data: { orderId: string, notes?: string
             .set({ status: 'fulfilled' })
             .where(eq(procurementOrders.id, data.orderId));
 
+        // Kick financial workflow re-check after GRN creation.
+        try {
+            const { validateThreeWayMatch } = await import('./orders');
+            await validateThreeWayMatch(data.orderId);
+        } catch (error) {
+            console.warn('Three-way match trigger failed after GRN create:', error);
+        }
+
         // Audit Log
         await db.insert(auditLogs).values({
             userId: (session.user as any).id,
@@ -45,6 +53,8 @@ export async function createGoodsReceipt(data: { orderId: string, notes?: string
 
         revalidatePath('/sourcing/goods-receipts');
         revalidatePath('/sourcing/orders');
+        revalidatePath('/sourcing/invoices');
+        revalidatePath('/transactions');
         return { success: true, data: receipt };
     } catch (error) {
         console.error("Failed to create goods receipt:", error);

@@ -1,83 +1,88 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getSpendStats } from "@/app/actions/analytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line, PieChart, Pie, Cell, Legend
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    ScatterChart,
+    Scatter,
+    ZAxis
 } from 'recharts';
-import {
-    TrendingUp,
-    TrendingDown,
-    DollarSign,
-    PieChart as PieIcon,
-    BarChart3,
-    Download,
-    Filter,
-    ArrowUpRight,
-    ArrowDownRight,
-    Zap
-} from "lucide-react";
+import { Download, Filter, BarChart3, TrendingUp, Factory, Boxes, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { SpendAnalysisView } from "@/components/admin/spend-analysis-view";
-import { getOrders } from "@/app/actions/orders";
-import { getSuppliers } from "@/app/actions/suppliers";
-import { SavingsWidget } from "@/components/dashboard/savings-widget";
-import { ContractAlerts } from "@/components/dashboard/contract-alerts";
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#0088FE', '#00C49F', '#FFBB28'];
+const INR_TO_EUR = 0.011;
+
+function convertAmount(value: number, currency: 'INR' | 'EUR') {
+    return currency === 'EUR' ? value * INR_TO_EUR : value;
+}
+
+function formatAmount(value: number, currency: 'INR' | 'EUR') {
+    const converted = convertAmount(value, currency);
+    if (currency === 'EUR') {
+        return `€${converted.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
+    }
+    return `₹${converted.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
 
 export default function AnalyticsPage() {
     const [stats, setStats] = useState<any>(null);
-    const [orders, setOrders] = useState<any[]>([]);
-    const [suppliers, setSuppliers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currency, setCurrency] = useState<'INR' | 'EUR'>('INR');
 
     useEffect(() => {
         const fetchData = async () => {
-            const [statsData, ordersData, suppliersData] = await Promise.all([
-                getSpendStats(),
-                getOrders(),
-                getSuppliers()
-            ]);
+            const statsData = await getSpendStats();
             setStats(statsData);
-            setOrders(ordersData);
-            setSuppliers(suppliersData);
             setLoading(false);
         };
         fetchData();
     }, []);
 
+    const top10Suppliers = useMemo(() => stats?.spendBySupplier ?? [], [stats]);
+    const top10Categories = useMemo(() => stats?.spendByCategory ?? [], [stats]);
+    const top10Parts = useMemo(() => stats?.topParts ?? [], [stats]);
+
     const exportToCSV = () => {
         if (!stats) return;
 
-        // Prepare CSV content for Spend by Category
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Category Analytics\n";
-        csvContent += "Category,Total Spend (INR)\n";
-        stats.spendByCategory.forEach((row: any) => {
-            csvContent += `${row.category},${row.totalSpend}\n`;
-        });
+        const rows: string[] = [];
+        rows.push('Top 10 Suppliers by Spend');
+        rows.push('Supplier,Spend');
+        top10Suppliers.forEach((row: any) => rows.push(`${row.supplierName},${convertAmount(Number(row.totalSpend || 0), currency)}`));
 
-        csvContent += "\nTop Suppliers\n";
-        csvContent += "Supplier,Total Volume (INR)\n";
-        stats.spendBySupplier.forEach((row: any) => {
-            csvContent += `${row.supplierName},${row.totalSpend}\n`;
-        });
+        rows.push('');
+        rows.push('Top 10 Categories by Spend');
+        rows.push('Category,Spend');
+        top10Categories.forEach((row: any) => rows.push(`${row.category},${convertAmount(Number(row.totalSpend || 0), currency)}`));
 
+        rows.push('');
+        rows.push('Top 10 Articles by Volume');
+        rows.push('Part,Category,Total Quantity,Spend');
+        top10Parts.forEach((row: any) => rows.push(`${row.partName},${row.category},${Number(row.totalQuantity || 0)},${convertAmount(Number(row.totalSpend || 0), currency)}`));
+
+        const csvContent = `data:text/csv;charset=utf-8,${rows.join('\n')}`;
         const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `axiom_spend_report_${new Date().toISOString().split('T')[0]}.csv`);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `axiom_analytics_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        toast.success("Report generated", {
-            description: "Spend analysis CSV has been downloaded."
+        toast.success('Report generated', {
+            description: 'Top 10 analytics CSV downloaded.'
         });
     };
 
@@ -86,7 +91,7 @@ export default function AnalyticsPage() {
             <div className="flex h-[80vh] items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                    <p className="text-muted-foreground animate-pulse">Aggregating procurement intelligence...</p>
+                    <p className="text-muted-foreground animate-pulse">Building strategic analytics...</p>
                 </div>
             </div>
         );
@@ -97,142 +102,188 @@ export default function AnalyticsPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Spend & Strategic Intelligence</h1>
-                    <p className="text-muted-foreground mt-1">Holistic view of organizational spend and realized savings.</p>
+                    <p className="text-muted-foreground mt-1">Top 10 visibility across suppliers, categories, and articles.</p>
                 </div>
                 <div className="flex gap-2">
+                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+                        <button
+                            onClick={() => setCurrency('INR')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${currency === 'INR' ? 'bg-primary text-white shadow' : 'hover:bg-muted'}`}
+                        >
+                            ₹ INR
+                        </button>
+                        <button
+                            onClick={() => setCurrency('EUR')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${currency === 'EUR' ? 'bg-primary text-white shadow' : 'hover:bg-muted'}`}
+                        >
+                            € EUR
+                        </button>
+                    </div>
                     <Button variant="outline" className="gap-2">
                         <Filter className="h-4 w-4" /> Filter Period
                     </Button>
                     <Button onClick={exportToCSV} className="gap-2">
-                        <Download className="h-4 w-4" /> Generate Report
+                        <Download className="h-4 w-4" /> Export
                     </Button>
                 </div>
             </div>
 
-            {/* Top Level Metrics */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <SavingsWidget
-                    totalSpend={stats.totalActualSpend}
-                    realizedSavings={stats.realizedSavings}
-                    savingsRate={stats.savingsRate}
-                />
-                <ContractAlerts />
-                <Card className="border-l-4 border-l-amber-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Active Categories</CardTitle>
-                        <PieIcon className="h-4 w-4 text-amber-600" />
+                <Card className="border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Total Actual Spend</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.spendByCategory.length}</div>
-                        <p className="text-xs text-muted-foreground mt-1 font-medium">Active Spend Categories</p>
+                        <div className="text-2xl font-black">{formatAmount(Number(stats.totalActualSpend || 0), currency)}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-l-4 border-l-emerald-500 bg-gradient-to-br from-background to-emerald-50/20 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-stone-900">AI Negotiation Alpha</CardTitle>
-                        <Zap className="h-4 w-4 text-emerald-600 fill-emerald-600" />
+                <Card className="border-l-4 border-l-emerald-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Realized Savings</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-stone-900">{stats.savingsRate}%</div>
-                        <p className="text-xs text-stone-500 mt-1 font-medium italic">Negotiated Savings Rate</p>
+                        <div className="text-2xl font-black text-emerald-700">{formatAmount(Number(stats.realizedSavings || 0), currency)}</div>
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-violet-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Savings Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-black">{Number(stats.savingsRate || 0).toFixed(1)}%</div>
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-amber-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Tracked Entities</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-black">{top10Suppliers.length + top10Categories.length + top10Parts.length}</div>
                     </CardContent>
                 </Card>
             </div>
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-                {/* Spend Trend */}
-                <Card className="shadow-sm">
+                <Card>
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-primary" />
-                            Monthly Spend Dynamics
+                            <TrendingUp className="h-5 w-5 text-primary" /> Monthly Spend Trend
                         </CardTitle>
-                        <CardDescription>Spend progression across the last 6 months.</CardDescription>
+                        <CardDescription>6-month spend trajectory.</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-[300px] mt-4">
+                    <CardContent className="h-[290px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={stats.spendTrend}>
+                            <LineChart data={(stats.spendTrend || []).map((row: any) => ({ ...row, displayTotal: convertAmount(Number(row.totalSpend || 0), currency) }))}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} />
+                                <XAxis dataKey="month" axisLine={false} tickLine={false} />
                                 <YAxis hide />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                    formatter={(value: any) => [`₹${(value / 1000).toFixed(1)}k`, 'Spend']}
-                                />
-                                <Line type="monotone" dataKey="totalSpend" stroke="#8884d8" strokeWidth={3} dot={{ r: 4, fill: '#8884d8' }} activeDot={{ r: 6 }} />
+                                <Tooltip formatter={(value: any) => [formatAmount(Number(value), currency), 'Spend']} />
+                                <Line type="monotone" dataKey="displayTotal" stroke="#1d4ed8" strokeWidth={3} dot={{ r: 4 }} />
                             </LineChart>
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
 
-                {/* Spend by Category */}
-                <Card className="shadow-sm">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2 text-stone-900">
-                            <PieIcon className="h-5 w-5 text-amber-600" />
-                            Spend by Category
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Factory className="h-5 w-5 text-emerald-600" /> Top 10 Suppliers by Spend
                         </CardTitle>
-                        <CardDescription>Visual breakdown of allocation across part categories.</CardDescription>
+                        <CardDescription>Ranked by fulfilled procurement spend.</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-[300px] flex items-center justify-center">
+                    <CardContent className="h-[290px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={stats.spendByCategory}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    paddingAngle={5}
-                                    dataKey="totalSpend"
-                                    nameKey="category"
-                                >
-                                    {stats.spendByCategory.map((entry: any, index: number) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value: any) => [`₹${(value / 1000).toFixed(1)}k`, 'Amount']}
-                                />
-                                <Legend verticalAlign="bottom" height={36} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* Top Suppliers by Spend */}
-                <Card className="shadow-sm lg:col-span-2">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <BarChart3 className="h-5 w-5 text-green-600" />
-                                    Top Suppliers by Volume
-                                </CardTitle>
-                                <CardDescription>Identifying key strategic partners by financial contribution.</CardDescription>
-                            </div>
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Fulfilled Orders Only</Badge>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="h-[350px] mt-6">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={stats.spendBySupplier} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
+                            <BarChart data={top10Suppliers.map((row: any) => ({ ...row, displayTotal: convertAmount(Number(row.totalSpend || 0), currency) }))} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="#f0f0f0" />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="supplierName" type="category" axisLine={false} tickLine={false} width={150} tick={{ fontSize: 12, fontWeight: 500 }} />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc' }}
-                                    formatter={(value: any) => [`₹${(value / 1000).toFixed(1)}k`, 'Total Volume']}
-                                />
-                                <Bar dataKey="totalSpend" fill="#82ca9d" radius={[0, 8, 8, 0]} barSize={35} />
+                                <YAxis dataKey="supplierName" type="category" width={140} axisLine={false} tickLine={false} />
+                                <Tooltip formatter={(value: any) => [formatAmount(Number(value), currency), 'Spend']} />
+                                <Bar dataKey="displayTotal" fill="#059669" radius={[0, 8, 8, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
-            </div>
 
-            {/* AI Strategic Advice Section */}
-            <SpendAnalysisView orders={orders} suppliers={suppliers} />
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-amber-600" /> Top 10 Categories by Spend
+                        </CardTitle>
+                        <CardDescription>Spend concentration by category.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={top10Categories.map((row: any) => ({ ...row, displayTotal: convertAmount(Number(row.totalSpend || 0), currency) }))}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                <XAxis dataKey="category" axisLine={false} tickLine={false} angle={-20} height={70} textAnchor="end" />
+                                <YAxis hide />
+                                <Tooltip formatter={(value: any) => [formatAmount(Number(value), currency), 'Spend']} />
+                                <Bar dataKey="displayTotal" fill="#d97706" radius={[8, 8, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Boxes className="h-5 w-5 text-violet-600" /> Top 10 Articles by Volume
+                        </CardTitle>
+                        <CardDescription>Highest moving parts by ordered quantity.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={top10Parts}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                <XAxis dataKey="partName" axisLine={false} tickLine={false} angle={-20} height={70} textAnchor="end" />
+                                <YAxis hide />
+                                <Tooltip formatter={(value: any, name?: string) => [name === 'totalSpend' ? formatAmount(Number(value), currency) : Number(value), name === 'totalSpend' ? 'Spend' : 'Quantity']} />
+                                <Bar dataKey="totalQuantity" fill="#7c3aed" radius={[8, 8, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Radar className="h-5 w-5 text-cyan-700" /> Supplier Performance vs Spend
+                                </CardTitle>
+                                <CardDescription>Scatter view of risk and performance against supplier spend.</CardDescription>
+                            </div>
+                            <Badge variant="outline">Top 10 suppliers by spend</Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="h-[330px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ScatterChart margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis type="number" dataKey="riskScore" name="Risk Score" domain={[0, 100]} />
+                                <YAxis type="number" dataKey="performanceScore" name="Performance Score" domain={[0, 100]} />
+                                <ZAxis type="number" dataKey="totalSpend" range={[80, 550]} name="Spend" />
+                                <Tooltip
+                                    cursor={{ strokeDasharray: '3 3' }}
+                                    formatter={(value: any, name?: string) => {
+                                        if (name === 'Spend') return [formatAmount(Number(value), currency), 'Spend'];
+                                        return [Number(value).toFixed(0), name || 'Metric'];
+                                    }}
+                                    labelFormatter={(label: any) => String(label || 'Supplier')}
+                                />
+                                <Scatter
+                                    name="Supplier Profile"
+                                    data={(stats.supplierPerformance || []).map((row: any) => ({
+                                        ...row,
+                                        totalSpend: convertAmount(Number(row.totalSpend || 0), currency)
+                                    }))}
+                                    fill="#0e7490"
+                                />
+                            </ScatterChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

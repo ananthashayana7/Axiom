@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { parts, orderItems, rfqItems, requisitions, type Part } from "@/db/schema";
+import { parts, orderItems, rfqItems, requisitions, invoices, type Part } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
@@ -13,6 +13,48 @@ export async function getParts(): Promise<Part[]> {
         return allParts;
     } catch (error) {
         console.error("Failed to fetch parts:", error);
+        return [];
+    }
+}
+
+export async function getPartLinkedCounts() {
+    try {
+        const partRows = await db.select({ id: parts.id }).from(parts);
+
+        const ordersByPart = await db.select({
+            partId: orderItems.partId,
+            orderCount: sql<number>`count(distinct ${orderItems.orderId})`.mapWith(Number),
+        })
+            .from(orderItems)
+            .groupBy(orderItems.partId);
+
+        const invoicesByPart = await db.select({
+            partId: orderItems.partId,
+            invoiceCount: sql<number>`count(distinct ${invoices.id})`.mapWith(Number),
+        })
+            .from(orderItems)
+            .innerJoin(invoices, eq(invoices.orderId, orderItems.orderId))
+            .groupBy(orderItems.partId);
+
+        const rfqsByPart = await db.select({
+            partId: rfqItems.partId,
+            rfqCount: sql<number>`count(distinct ${rfqItems.rfqId})`.mapWith(Number),
+        })
+            .from(rfqItems)
+            .groupBy(rfqItems.partId);
+
+        const orderMap = new Map(ordersByPart.map((row) => [row.partId, row.orderCount]));
+        const invoiceMap = new Map(invoicesByPart.map((row) => [row.partId, row.invoiceCount]));
+        const rfqMap = new Map(rfqsByPart.map((row) => [row.partId, row.rfqCount]));
+
+        return partRows.map((row) => ({
+            partId: row.id,
+            orderCount: orderMap.get(row.id) ?? 0,
+            invoiceCount: invoiceMap.get(row.id) ?? 0,
+            rfqCount: rfqMap.get(row.id) ?? 0,
+        }));
+    } catch (error) {
+        console.error("Failed to fetch part linked counts:", error);
         return [];
     }
 }

@@ -31,6 +31,7 @@ export default function AdminSettingsPage() {
     const isDirty = initialSettings && settings && (
         settings.platformName !== initialSettings.platformName ||
         settings.defaultCurrency !== initialSettings.defaultCurrency ||
+        (settings.geminiApiKey || '') !== (initialSettings.geminiApiKey || '') ||
         isLocked !== (initialSettings.isSettingsLocked === 'yes')
     );
 
@@ -157,23 +158,32 @@ export default function AdminSettingsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="hover:shadow-md transition-shadow border-dashed opacity-50 grayscale pointer-events-none">
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <Globe className="h-5 w-5 text-amber-600" />
-                            <CardTitle>AI & Advanced Benchmarks (Beta)</CardTitle>
+                            <CardTitle>AI Provider Configuration</CardTitle>
                         </div>
-                        <CardDescription>Configure AI model parameters (Feature coming soon).</CardDescription>
+                        <CardDescription>Configure Gemini key used by Axiom Copilot and AI agents.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="grid gap-2">
-                                <Label htmlFor="benchmarkingInterval">Market Data Refresh (Days)</Label>
-                                <Input id="benchmarkingInterval" name="benchmarkingInterval" type="number" defaultValue="7" className="bg-background" disabled />
+                                <Label htmlFor="geminiApiKey">Gemini API Key</Label>
+                                <Input
+                                    id="geminiApiKey"
+                                    name="geminiApiKey"
+                                    type="password"
+                                    value={settings.geminiApiKey || ''}
+                                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                                    placeholder="AIza..."
+                                    className="bg-background"
+                                    disabled={isLocked}
+                                />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="aiHighPickScore">AI "Top Pick" Threshold (%)</Label>
-                                <Input id="aiHighPickScore" name="aiHighPickScore" type="number" defaultValue="85" className="bg-background" disabled />
+                                <Label htmlFor="benchmarkingInterval">Default Model</Label>
+                                <Input id="benchmarkingInterval" type="text" value="gemini-1.5-flash" className="bg-background" disabled />
                             </div>
                         </div>
                     </CardContent>

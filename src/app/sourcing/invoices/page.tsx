@@ -1,63 +1,222 @@
+'use client'
+
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { getInvoices } from "@/app/actions/invoices";
 import { Badge } from "@/components/ui/badge";
-import { IndianRupee, FileText, CheckCircle2, Clock, CreditCard, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    FileText, CheckCircle2, Clock, AlertTriangle,
+    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
+import { toast } from "sonner";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
-export default async function InvoicesPage({
-    searchParams
-}: {
-    searchParams: { mode?: string }
-}) {
-    const isMatchMode = (await searchParams).mode === 'match';
-    let invoicesList = await getInvoices();
+const INR_TO_EUR = 0.011;
 
-    if (isMatchMode) {
-        // Sort to put 'pending' at the top
-        invoicesList = [...invoicesList].sort((a, b) => {
-            if (a.status === 'pending' && b.status !== 'pending') return -1;
-            if (a.status !== 'pending' && b.status === 'pending') return 1;
-            return 0;
-        });
-    }
+function convertAmount(amount: string | number, from: string, to: string): number {
+    const val = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (from === to) return val;
+    if (from === 'INR' && to === 'EUR') return val * INR_TO_EUR;
+    if (from === 'EUR' && to === 'INR') return val / INR_TO_EUR;
+    return val;
+}
+
+function formatAmount(amount: number, currency: string): string {
+    if (currency === 'EUR') return `€${amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export default function InvoicesPage() {
+    const [invoicesList, setInvoicesList] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [displayCurrency, setDisplayCurrency] = useState<'INR' | 'EUR'>('INR');
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        invoiceNumber: '', status: 'all', country: '', continent: 'all',
+        region: '', dateFrom: '', dateTo: '', currency: 'all',
+    });
+
+    const fetchInvoices = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getInvoices({
+                invoiceNumber: filters.invoiceNumber || undefined,
+                status: filters.status !== 'all' ? filters.status : undefined,
+                country: filters.country || undefined,
+                continent: filters.continent !== 'all' ? filters.continent : undefined,
+                region: filters.region || undefined,
+                dateFrom: filters.dateFrom || undefined,
+                dateTo: filters.dateTo || undefined,
+                currency: filters.currency !== 'all' ? filters.currency : undefined,
+            });
+            setInvoicesList(data);
+        } finally { setLoading(false); }
+    }, [filters]);
+
+    useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
+    const clearFilters = () => setFilters({ invoiceNumber: '', status: 'all', country: '', continent: 'all', region: '', dateFrom: '', dateTo: '', currency: 'all' });
+
+    const activeFilterCount = [
+        filters.invoiceNumber, filters.status !== 'all' && filters.status,
+        filters.country, filters.continent !== 'all' && filters.continent,
+        filters.region, filters.dateFrom, filters.dateTo, filters.currency !== 'all' && filters.currency,
+    ].filter(Boolean).length;
+
+    const exportToCSV = () => {
+        if (invoicesList.length === 0) { toast.error("No data to export"); return; }
+        const headers = ['Invoice #', 'Supplier', 'Status', 'Date', 'Amount (INR)', 'Amount (EUR)', 'Currency', 'Country', 'Region', 'Continent', 'Order Ref'];
+        const rows = invoicesList.map(inv => [
+            inv.invoiceNumber, inv.supplierName || 'N/A', inv.status,
+            new Date(inv.createdAt).toLocaleDateString(),
+            Number(inv.amount).toFixed(2),
+            convertAmount(inv.amount, inv.currency || 'INR', 'EUR').toFixed(2),
+            inv.currency || 'INR', inv.country || inv.supplierCountry || 'N/A',
+            inv.region || 'N/A', inv.continent || 'N/A', (inv.orderId || '').slice(0, 8),
+        ]);
+        const csv = [headers, ...rows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `axiom_invoices_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success("Invoices exported to CSV");
+    };
+
+    const exportToPDF = () => {
+        if (invoicesList.length === 0) { toast.error("No data to export"); return; }
+        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(convertAmount(inv.amount, inv.currency || 'INR', displayCurrency), displayCurrency)}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
+        const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Currency: ${displayCurrency}</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+        const w = window.open('', '_blank');
+        if (w) { w.document.write(html); w.document.close(); w.print(); }
+        toast.success("PDF print dialog opened");
+    };
+
+    const totalAmount = invoicesList.reduce((acc, inv) => acc + convertAmount(inv.amount || 0, inv.currency || 'INR', displayCurrency), 0);
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-8">
-            <div className="flex items-center justify-between">
+        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-                        {isMatchMode ? (
-                            <>
-                                <CreditCard className="h-8 w-8 text-primary" />
-                                Financial Matching & Compliance
-                            </>
-                        ) : (
-                            <>
-                                <FileText className="h-8 w-8 text-primary" />
-                                Enterprise Invoices
-                            </>
-                        )}
+                        <FileText className="h-8 w-8 text-primary" />
+                        Invoice Management
                     </h1>
-                    <p className="text-muted-foreground mt-1 font-medium">
-                        {isMatchMode
-                            ? "Three-way verification across PO, Goods Receipt, and Invoice nodes."
-                            : "Audit and process supplier payment requests across the organization."}
-                    </p>
+                    <p className="text-muted-foreground mt-1 font-medium">Filter, track and export invoices across all regions.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+                        <button onClick={() => setDisplayCurrency('INR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === 'INR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>₹ INR</button>
+                        <button onClick={() => setDisplayCurrency('EUR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === 'EUR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>€ EUR</button>
+                    </div>
+                    <Button variant="outline" onClick={fetchInvoices} className="gap-2"><RefreshCcw className="h-4 w-4" /> Refresh</Button>
+                    <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 relative">
+                        <Filter className="h-4 w-4" /> Filters
+                        {activeFilterCount > 0 && <Badge className="ml-1 h-5 w-5 p-0 text-[10px] flex items-center justify-center">{activeFilterCount}</Badge>}
+                    </Button>
+                    <Button variant="outline" onClick={exportToCSV} className="gap-2"><Download className="h-4 w-4" /> CSV</Button>
+                    <Button variant="outline" onClick={exportToPDF} className="gap-2"><FileText className="h-4 w-4" /> PDF</Button>
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            {/* Filter Panel */}
+            {showFilters && (
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-3 pt-4 px-6">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-bold flex items-center gap-2"><Filter className="h-4 w-4" /> Advanced Filters</CardTitle>
+                            <div className="flex gap-2">
+                                {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs h-7"><X className="h-3 w-3" /> Clear all</Button>}
+                                <Button variant="ghost" size="sm" onClick={() => setShowFilters(false)} className="h-7 w-7 p-0"><X className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="px-6 pb-5">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Invoice #</Label>
+                                <Input placeholder="Search invoice..." value={filters.invoiceNumber} onChange={e => setFilters(f => ({ ...f, invoiceNumber: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Status</Label>
+                                <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="all">All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="matched">Matched</option>
+                                    <option value="disputed">Disputed</option>
+                                    <option value="paid">Paid</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Continent</Label>
+                                <select value={filters.continent} onChange={e => setFilters(f => ({ ...f, continent: e.target.value }))} className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="all">All Continents</option>
+                                    <option value="Europe">Europe</option>
+                                    <option value="Asia">Asia</option>
+                                    <option value="Americas">Americas</option>
+                                    <option value="Africa">Africa</option>
+                                    <option value="Oceania">Oceania</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Country</Label>
+                                <Input placeholder="e.g. Germany, India..." value={filters.country} onChange={e => setFilters(f => ({ ...f, country: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Region / Zone</Label>
+                                <Input placeholder="e.g. EMEA, APAC..." value={filters.region} onChange={e => setFilters(f => ({ ...f, region: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground">Currency</Label>
+                                <select value={filters.currency} onChange={e => setFilters(f => ({ ...f, currency: e.target.value }))} className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="all">All Currencies</option>
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="USD">USD ($)</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> From Date</Label>
+                                <Input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> To Date</Label>
+                                <Input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Summary Cards */}
+            <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{invoicesList.length}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Visible records</p>
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <Clock className="h-4 w-4 text-amber-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{invoicesList.filter(i => i.status === 'pending').length}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Awaiting action</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -66,103 +225,86 @@ export default async function InvoicesPage({
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{invoicesList.filter(i => i.status === 'matched').length}</div>
+                        <div className="text-2xl font-bold">{invoicesList.filter(i => i.status === 'matched' || i.status === 'paid').length}</div>
+                        <p className="text-xs text-muted-foreground mt-1">3-way verified</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Payable</CardTitle>
-                        <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                        <Coins className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">
-                            ₹{invoicesList.reduce((acc, curr) => acc + parseFloat(curr.amount || "0"), 0).toLocaleString()}
-                        </div>
+                        <div className="text-2xl font-bold tabular-nums">{formatAmount(totalAmount, displayCurrency)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Displayed in {displayCurrency}</p>
                     </CardContent>
                 </Card>
             </div>
 
+            {/* Invoice Table */}
             <Card>
                 <CardHeader>
                     <CardTitle>Invoice Ledger</CardTitle>
-                    <CardDescription>Real-time synchronization with supplier-submitted documents.</CardDescription>
+                    <CardDescription>
+                        {loading ? "Loading invoices..." : `${invoicesList.length} invoice(s) found — amounts in ${displayCurrency}`}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border">
-                        <div className="relative w-full overflow-auto">
-                            <table className="w-full caption-bottom text-sm">
-                                <thead className="[&_tr]:border-b">
-                                    <tr className="border-b transition-colors hover:bg-muted/50">
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Invoice #</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order Ref</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                                        {isMatchMode && <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">3-Way Match</th>}
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Amount</th>
-                                        <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="[&_tr:last-child]:border-0">
-                                    {invoicesList.map((invoice: any) => (
-                                        <tr key={invoice.id} className="border-b transition-colors hover:bg-muted/50">
-                                            <td className="p-4 align-middle font-bold tracking-tight">
-                                                <div className="flex items-center gap-2">
-                                                    <FileText className="h-4 w-4 text-muted-foreground" />
-                                                    {invoice.invoiceNumber}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 align-middle font-mono text-xs text-muted-foreground whitespace-nowrap">
-                                                {invoice.orderId?.slice(0, 8) || 'N/A'}...
-                                            </td>
-                                            <td className="p-4 align-middle">
-                                                <Badge variant={
-                                                    invoice.status === 'paid' ? 'default' :
-                                                        invoice.status === 'matched' ? 'secondary' :
-                                                            'outline'
-                                                } className={cn(
-                                                    "uppercase text-[10px] font-black",
-                                                    invoice.status === 'paid' && "bg-green-500 hover:bg-green-600 text-white border-none"
-                                                )}>
-                                                    {invoice.status}
-                                                </Badge>
-                                            </td>
-                                            {isMatchMode && (
-                                                <td className="p-4 align-middle">
-                                                    {invoice.status === 'matched' || invoice.status === 'paid' ? (
-                                                        <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
-                                                            <CheckCircle2 size={14} />
-                                                            Verified
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs">
-                                                            <AlertTriangle size={14} />
-                                                            Unmatched
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            )}
-                                            <td className="p-4 align-middle text-muted-foreground font-medium">
-                                                {new Date(invoice.createdAt).toLocaleDateString()}
-                                            </td>
-                                            <td className="p-4 align-middle font-black tabular-nums">
-                                                ₹{Number(invoice.amount).toLocaleString()}
-                                            </td>
-                                            <td className="p-4 align-middle text-right">
-                                                <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {invoicesList.length === 0 && (
-                                        <tr className="border-b transition-colors hover:bg-muted/50">
-                                            <td colSpan={isMatchMode ? 7 : 6} className="p-12 text-center text-muted-foreground italic">
-                                                No enterprise data found in this category.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                    {loading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                         </div>
-                    </div>
+                    ) : (
+                        <div className="rounded-md border">
+                            <div className="relative w-full overflow-auto">
+                                <table className="w-full caption-bottom text-sm">
+                                    <thead>
+                                        <tr className="border-b bg-muted/50">
+                                            {['Invoice #', 'Supplier', 'Status', 'Country', 'Region', 'Continent', 'Date', `Amount (${displayCurrency})`, 'Actions'].map(h => (
+                                                <th key={h} className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {invoicesList.map((invoice: any) => (
+                                            <tr key={invoice.id} className="border-b transition-colors hover:bg-muted/50">
+                                                <td className="p-4 align-middle font-bold">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        {invoice.invoiceNumber}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 align-middle text-sm font-medium">{invoice.supplierName || 'N/A'}</td>
+                                                <td className="p-4 align-middle">
+                                                    <Badge className={cn("uppercase text-[10px] font-black border",
+                                                        invoice.status === 'paid' && "bg-green-500 text-white border-transparent",
+                                                        invoice.status === 'matched' && "bg-emerald-100 text-emerald-700 border-emerald-200",
+                                                        invoice.status === 'disputed' && "bg-red-100 text-red-700 border-red-200",
+                                                        invoice.status === 'pending' && "bg-amber-100 text-amber-700 border-amber-200",
+                                                    )}>{invoice.status}</Badge>
+                                                </td>
+                                                <td className="p-4 align-middle text-sm text-muted-foreground">
+                                                    <div className="flex items-center gap-1"><Globe className="h-3 w-3" />{invoice.country || invoice.supplierCountry || '—'}</div>
+                                                </td>
+                                                <td className="p-4 align-middle text-sm text-muted-foreground">{invoice.region || '—'}</td>
+                                                <td className="p-4 align-middle text-sm text-muted-foreground">{invoice.continent || '—'}</td>
+                                                <td className="p-4 align-middle text-muted-foreground text-sm">{new Date(invoice.createdAt).toLocaleDateString()}</td>
+                                                <td className="p-4 align-middle font-black tabular-nums">
+                                                    {formatAmount(convertAmount(invoice.amount || 0, invoice.currency || 'INR', displayCurrency), displayCurrency)}
+                                                </td>
+                                                <td className="p-4 align-middle text-right">
+                                                    <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {invoicesList.length === 0 && (
+                                            <tr><td colSpan={9} className="p-12 text-center text-muted-foreground italic">No invoices found matching the current filters.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

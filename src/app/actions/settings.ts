@@ -7,6 +7,19 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { eq } from "drizzle-orm";
 
+type SessionUser = {
+    role?: string | null;
+    email?: string | null;
+};
+
+type SettingsUpdateInput = {
+    platformName: string;
+    defaultCurrency: string;
+    isSettingsLocked: string;
+    updatedAt: Date;
+    geminiApiKey?: string;
+};
+
 export async function getSettings() {
     try {
         const [settings] = await db.select().from(platformSettings).limit(1);
@@ -31,14 +44,14 @@ export async function getSettings() {
 
             return {
                 ...newSettings,
-                role: (session?.user as any)?.role || 'user',
+                role: (session?.user as SessionUser | undefined)?.role || 'user',
                 isTwoFactorEnabled
             };
         }
 
         return {
             ...settings,
-            role: (session?.user as any)?.role || 'user',
+            role: (session?.user as SessionUser | undefined)?.role || 'user',
             isTwoFactorEnabled
         };
     } catch (error) {
@@ -67,7 +80,7 @@ export async function updateSettings(formData: FormData) {
             return { success: false, error: "Settings are locked. Please unlock them before making changes." };
         }
 
-        const updateData: any = {
+        const updateData: SettingsUpdateInput = {
             platformName,
             defaultCurrency,
             isSettingsLocked: isSettingsLocked === 'on' || isSettingsLocked === 'yes' ? 'yes' : 'no',
@@ -81,7 +94,16 @@ export async function updateSettings(formData: FormData) {
             updateData.geminiApiKey = geminiApiKey;
         }
 
-        await db.update(platformSettings).set(updateData);
+        const [existing] = await db.select().from(platformSettings).limit(1);
+        if (!existing) {
+            await db.insert(platformSettings).values(updateData);
+        } else {
+            // Keep existing key when field is blank to avoid accidental key deletion.
+            if ((geminiApiKey ?? '').trim().length === 0) {
+                delete updateData.geminiApiKey;
+            }
+            await db.update(platformSettings).set(updateData);
+        }
 
         // Log the administrative change
         await logActivity('UPDATE', 'system', 'global', `Admin updated system settings: ${platformName}`);
@@ -97,7 +119,8 @@ export async function updateSettings(formData: FormData) {
 export async function flushAuthCache() {
     try {
         const session = await auth();
-        if (!session || (session.user as any).role !== 'admin') {
+        const role = (session?.user as SessionUser | undefined)?.role;
+        if (!session || role !== 'admin') {
             return { success: false, error: "Unauthorized" };
         }
 

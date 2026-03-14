@@ -31,6 +31,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Filter, BarChart3, Download, RefreshCcw, Database, Info } from "lucide-react"
 
+type ExplorerTooltipPayload = {
+    color?: string;
+    name?: string;
+    value?: number;
+};
+
+function ExplorerTooltip({
+    active,
+    payload,
+    label,
+}: {
+    active?: boolean;
+    payload?: ExplorerTooltipPayload[];
+    label?: string;
+}) {
+    if (!active || !payload || payload.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="bg-popover/95 backdrop-blur-sm border border-border p-4 rounded-xl shadow-2xl min-w-[200px]">
+            <p className="font-display font-bold text-lg mb-2 border-b border-border/50 pb-2">{label}</p>
+            {payload.map((entry, index) => (
+                <div key={index} className="flex items-center justify-between gap-4 mb-1">
+                    <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                        {entry.name}
+                    </span>
+                    <span className="font-mono font-bold text-foreground">
+                        {entry.name === 'reliability' || entry.name === 'Reliability Score'
+                            ? `${entry.value}%`
+                            : (entry.value || 0) >= 10000000
+                                ? `₹${((entry.value || 0) / 10000000).toFixed(1)}Cr`
+                                : (entry.value || 0) >= 100000
+                                    ? `₹${((entry.value || 0) / 100000).toFixed(1)}L`
+                                    : (entry.value || 0) >= 1000
+                                        ? `₹${((entry.value || 0) / 1000).toFixed(0)}K`
+                                        : `₹${(entry.value || 0).toLocaleString()}`}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 interface DataExplorerProps {
     monthlyData: any[];
     categoryData: any[];
@@ -42,19 +87,12 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
     const [dimension, setDimension] = useState<"time" | "category" | "supplier">("time");
     const [metric, setMetric] = useState<"spend" | "orders" | "mixed">("spend");
     const [chartType, setChartType] = useState<"composed" | "bar" | "area">("composed");
-    const [timeRange, setTimeRange] = useState("ytd");
-
     // 1. DATA TRANSFORMATION ENGINE (Simulate BI Cube)
     const currentData = useMemo(() => {
         let data: any[] = [];
 
         if (dimension === "time") {
             data = monthlyData;
-            // Time Range Slicing (Simulated)
-            if (timeRange === '30d') data = monthlyData.slice(-1);
-            if (timeRange === '90d') data = monthlyData.slice(-3);
-            if (timeRange === 'ytd') data = monthlyData; // Assuming data passed is YTD
-            if (timeRange === 'all') data = monthlyData;
         }
         else if (dimension === "category") {
             data = categoryData;
@@ -64,16 +102,13 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
         }
 
         return data;
-    }, [dimension, monthlyData, categoryData, supplierData, timeRange]);
+    }, [dimension, monthlyData, categoryData, supplierData]);
 
     // 2. CONFIGURATION ENGINE (Chart Settings)
     const chartConfig = useMemo(() => {
         let xKey = "name";
         let barKey = "";
         let lineKey = "";
-        let colorBar = "#06b6d4"; // Cyan-500
-        let colorLine = "#8b5cf6"; // Violet-500
-
         if (dimension === "time") {
             xKey = "name";
             barKey = metric === 'orders' ? "orders" : "total"; // Switch between Total Spend and Orders
@@ -87,34 +122,8 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
             lineKey = "reliability";
         }
 
-        return { xKey, barKey, lineKey, colorBar, colorLine };
+        return { xKey, barKey, lineKey };
     }, [dimension, metric]);
-
-    const CustomTooltip = ({ active, payload, label }: any) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-popover/95 backdrop-blur-sm border border-border p-4 rounded-xl shadow-2xl min-w-[200px]">
-                    <p className="font-display font-bold text-lg mb-2 border-b border-border/50 pb-2">{label}</p>
-                    {payload.map((entry: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between gap-4 mb-1">
-                            <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                                {entry.name}
-                            </span>
-                            <span className="font-mono font-bold text-foreground">
-                                {entry.name === 'reliability' || entry.name === 'Reliability Score' ? `${entry.value}%` :
-                                    entry.value >= 10000000 ? `₹${(entry.value / 10000000).toFixed(1)}Cr` :
-                                        entry.value >= 100000 ? `₹${(entry.value / 100000).toFixed(1)}L` :
-                                            entry.value >= 1000 ? `₹${(entry.value / 1000).toFixed(0)}K` :
-                                                `₹${entry.value.toLocaleString()}`}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        return null;
-    };
 
     return (
         <Card className="col-span-4 glass-card border-slate-200/50 dark:border-slate-800/50 shadow-2xl overflow-hidden group">
@@ -207,7 +216,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                     tick={{ fill: 'var(--color-muted-foreground)', fontSize: 10, fontWeight: 600 }}
                                     tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
                                 />
-                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-primary)', opacity: 0.05 }} />
+                                <Tooltip content={<ExplorerTooltip />} cursor={{ fill: 'var(--color-primary)', opacity: 0.05 }} />
                                 <Bar
                                     yAxisId="left"
                                     dataKey={chartConfig.barKey}

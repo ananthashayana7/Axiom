@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,15 +89,8 @@ export function CommandCenter() {
     const [lastRunResult, setLastRunResult] = useState<{ agent: string; result: AgentRunResult; timestamp: Date } | null>(null);
     const [progressLogs, setProgressLogs] = useState<string[]>([]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         loadDashboardData();
-        // Auto-run primary agents if no recent runs found
-        const timer = setTimeout(() => {
-            if (agentStatuses.size === 0) {
-                runAgent('fraud-detection');
-            }
-        }, 1500);
-        return () => clearTimeout(timer);
     }, []);
 
     const addLog = (message: string) => {

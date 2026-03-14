@@ -1,18 +1,26 @@
 import React from 'react';
-import { getParts } from "@/app/actions/parts";
+import { getPartLinkedCounts, getParts } from "@/app/actions/parts";
 import { CreatePartDialog } from "@/components/parts/create-part-dialog";
 import { PartsClient } from "@/components/parts/parts-client";
 
 export const dynamic = 'force-dynamic';
 
 export default async function PartsPage() {
-  const parts = await getParts();
+  const [parts, linkCounts] = await Promise.all([getParts(), getPartLinkedCounts()]);
+
+  const countsMap = new Map(linkCounts.map((row: any) => [row.partId, row]));
+  const partsWithLinks = parts.map((part: any) => {
+    const counts = countsMap.get(part.id) || { orderCount: 0, invoiceCount: 0, rfqCount: 0 };
+    return { ...part, ...counts };
+  });
 
   // Basic stats calculation based on real data
-  const totalParts = parts.length;
-  const lowStock = parts.filter((p: any) => p.stockLevel <= (p.reorderPoint || 50) && p.stockLevel > (p.minStockLevel || 20)).length;
-  const criticalStock = parts.filter((p: any) => p.stockLevel <= (p.minStockLevel || 20)).length;
-  const categoriesCount = new Set(parts.map((p: any) => p.category)).size;
+  const totalParts = partsWithLinks.length;
+  const lowStock = partsWithLinks.filter((p: any) => p.stockLevel <= (p.reorderPoint || 50) && p.stockLevel > (p.minStockLevel || 20)).length;
+  const criticalStock = partsWithLinks.filter((p: any) => p.stockLevel <= (p.minStockLevel || 20)).length;
+  const categoriesCount = new Set(partsWithLinks.map((p: any) => p.category)).size;
+  const totalOrderLinks = partsWithLinks.reduce((acc: number, p: any) => acc + (p.orderCount || 0), 0);
+  const totalInvoiceLinks = partsWithLinks.reduce((acc: number, p: any) => acc + (p.invoiceCount || 0), 0);
 
   return (
     <div className="p-8 bg-muted/40 min-h-screen">
@@ -85,7 +93,46 @@ export default async function PartsPage() {
         </div>
       </div>
 
-      <PartsClient initialParts={JSON.parse(JSON.stringify(parts))} />
+      <div className="grid gap-6 lg:grid-cols-2 mb-8">
+        <div className="bg-card p-6 rounded-2xl border shadow-sm">
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">Linked Transaction Coverage</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-xl border bg-blue-50/40 border-blue-100 p-4">
+              <p className="text-xs text-muted-foreground uppercase font-bold">Order Links</p>
+              <p className="text-3xl font-black text-blue-700">{totalOrderLinks}</p>
+            </div>
+            <div className="rounded-xl border bg-amber-50/40 border-amber-100 p-4">
+              <p className="text-xs text-muted-foreground uppercase font-bold">Invoice Links</p>
+              <p className="text-3xl font-black text-amber-700">{totalInvoiceLinks}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card p-6 rounded-2xl border shadow-sm">
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">Top Linked Parts</p>
+          <div className="space-y-2 max-h-40 overflow-auto pr-1">
+            {partsWithLinks
+              .slice()
+              .sort((a: any, b: any) => (b.orderCount + b.invoiceCount) - (a.orderCount + a.invoiceCount))
+              .slice(0, 5)
+              .map((part: any) => (
+                <div key={part.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-semibold text-sm">{part.name}</p>
+                    <p className="text-xs text-muted-foreground">{part.sku}</p>
+                  </div>
+                  <div className="flex gap-2 text-xs font-bold">
+                    <span className="px-2 py-1 rounded bg-blue-100 text-blue-700">Orders: {part.orderCount || 0}</span>
+                    <span className="px-2 py-1 rounded bg-amber-100 text-amber-700">Invoices: {part.invoiceCount || 0}</span>
+                    <span className="px-2 py-1 rounded bg-violet-100 text-violet-700">RFQs: {part.rfqCount || 0}</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      <PartsClient initialParts={JSON.parse(JSON.stringify(partsWithLinks))} />
     </div>
   );
 };

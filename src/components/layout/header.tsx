@@ -7,10 +7,14 @@ import { User, Settings, Search, LogOut, Terminal } from "lucide-react";
 import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
 
+type SessionUser = {
+    role?: string | null;
+};
+
 export async function Header() {
     const session = await auth();
     const userName = session?.user?.name || "User";
-    const role = (session?.user as any)?.role;
+    const role = (session?.user as SessionUser | undefined)?.role;
 
     return (
         <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-8 transition-all font-sans">

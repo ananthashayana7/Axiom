@@ -3,8 +3,8 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, User, Send, Sparkles, Loader, Paperclip, FileText, X } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { User, Send, Loader, Paperclip, FileText, X } from "lucide-react";
 import { processCopilotQuery, getChatHistory, clearChatHistory } from "@/app/actions/ai";
 import { ChatMarkdown } from "@/components/copilot/chat-markdown";
 import { toast } from "sonner";
@@ -71,10 +71,12 @@ export default function CopilotPage() {
 
         setInput("");
         setSelectedFile(null);
-        setMessages(prev => [...prev, { role: 'user', content: displayMessage }]);
+        const nextUserMessage: Message = { role: 'user', content: displayMessage };
+        const updatedHistory: Message[] = [...messages, nextUserMessage];
+        setMessages(updatedHistory);
 
         startTransition(async () => {
-            const response = await processCopilotQuery(displayMessage, messages);
+            const response = await processCopilotQuery(displayMessage, updatedHistory);
             setMessages(prev => [...prev, { role: 'assistant', content: response }]);
         });
     };

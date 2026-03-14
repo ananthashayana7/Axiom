@@ -8,14 +8,14 @@ export async function getAiModel(modelName: string = "gemini-1.5-flash") {
     try {
         // Priority: Database setting > Env Var > Fallback (from Settings seed)
         const [settings] = await db.select().from(platformSettings).limit(1);
-        if (settings?.geminiApiKey) {
-            apiKey = settings.geminiApiKey;
+        if (settings?.geminiApiKey && settings.geminiApiKey.trim().length > 0) {
+            apiKey = settings.geminiApiKey.trim();
         }
     } catch (error) {
         console.error("AI Provider: Failed to fetch API key from DB, using environment fallback.", error);
     }
 
-    if (!apiKey) {
+    if (!apiKey || apiKey.trim().length === 0) {
         throw new Error("AI Provider: Missing valid Gemini API Key. Please configure it in Settings or Environment variables.");
     }
 

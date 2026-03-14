@@ -126,6 +126,36 @@ procure.yourcompany.com {
 }
 ```
 
+### 4. Azure Deployment Reference
+
+This repository includes a production compose template and env template:
+
+- `docker-compose.prod.yml`
+- `.env.production.example`
+
+Recommended Azure setup for 10,000+ users:
+
+1. `Azure App Service` (or AKS) for running the app container.
+2. `Azure Database for PostgreSQL` for managed relational storage.
+3. `Azure Cache for Redis` for caching and queue-like workloads.
+4. `Azure Blob Storage` for invoice/contracts/document assets.
+
+Quick start:
+
+```bash
+# 1) copy and edit env values
+cp .env.production.example .env.production
+
+# 2) run production stack
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+# 3) push schema/migrations
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app npm run db:push
+
+# 4) run pre-live smoke checks against the deployed URL
+BASE_URL=https://axiom.your-domain.com npm run smoke:prelive
+```
+
 ---
 
 ## 🛠️ Development & Local Commands

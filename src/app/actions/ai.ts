@@ -3,11 +3,11 @@
 import { db } from "@/db";
 import { procurementOrders, orderItems, parts, suppliers, chatHistory } from "@/db/schema";
 import { eq, sum, desc, sql, count, asc } from "drizzle-orm";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 
 import { getAiModel } from "@/lib/ai-provider";
+import { triggerAgentDispatch } from "./agents";
 
 // Remove hardcoded key, using provider
 
@@ -60,7 +60,7 @@ async function getDatabaseContext() {
             recentOrders,
             timestamp: new Date().toISOString()
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Context fetch failed:", error);
         return null;
     }
@@ -209,6 +209,32 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
     return await TelemetryService.time("AxiomCopilot", "processQuery", async () => {
         const context = await getDatabaseContext();
         try {
+            const normalizedQuery = query.toLowerCase();
+
+            // Fast-path operational intents: allow Copilot to run AI agents directly.
+            const agentIntentMap: Array<{ keywords: string[]; agentName: import("./agents").AgentName; label: string }> = [
+                { keywords: ['run fraud', 'fraud scan', 'fraud detection'], agentName: 'fraud-detection', label: 'Fraud Detection' },
+                { keywords: ['run payment', 'optimize payment', 'payment optimizer'], agentName: 'payment-optimizer', label: 'Payment Optimizer' },
+                { keywords: ['run demand', 'demand forecast', 'forecast demand'], agentName: 'demand-forecasting', label: 'Demand Forecasting' },
+                { keywords: ['run bottleneck', 'workflow bottleneck'], agentName: 'predictive-bottleneck', label: 'Predictive Bottleneck' },
+                { keywords: ['run remediation', 'auto remediation'], agentName: 'auto-remediation', label: 'Auto-Remediation' },
+            ];
+
+            const matchedIntent = agentIntentMap.find((intent) =>
+                intent.keywords.some((keyword) => normalizedQuery.includes(keyword))
+            );
+
+            if (matchedIntent) {
+                const agentResult = await triggerAgentDispatch(matchedIntent.agentName);
+                const directResponse = agentResult.success
+                    ? `Executed ${matchedIntent.label} successfully.\n\nResult: ${agentResult.reasoning || 'Run completed.'}`
+                    : `I attempted to run ${matchedIntent.label}, but it failed: ${agentResult.error || 'Unknown error'}`;
+
+                await saveChatMessage('user', query);
+                await saveChatMessage('assistant', directResponse);
+                return directResponse;
+            }
+
             const model = await getAiModel("gemini-1.5-flash");
             const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
@@ -260,7 +286,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
             await TelemetryService.trackEvent("AxiomCopilot", "query_success", { query_length: query.length });
 
             return text;
-        } catch (error: any) {
+        } catch (error: unknown) {
             await TelemetryService.trackError("AxiomCopilot", "query_failed", error, { query });
             // Fallback
             if (query.toLowerCase().includes("risk")) {

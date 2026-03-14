@@ -12,7 +12,7 @@ import { TotpService } from "@/lib/totp";
 async function findUser(identifier: string) {
     try {
         const [user] = await db.select().from(users).where(
-            ilike(users.employeeId, identifier)
+            ilike(users.email, identifier)
         );
         return user || null;
     } catch (err) {
@@ -57,13 +57,13 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                         // Check for 2FA
                         if (user.isTwoFactorEnabled) {
                             if (!code || code === 'undefined' || code === 'null' || code === '') {
-                                console.log(`[AUTH] 2FA_REQUIRED | user: ${user.employeeId}`);
+                                console.log(`[AUTH] 2FA_REQUIRED | user: ${user.email}`);
                                 throw new Error("require-2fa");
                             }
 
                             const isValidToken = TotpService.verifyToken(user.twoFactorSecret!, code);
                             if (!isValidToken) {
-                                console.warn(`[AUTH] 2FA_FAILED | user: ${user.employeeId} | code_received: ${code.length > 0 ? 'yes' : 'no'}`);
+                                console.warn(`[AUTH] 2FA_FAILED | user: ${user.email} | code_received: ${code.length > 0 ? 'yes' : 'no'}`);  
                                 await TelemetryService.trackEvent("Security", "login_failed_invalid_2fa", {
                                     userId: user.id,
                                     identifier
@@ -71,11 +71,11 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                                 return null;
                             }
                         } else {
-                            console.log(`[AUTH] 2FA_SETUP_REQUIRED | user: ${user.employeeId}`);
+                            console.log(`[AUTH] 2FA_SETUP_REQUIRED | user: ${user.email}`);
                             throw new Error("setup-2fa");
                         }
 
-                        console.log(`[AUTH] LOGIN_SUCCESS | user: ${user.employeeId} | role: ${user.role}`);
+                        console.log(`[AUTH] LOGIN_SUCCESS | user: ${user.email} | role: ${user.role}`);
                         await TelemetryService.trackEvent("Security", "login_success", {
                             userId: user.id,
                             email: user.email,

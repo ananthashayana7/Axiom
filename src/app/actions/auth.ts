@@ -55,7 +55,7 @@ export async function authenticate(
         if (error instanceof AuthError) {
             const type = error.type as string;
             if (type === 'CredentialsSignin') {
-                return 'Invalid credentials. Please verify your employee ID and password.';
+                return 'Invalid credentials. Please verify your email address and password.';
             }
             return `Authentication Error: ${type}`;
         }

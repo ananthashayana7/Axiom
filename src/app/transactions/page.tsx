@@ -1,0 +1,183 @@
+'use client'
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, Filter, RefreshCcw, ArrowRightLeft, ShoppingCart, Truck, FileText, Handshake } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { getOrders } from "@/app/actions/orders";
+import { getInvoices } from "@/app/actions/invoices";
+import { getGoodsReceipts } from "@/app/actions/goods-receipts";
+import { getContracts } from "@/app/actions/contracts";
+
+type TxType = 'all' | 'orders' | 'goods_receipts' | 'invoices' | 'quantity_contracts';
+
+const TX_TYPES = [
+    { id: 'all' as TxType, label: 'All Transactions', icon: ArrowRightLeft },
+    { id: 'orders' as TxType, label: 'Orders', icon: ShoppingCart },
+    { id: 'goods_receipts' as TxType, label: 'Goods Receipts', icon: Truck },
+    { id: 'invoices' as TxType, label: 'Invoices', icon: FileText },
+    { id: 'quantity_contracts' as TxType, label: 'Quantity Contracts', icon: Handshake },
+];
+
+export default function TransactionsPage() {
+    const [txType, setTxType] = useState<TxType>('all');
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [rows, setRows] = useState<any[]>([]);
+    const [currency, setCurrency] = useState<'INR' | 'EUR'>('INR');
+
+    const fmt = (val: number) => currency === 'EUR'
+        ? `€${(val * 0.011).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`
+        : `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    useEffect(() => {
+        setLoading(true);
+        Promise.all([
+            txType === 'all' || txType === 'orders' ? getOrders() : Promise.resolve([]),
+            txType === 'all' || txType === 'invoices' ? getInvoices() : Promise.resolve([]),
+            txType === 'all' || txType === 'goods_receipts' ? getGoodsReceipts() : Promise.resolve([]),
+            txType === 'all' || txType === 'quantity_contracts' ? getContracts() : Promise.resolve([]),
+        ]).then(([orders, invoices, receipts, contracts]) => {
+            const combined = [
+                ...(orders as any[]).map(o => ({ ...o, _type: 'Order', _ref: o.id?.slice(0, 8), _amount: o.totalAmount, _status: o.status, _date: o.createdAt })),
+                ...(invoices as any[]).map(i => ({ ...i, _type: 'Invoice', _ref: i.invoiceNumber, _amount: i.amount, _status: i.status, _date: i.createdAt })),
+                ...(receipts as any[]).map(r => ({ ...r, _type: 'Goods Receipt', _ref: r.id?.slice(0, 8), _amount: null, _status: r.inspectionStatus, _date: r.receivedAt })),
+                ...(contracts as any[]).map(c => ({ ...c, _type: 'Quantity Contract', _ref: c.title, _amount: c.value, _status: c.status, _date: c.createdAt })),
+            ].sort((a, b) => new Date(b._date || 0).getTime() - new Date(a._date || 0).getTime());
+            setRows(combined);
+            setLoading(false);
+        });
+    }, [txType]);
+
+    const filtered = rows.filter(r => {
+        const matchSearch = !search || r._ref?.toLowerCase().includes(search.toLowerCase()) || r._type?.toLowerCase().includes(search.toLowerCase());
+        const matchFrom = !dateFrom || new Date(r._date) >= new Date(dateFrom);
+        const matchTo = !dateTo || new Date(r._date) <= new Date(dateTo);
+        return matchSearch && matchFrom && matchTo;
+    });
+
+    const exportCSV = () => {
+        const headers = ['Type', 'Reference', 'Status', 'Amount', 'Date'];
+        const csvRows = filtered.map(r => [r._type, r._ref || 'N/A', r._status || 'N/A', r._amount ? fmt(parseFloat(r._amount)) : 'N/A', r._date ? new Date(r._date).toLocaleDateString() : 'N/A']);
+        const csv = [headers, ...csvRows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `axiom_transactions_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Transactions exported");
+    };
+
+    const typeColors: Record<string, string> = {
+        'Order': 'bg-blue-100 text-blue-700 border-blue-200',
+        'Invoice': 'bg-amber-100 text-amber-700 border-amber-200',
+        'Goods Receipt': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'Quantity Contract': 'bg-violet-100 text-violet-700 border-violet-200',
+    };
+
+    return (
+        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+                        <ArrowRightLeft className="h-8 w-8 text-primary" /> Transactions
+                    </h1>
+                    <p className="text-muted-foreground mt-1 font-medium">Unified view of Orders, Goods Receipts, Invoices, and Contracts.</p>
+                </div>
+                <div className="flex gap-2 items-center">
+                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+                        <button onClick={() => setCurrency('INR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'INR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>₹ INR</button>
+                        <button onClick={() => setCurrency('EUR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'EUR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>€ EUR</button>
+                    </div>
+                    <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> CSV</Button>
+                </div>
+            </div>
+
+            {/* Type Tabs */}
+            <div className="flex flex-wrap gap-2">
+                {TX_TYPES.map(type => {
+                    const Icon = type.icon;
+                    return (
+                        <button key={type.id} onClick={() => setTxType(type.id)}
+                            className={cn("flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-semibold transition-all",
+                                txType === type.id ? "bg-primary text-white border-primary shadow" : "bg-card hover:bg-muted")}>
+                            <Icon className="h-4 w-4" />
+                            {type.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground">Search</Label>
+                    <Input placeholder="Search reference, type..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 w-64" />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground">From Date</Label>
+                    <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground">To Date</Label>
+                    <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9" />
+                </div>
+                {(search || dateFrom || dateTo) && (
+                    <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); }} className="gap-1 mb-0.5">Clear</Button>
+                )}
+                <span className="text-sm text-muted-foreground mb-0.5">{filtered.length} records</span>
+            </div>
+
+            <Card>
+                <CardContent className="p-0">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                        </div>
+                    ) : (
+                        <div className="rounded-md overflow-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b bg-muted/50">
+                                        {['Type', 'Reference', 'Status', 'Amount', 'Date'].map(h => (
+                                            <th key={h} className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map((row, i) => (
+                                        <tr key={i} className="border-b hover:bg-muted/50 transition-colors">
+                                            <td className="p-4 align-middle">
+                                                <Badge className={cn("text-[10px] font-bold border", typeColors[row._type] || 'bg-stone-100')}>{row._type}</Badge>
+                                            </td>
+                                            <td className="p-4 align-middle font-medium">{row._ref || 'N/A'}</td>
+                                            <td className="p-4 align-middle">
+                                                <span className="text-xs font-medium uppercase text-muted-foreground">{row._status || '—'}</span>
+                                            </td>
+                                            <td className="p-4 align-middle font-black tabular-nums">
+                                                {row._amount ? fmt(parseFloat(row._amount)) : '—'}
+                                            </td>
+                                            <td className="p-4 align-middle text-muted-foreground text-sm">
+                                                {row._date ? new Date(row._date).toLocaleDateString() : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filtered.length === 0 && (
+                                        <tr><td colSpan={5} className="p-12 text-center text-muted-foreground italic">No transactions found.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}

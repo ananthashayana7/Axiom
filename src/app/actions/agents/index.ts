@@ -217,6 +217,14 @@ export const AGENT_REGISTRY = [
 
 export type AgentName = typeof AGENT_REGISTRY[number]['name'];
 
+export type AgentBundleName = 'post-import' | 'compliance-sweep' | 'workflow-recovery';
+
+const AGENT_BUNDLES: Record<AgentBundleName, AgentName[]> = {
+    'post-import': ['demand-forecasting', 'fraud-detection', 'payment-optimizer'],
+    'compliance-sweep': ['fraud-detection', 'contract-clause-analyzer', 'payment-optimizer'],
+    'workflow-recovery': ['predictive-bottleneck', 'smart-approval-routing', 'auto-remediation'],
+};
+
 /**
  * Centralized dispatcher for running agents from the UI
  */
@@ -278,4 +286,29 @@ export async function triggerAgentDispatch(agentName: AgentName) {
             confidence: 0
         };
     }
+}
+
+export async function triggerAgentBundle(bundleName: AgentBundleName) {
+    const agents = AGENT_BUNDLES[bundleName];
+    const results: Array<{ agent: AgentName; success: boolean; error?: string; executionTimeMs: number }> = [];
+
+    for (const agent of agents) {
+        const started = Date.now();
+        const result = await triggerAgentDispatch(agent);
+        results.push({
+            agent,
+            success: result.success,
+            error: result.success ? undefined : result.error,
+            executionTimeMs: result.executionTimeMs || Date.now() - started,
+        });
+    }
+
+    return {
+        success: results.every((r) => r.success),
+        bundle: bundleName,
+        total: results.length,
+        succeeded: results.filter((r) => r.success).length,
+        failed: results.filter((r) => !r.success).length,
+        results,
+    };
 }

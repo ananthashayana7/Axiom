@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Loader2 } from 'lucide-react';
-import { triggerAgentDispatch } from '@/app/actions/agents';
+import { triggerAgentDispatch, type AgentName } from '@/app/actions/agents';
 import { toast } from 'sonner';
 
 interface RunAgentButtonProps {
-    agentName: any; // Using any because of the const cast in registry
+    agentName: AgentName;
 }
 
 export function RunAgentButton({ agentName }: RunAgentButtonProps) {
@@ -27,7 +27,7 @@ export function RunAgentButton({ agentName }: RunAgentButtonProps) {
                     description: result.error || 'Check telemetry for details.'
                 });
             }
-        } catch (error) {
+        } catch {
             toast.error('Dispatch error', {
                 description: 'Failed to communicate with the agent engine.'
             });

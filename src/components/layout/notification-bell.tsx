@@ -30,7 +30,9 @@ export function NotificationBell() {
     };
 
     useEffect(() => {
-        fetchNotifications();
+        void (async () => {
+            await fetchNotifications();
+        })();
         const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
     }, []);

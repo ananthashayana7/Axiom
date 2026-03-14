@@ -274,6 +274,7 @@ export const platformSettings = pgTable('platform_settings', {
     platformName: text('platform_name').notNull().default('Axiom'),
     defaultCurrency: text('default_currency').notNull().default('INR'),
     isSettingsLocked: text('is_settings_locked').notNull().default('no'),
+    geminiApiKey: text('gemini_api_key'),
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
@@ -331,6 +332,10 @@ export const invoices = pgTable('invoices', {
     supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
     invoiceNumber: text('invoice_number').notNull(),
     amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    currency: text('currency').default('INR'),
+    region: text('region'),
+    country: text('country'),
+    continent: text('continent'),
     status: invoiceStatusEnum('status').default('pending'),
     matchedAt: timestamp('matched_at'),
     createdAt: timestamp('created_at').defaultNow(),
@@ -620,6 +625,54 @@ export const invoicesRelations = relations(invoices, ({ one }: any) => ({
 }));
 
 // ============================================================================
+// CONTACTS & SUPPORT TABLES
+// ============================================================================
+
+export const contactStatusEnum = pgEnum('contact_status', ['active', 'inactive', 'on_hold']);
+
+export const contacts = pgTable('contacts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    phone: text('phone'),
+    company: text('company'),
+    jobTitle: text('job_title'),
+    region: text('region'),
+    country: text('country'),
+    continent: text('continent'),
+    currency: text('currency').default('INR'),
+    status: contactStatusEnum('status').default('active'),
+    notes: text('notes'),
+    supplierId: uuid('supplier_id').references(() => suppliers.id),
+    createdBy: uuid('created_by').references(() => users.id),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    contactEmailIdx: index('contact_email_idx').on(table.email),
+    contactSupplierIdx: index('contact_supplier_idx').on(table.supplierId),
+}));
+
+export const supportTicketStatusEnum = pgEnum('support_ticket_status', ['open', 'in_progress', 'resolved', 'closed']);
+export const supportTicketPriorityEnum = pgEnum('support_ticket_priority', ['low', 'medium', 'high', 'critical']);
+
+export const supportTickets = pgTable('support_tickets', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    ticketNumber: text('ticket_number').notNull(),
+    submittedById: uuid('submitted_by_id').references(() => users.id).notNull(),
+    subject: text('subject').notNull(),
+    description: text('description').notNull(),
+    category: text('category').default('general'),
+    priority: supportTicketPriorityEnum('priority').default('medium'),
+    status: supportTicketStatusEnum('status').default('open'),
+    resolution: text('resolution'),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    ticketStatusIdx: index('ticket_status_idx').on(table.status),
+    ticketPriorityIdx: index('ticket_priority_idx').on(table.priority),
+    ticketUserIdx: index('ticket_user_idx').on(table.submittedById),
+}));
+
+// ============================================================================
 // TYPE EXPORTS - Add these at the end of the file
 // ============================================================================
 
@@ -644,6 +697,8 @@ export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
 export type QCInspection = typeof qcInspections.$inferSelect;
 export type AgentExecution = typeof agentExecutions.$inferSelect;
 export type AgentRecommendation = typeof agentRecommendations.$inferSelect;
+export type Contact = typeof contacts.$inferSelect;
+export type SupportTicket = typeof supportTickets.$inferSelect;
 export type DemandForecast = typeof demandForecasts.$inferSelect;
 export type MarketPriceIndex = typeof marketPriceIndex.$inferSelect;
 export type FraudAlert = typeof fraudAlerts.$inferSelect;

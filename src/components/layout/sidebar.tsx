@@ -14,15 +14,25 @@ import {
     Sparkles,
     BookOpen,
     CreditCard,
-    Truck
+    Truck,
+    ArrowRightLeft,
+    PiggyBank,
+    ContactRound,
+    LifeBuoy,
+    FileUp
 } from "lucide-react";
 import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 
+type SessionUser = {
+    role?: string | null;
+};
+
 const adminLinks = [
     { label: "User Management", icon: UserCog, href: "/admin/users" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
+    { label: "Import Data", icon: FileUp, href: "/admin/import" },
     { label: "Financial Matching", icon: CreditCard, href: "/sourcing/invoices?mode=match" },
     { label: "Spend Intelligence", icon: BarChart3, href: "/admin/analytics" },
     { label: "Risk Intelligence", icon: ShieldAlert, href: "/admin/risk" },
@@ -38,7 +48,7 @@ const supplierLinks = [
 
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
-    const role = (session?.user as any)?.role;
+    const role = (session?.user as SessionUser | undefined)?.role;
 
     return (
         <div className={cn("w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
@@ -144,6 +154,44 @@ export async function Sidebar({ className }: { className?: string }) {
                                     Framework Agreements
                                 </span>
                             </Link>
+                            <Link href="/transactions">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                    Transactions
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {role !== 'supplier' && (
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                            Management
+                        </h2>
+                        <div className="space-y-0.5">
+                            <Link href="/contacts">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <ContactRound className="mr-2 h-4 w-4" />
+                                    Contacts
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {role !== 'supplier' && (
+                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
+                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                            Insights
+                        </h2>
+                        <div className="space-y-0.5">
+                            <Link href="/savings">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <PiggyBank className="mr-2 h-4 w-4" />
+                                    Savings
+                                </span>
+                            </Link>
                         </div>
                     </div>
                 )}
@@ -179,6 +227,12 @@ export async function Sidebar({ className }: { className?: string }) {
                                 <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                                     <BookOpen className="mr-2 h-4 w-4" />
                                     Axiom Playbook
+                                </span>
+                            </Link>
+                            <Link href="/support">
+                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <LifeBuoy className="mr-2 h-4 w-4" />
+                                    Help & Support
                                 </span>
                             </Link>
                         </div>

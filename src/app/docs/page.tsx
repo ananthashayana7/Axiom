@@ -24,6 +24,7 @@ import {
     RefreshCcw,
     Scale,
     Database,
+    TrendingUp,
     Cpu,
     Lock,
     History,
@@ -150,6 +151,71 @@ const SECTIONS = [
             "Electron Framework — Portable `.exe` and `.dmg` builds allow Axiom to run as a native desktop application.",
             "Static Optimization — High-performance document serving and caching for large-scale procurement catalogs.",
             "External API Support — Ready for integration with external ERPs (SAP/Oracle) via standard REST patterns."
+        ]
+    },
+    {
+        id: "contacts_module",
+        title: "Contacts Module",
+        icon: Users,
+        content: "The Contacts directory centralizes supplier-side and internal stakeholder phonebook data with searchable metadata for continent, country, and region.",
+        steps: [
+            "Unified Directory — Capture Name, Email, Phone, Company, Job Title, and notes in a single indexed table.",
+            "Regional Tagging — Every contact can be tagged by Country, Region, Continent, and preferred Currency for faster routing.",
+            "Actionable Profiles — One-click `mailto:` links and status switches reduce handoffs between buyers and category managers.",
+            "Exportability — Contacts can be exported to CSV for governance, audits, and cross-system synchronization.",
+            "Data Hygiene — Active/Inactive/On Hold lifecycle states keep stale contacts from polluting operational communication."
+        ]
+    },
+    {
+        id: "savings_module",
+        title: "Savings Intelligence",
+        icon: TrendingUp,
+        content: "Savings Intelligence transforms negotiation outcomes into quantified business impact with transparent formulas and drill-down analytics.",
+        steps: [
+            "Baseline Capture — The platform stores `initialQuoteAmount` and `totalAmount` at order level for factual savings math.",
+            "Core Formula — Realized Savings = max(0, Sum(Initial Quote) - Sum(Final Spend)).",
+            "Savings Rate — Savings Rate = Realized Savings / Sum(Initial Quote), expressed as a percentage.",
+            "Dimensional Insights — Savings can be sliced by Supplier, Month, and Savings Type (negotiation, volume, strategic).",
+            "Decision Support — Top savings orders and supplier-level contribution reveal where sourcing effort yields highest returns."
+        ]
+    },
+    {
+        id: "transactions_module",
+        title: "Transactions Hub",
+        icon: RefreshCcw,
+        content: "The Transactions page creates a single operational ledger for Orders, Goods Receipts, Invoices, and Quantity Contracts.",
+        steps: [
+            "Unified Feed — Cross-module records are normalized into one timeline with sortable type labels.",
+            "Operational Filtering — Users can filter by transaction type, date windows, and reference search terms.",
+            "Financial Visibility — Amounts render dynamically in INR or EUR for multinational procurement teams.",
+            "Faster Reconciliation — Shared references reduce lookup time during three-way match investigations.",
+            "Audit Readiness — CSV exports preserve a point-in-time trail of transactional activity for compliance."
+        ]
+    },
+    {
+        id: "support_module",
+        title: "Help & Support",
+        icon: MessageSquare,
+        content: "Axiom includes a built-in support workflow with ticketing and knowledge guidance to reduce downtime and user friction.",
+        steps: [
+            "Ticket Lifecycle — Submit, track, and resolve requests through Open, In Progress, Resolved, and Closed states.",
+            "Priority Routing — Low/Medium/High/Critical prioritization enables operational triage.",
+            "Support Inbox — Notifications are routed through `axiom-no_reply@outlook.com` for consistent communication.",
+            "Knowledge Base — FAQ prompts cover login recovery, imports, currency logic, and module access.",
+            "Role Governance — Admins can oversee all tickets while end users only access their own request history."
+        ]
+    },
+    {
+        id: "currency_geo",
+        title: "Currency & Regional Support",
+        icon: Filter,
+        content: "Cross-region procurement requires localization by geography and currency; Axiom applies this across invoices, contacts, and analytics.",
+        steps: [
+            "Dual Currency UX — INR/EUR toggles provide immediate executive and operational comparability.",
+            "Regional Metadata — Invoices and contacts capture Country, Region, and Continent for risk heatmaps and planning.",
+            "Export Consistency — CSV outputs include currency and geography so downstream teams retain context.",
+            "Scalable Standardization — Shared dimensions simplify rollups across India and Germany business units.",
+            "Future Extension — Exchange-rate feeds can replace fixed conversion when treasury controls are introduced."
         ]
     },
     {

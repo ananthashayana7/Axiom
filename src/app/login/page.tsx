@@ -88,18 +88,18 @@ export default function LoginPage() {
             <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
                 <h1 className="mb-2 text-center text-3xl font-bold tracking-tight text-primary">Axiom</h1>
                 <p className="mb-6 text-center text-sm text-muted-foreground">
-                    {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Log in with Employee ID")}
+                    {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Sign in to your account")}
                 </p>
                 <form action={formAction} className="space-y-4">
                     {!show2FA && !showSetup2FA ? (
                         <>
                             <div className="space-y-2">
-                                <Label htmlFor="identifier">Employee ID</Label>
+                                <Label htmlFor="identifier">Email Address</Label>
                                 <Input
                                     id="identifier"
                                     name="identifier"
-                                    type="text"
-                                    placeholder="e.g. EMP001"
+                                    type="email"
+                                    placeholder="you@company.com"
                                     value={identifier}
                                     onChange={(e) => setIdentifier(e.target.value)}
                                     required

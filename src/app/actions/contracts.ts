@@ -41,7 +41,7 @@ export async function getContracts(supplierId?: string) {
             })
             .from(contracts)
             .leftJoin(suppliers, eq(contracts.supplierId, suppliers.id))
-            .where(and(...filters))
+            .where(filters.length > 0 ? and(...filters) : undefined)
             .orderBy(desc(contracts.createdAt));
 
         return rawData.map(row => ({

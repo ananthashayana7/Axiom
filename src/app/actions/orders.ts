@@ -267,8 +267,13 @@ export async function recordGoodsReceipt(orderId: string, data: {
                 .set({ status: 'fulfilled' })
                 .where(eq(procurementOrders.id, orderId));
 
+            // Re-evaluate financial match state whenever GRN/QC changes.
+            await validateThreeWayMatch(orderId);
+
             revalidatePath(`/sourcing/orders/${orderId}`);
             revalidatePath("/sourcing/goods-receipts");
+            revalidatePath("/sourcing/invoices");
+            revalidatePath("/transactions");
             return { success: true };
         });
     } catch (error) {
@@ -321,6 +326,8 @@ export async function addInvoice(data: { orderId: string, supplierId: string, in
         await validateThreeWayMatch(data.orderId);
 
         revalidatePath(`/sourcing/orders/${data.orderId}`);
+        revalidatePath('/sourcing/invoices');
+        revalidatePath('/transactions');
         return { success: true, data: invoice };
     } catch (error) {
         console.error("Invoice addition failed:", error);
@@ -359,6 +366,10 @@ export async function validateThreeWayMatch(orderId: string) {
                 await db.update(invoices)
                     .set({ status: 'matched', matchedAt: new Date() })
                     .where(eq(invoices.orderId, orderId));
+
+                revalidatePath('/sourcing/invoices');
+                revalidatePath(`/sourcing/orders/${orderId}`);
+                revalidatePath('/transactions');
 
                 await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_success", { orderId, amount: poAmount });
                 return { success: true, status: 'MATCHED' };
