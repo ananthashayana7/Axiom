@@ -22,8 +22,22 @@ type SettingsUpdateInput = {
 
 export async function getSettings() {
     try {
-        const [settings] = await db.select().from(platformSettings).limit(1);
         const session = await auth();
+        const role = (session?.user as SessionUser | undefined)?.role;
+
+        // Only admins can access settings
+        if (!session?.user || role !== 'admin') {
+            return {
+                platformName: 'Axiom',
+                defaultCurrency: 'INR',
+                isSettingsLocked: 'no',
+                geminiApiKey: null,
+                role: role || 'user',
+                isTwoFactorEnabled: false
+            };
+        }
+
+        const [settings] = await db.select().from(platformSettings).limit(1);
         let isTwoFactorEnabled = false;
 
         if (session?.user?.id) {
@@ -44,14 +58,14 @@ export async function getSettings() {
 
             return {
                 ...newSettings,
-                role: (session?.user as SessionUser | undefined)?.role || 'user',
+                role,
                 isTwoFactorEnabled
             };
         }
 
         return {
             ...settings,
-            role: (session?.user as SessionUser | undefined)?.role || 'user',
+            role,
             isTwoFactorEnabled
         };
     } catch (error) {
@@ -68,6 +82,11 @@ export async function getSettings() {
 
 export async function updateSettings(formData: FormData) {
     try {
+        const session = await auth();
+        if ((session?.user as SessionUser | undefined)?.role !== 'admin') {
+            return { success: false, error: "Unauthorized" };
+        }
+
         const platformName = formData.get("siteName") as string;
         const defaultCurrency = formData.get("currency") as string;
         const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';

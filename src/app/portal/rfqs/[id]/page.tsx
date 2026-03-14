@@ -52,7 +52,7 @@ export default function SupplierRFQDetail() {
     if (!rfq) return <div className="p-8 text-red-500">RFQ not found or access denied.</div>;
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
             <Link href="/portal" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors w-fit">
                 <ArrowLeft className="h-4 w-4" /> Back to Portal
             </Link>
@@ -109,7 +109,7 @@ export default function SupplierRFQDetail() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-muted-foreground italic">
-                                "{rfq.description || "Quote for standard delivery and quality specifications."}"
+                                &ldquo;{rfq.description || "Quote for standard delivery and quality specifications."}&rdquo;
                             </p>
                         </CardContent>
                     </Card>

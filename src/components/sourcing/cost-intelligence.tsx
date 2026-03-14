@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Minus, Sparkles, Loader2, Wallet, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { analyzeCosts } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
+import { useCurrency } from '@/components/currency-provider';
 
 interface Variance {
     sku: string;
@@ -23,6 +24,7 @@ interface CostAnalysisResult {
 export function CostIntelligence({ quoteItems, historicalParts }: { quoteItems: any[], historicalParts: any[] }) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<CostAnalysisResult | null>(null);
+    const { formatCurrency } = useCurrency();
 
     const handleAnalyze = async () => {
         if (!quoteItems.length) {
@@ -45,14 +47,6 @@ export function CostIntelligence({ quoteItems, historicalParts }: { quoteItems: 
         } finally {
             setIsAnalyzing(false);
         }
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0
-        }).format(amount);
     };
 
     return (

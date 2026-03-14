@@ -16,6 +16,7 @@ export default function AdminSettingsPage() {
     const [isPending, startTransition] = useTransition();
     const [settings, setSettings] = useState<any>(null);
     const [isLocked, setIsLocked] = useState(true);
+    const [initialSettings, setInitialSettings] = useState<any>(null);
 
     useEffect(() => {
         async function loadSettings() {
@@ -27,7 +28,6 @@ export default function AdminSettingsPage() {
         loadSettings();
     }, []);
 
-    const [initialSettings, setInitialSettings] = useState<any>(null);
     const isDirty = initialSettings && settings && (
         settings.platformName !== initialSettings.platformName ||
         settings.defaultCurrency !== initialSettings.defaultCurrency ||
@@ -53,11 +53,11 @@ export default function AdminSettingsPage() {
     }
 
     if (!settings) {
-        return <div className="p-8 flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>;
+        return <div className="p-4 lg:p-8 flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>;
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">Admin Settings</h1>
@@ -183,7 +183,7 @@ export default function AdminSettingsPage() {
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="benchmarkingInterval">Default Model</Label>
-                                <Input id="benchmarkingInterval" type="text" value="gemini-1.5-flash" className="bg-background" disabled />
+                                <Input id="benchmarkingInterval" type="text" value="gemini-2.5-flash" className="bg-background" disabled />
                             </div>
                         </div>
                     </CardContent>

@@ -187,7 +187,7 @@ async function generateForecastWithAI(
     factors: string[];
 } | null> {
     try {
-        const model = await getAiModel("gemini-1.5-flash");
+        const model = await getAiModel();
 
         const prompt = `
             You are a demand forecasting expert. Analyze the following historical order data and provide a demand forecast.

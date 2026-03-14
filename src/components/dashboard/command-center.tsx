@@ -89,10 +89,6 @@ export function CommandCenter() {
     const [lastRunResult, setLastRunResult] = useState<{ agent: string; result: AgentRunResult; timestamp: Date } | null>(null);
     const [progressLogs, setProgressLogs] = useState<string[]>([]);
 
-    useEffect(() => {
-        loadDashboardData();
-    }, []);
-
     const addLog = (message: string) => {
         setProgressLogs(prev => [...prev.slice(-4), message]);
     };
@@ -118,9 +114,32 @@ export function CommandCenter() {
 
         } catch (error) {
             console.error("Failed to load command center data:", error);
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
+
+    useEffect(() => {
+        Promise.all([
+            getOpenFraudAlerts(),
+            getPaymentOptimizationSummary(),
+            getReplenishmentAlerts()
+        ]).then(([fraud, payment, replenishment]) => {
+            setFraudAlerts(fraud.length);
+            setPaymentSavings(payment.totalPotentialSavings);
+            setReplenishmentAlerts(replenishment.filter(r => r.urgency === 'high' || r.urgency === 'critical').length);
+
+            const statuses = new Map<string, AgentStatus>();
+            AGENT_REGISTRY.forEach(agent => {
+                statuses.set(agent.name, { name: agent.name, status: 'idle' });
+            });
+            setAgentStatuses(statuses);
+            setIsLoading(false);
+        }).catch(error => {
+            console.error("Failed to load command center data:", error);
+            setIsLoading(false);
+        });
+    }, []);
 
     const runAgent = async (agentName: string) => {
         setRunningAgent(agentName);
@@ -245,7 +264,7 @@ export function CommandCenter() {
                         result = { success: true, data: { suggestedCounterOffer: 450000, leverage: ["Volume", "Payment Terms"] } };
                         runResult = {
                             savingsAmount: 50000,
-                            details: `Generated multi-point strategy for active RFQs. Projected capture: ₹50,000 via payment term restructuring and volume commitments.`
+                            details: `Generated multi-point strategy for active RFQs. Projected capture: 50,000 via payment term restructuring and volume commitments.`
                         };
                         addLog(`✅ Strategy generated: Scripts ready`);
                         break;
@@ -288,7 +307,7 @@ export function CommandCenter() {
                         addLog(`EVAL: Analyzing budget impact variance...`);
                         result = { success: true };
                         runResult = {
-                            details: `Simulated 10% price fluctuation across Tier-1 vendors. Estimated annual impact: ₹4.2M. Mitigation strategy indexed to scenario-B.`,
+                            details: `Simulated 10% price fluctuation across Tier-1 vendors. Estimated annual impact: 4.2M. Mitigation strategy indexed to scenario-B.`,
                             link: "/admin/scenarios"
                         };
                         addLog(`✅ Simulation complete: Impact quantified`);

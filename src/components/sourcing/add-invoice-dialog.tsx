@@ -71,7 +71,7 @@ export function AddInvoiceDialog({
                         Log Supplier Invoice
                     </DialogTitle>
                     <DialogDescription>
-                        Enter the financial details from the supplier's invoice for Three-Way Matching.
+                        Enter the financial details from the supplier&apos;s invoice for Three-Way Matching.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="grid gap-4 py-4">

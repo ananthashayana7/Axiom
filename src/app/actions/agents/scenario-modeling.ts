@@ -145,7 +145,7 @@ async function generateScenarioWithAI(
     scenario: ScenarioInput,
     baselineData: Record<string, unknown>
 ): Promise<ScenarioResult> {
-    const model = await getAiModel("gemini-1.5-flash");
+    const model = await getAiModel();
 
     const prompt = `You are a procurement analytics expert. Analyze this what-if scenario and provide projections.
 

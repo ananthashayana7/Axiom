@@ -17,12 +17,12 @@ import { useSession } from "next-auth/react";
 const CATEGORIES = ['Technical Issue', 'Billing', 'Data Import', 'Access & Permissions', 'Feature Request', 'General Enquiry'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 const FAQS = [
-    { q: 'How do I reset my password?', a: 'Contact your admin or use the password reset link on the login page. An email will be sent to your registered address from axiom-no_reply@outlook.com.' },
+    { q: 'How do I reset my password?', a: 'Contact your admin or use the password reset link on the login page. An email will be sent to your registered address from pma.axiom.support@gmail.com.' },
     { q: 'How do I import SAP data into Axiom?', a: 'Go to Admin → Import Data, upload your SAP-exported CSV file, preview the mapping, and confirm the import.' },
-    { q: 'How are currency conversions calculated?', a: 'Axiom uses a base rate of 1 INR = 0.011 EUR. For live rates, contact your admin to configure a live exchange rate feed via SMTP settings.' },
+    { q: 'How are currencies displayed?', a: 'Axiom automatically detects your country from your browser locale/timezone and displays amounts in your local currency (e.g. ₹ for India, € for Germany, $ for USA). You can also manually switch currencies using the toggle on analytics pages.' },
     { q: 'How do I add a new supplier?', a: 'Navigate to Suppliers → New Supplier. Fill in business details, currency, region and save. Invite the supplier via Supplier Portal.' },
     { q: 'Who can access the Analytics dashboard?', a: 'The Analytics section is visible to all users, but certain export and configuration features are restricted to admin roles.' },
-    { q: 'What is the support contact email?', a: 'All support emails are handled through axiom-no_reply@outlook.com. Ticket replies will be sent to your registered email.' },
+    { q: 'What is the support contact email?', a: 'All support emails are handled through pma.axiom.support@gmail.com. Ticket replies will be sent to your registered email.' },
 ];
 
 const priorityColor: Record<string, string> = {
@@ -61,8 +61,12 @@ export default function SupportPage() {
         if (!form.subject || !form.description || !form.category) { toast.error("Please fill all required fields"); return; }
         setSubmitting(true);
         try {
-            await submitSupportTicket({ subject: form.subject, category: form.category, priority: form.priority, description: form.description });
-            toast.success("Ticket submitted! You'll receive a confirmation at your registered email.");
+            const result = await submitSupportTicket({ subject: form.subject, category: form.category, priority: form.priority, description: form.description });
+            if (result.emailSent) {
+                toast.success("Ticket submitted and support email sent.");
+            } else {
+                toast.warning("Ticket submitted, but support email was not sent. Please check SMTP configuration.");
+            }
             setForm({ subject: '', category: '', priority: 'medium', description: '' });
             setShowForm(false);
             getUserTickets().then(setTickets);
@@ -74,7 +78,7 @@ export default function SupportPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6 max-w-5xl mx-auto">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6 max-w-5xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
@@ -83,8 +87,8 @@ export default function SupportPage() {
                     <p className="text-muted-foreground mt-1 font-medium">Get help, submit tickets, or browse common questions.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <a href="mailto:axiom-no_reply@outlook.com" className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-card hover:bg-muted text-sm font-semibold transition">
-                        <Mail className="h-4 w-4 text-primary" /> axiom-no_reply@outlook.com
+                    <a href="mailto:pma.axiom.support@gmail.com" className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-card hover:bg-muted text-sm font-semibold transition">
+                        <Mail className="h-4 w-4 text-primary" /> pma.axiom.support@gmail.com
                     </a>
                     <Button onClick={() => setShowForm(v => !v)} className="gap-2">
                         <Plus className="h-4 w-4" /> New Ticket
@@ -97,7 +101,7 @@ export default function SupportPage() {
                 <Card className="border-primary/30 shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary" /> Submit a Support Ticket</CardTitle>
-                        <CardDescription>We'll respond to your registered email from <strong>axiom-no_reply@outlook.com</strong>.</CardDescription>
+                        <CardDescription>We&apos;ll respond to your registered email from <strong>pma.axiom.support@gmail.com</strong>.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">

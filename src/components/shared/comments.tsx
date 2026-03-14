@@ -83,7 +83,7 @@ export function CommentsSection({ entityType, entityId, initialComments }: Comme
                                 <div className="flex items-center justify-between">
                                     <p className="text-sm font-semibold">{comment.userName}</p>
                                     <p className="text-xs text-muted-foreground">
-                                        {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : 'Just now'}
+                                        {comment.createdAt ? new Date(comment.createdAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'Just now'}
                                     </p>
                                 </div>
                                 <p className="text-sm text-foreground whitespace-pre-wrap">{comment.text}</p>

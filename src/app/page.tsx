@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CreditCard, Users, IndianRupee, Package, ShieldAlert, TrendingUp, Boxes, RefreshCcw, Brain } from "lucide-react";
+import { Activity, CreditCard, Users, IndianRupee, ShieldAlert, TrendingUp, Boxes } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { AnalyticsBoard } from "@/components/dashboard/analytics-board";
+import { formatCurrency } from "@/lib/utils/currency";
 import { DataExplorer } from "@/components/dashboard/data-explorer";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
@@ -15,10 +15,8 @@ import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
 
 import Link from "next/link";
 import { auth } from "@/auth";
-import { AiInsights } from "@/components/dashboard/ai-insights";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
-import { CommandCenter } from "@/components/dashboard/command-center";
 
 type SessionUser = {
   id?: string;
@@ -65,7 +63,7 @@ export default async function Home() {
   };
 
   return (
-    <div className="p-10 space-y-8 bg-background min-h-full" suppressHydrationWarning>
+    <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full" suppressHydrationWarning>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">Command Center</h1>
@@ -89,7 +87,7 @@ export default async function Home() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-black text-slate-900 tracking-tighter">
-                ₹{new Intl.NumberFormat('en-IN').format(Number(stats.totalSpend))}
+                {formatCurrency(stats.totalSpend)}
               </div>
               <div className="flex items-center gap-1 mt-2">
                 {!stats.isFirstMonth ? (

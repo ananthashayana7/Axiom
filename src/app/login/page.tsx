@@ -84,8 +84,8 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background">
-            <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
+        <div className="flex min-h-full items-center justify-center bg-background">
+            <div className="w-full max-w-sm rounded-lg border bg-card p-4 lg:p-8 shadow-md">
                 <h1 className="mb-2 text-center text-3xl font-bold tracking-tight text-primary">Axiom</h1>
                 <p className="mb-6 text-center text-sm text-muted-foreground">
                     {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Sign in to your account")}
@@ -143,6 +143,7 @@ export default function LoginPage() {
                                     <div className="flex flex-col items-center justify-center space-y-4">
                                         <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
                                         <div className="bg-white p-2 rounded-lg shadow-inner">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
                                         </div>
                                     </div>

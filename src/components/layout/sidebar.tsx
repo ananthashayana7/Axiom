@@ -31,6 +31,7 @@ type SessionUser = {
 
 const adminLinks = [
     { label: "User Management", icon: UserCog, href: "/admin/users" },
+    { label: "Support Tickets", icon: LifeBuoy, href: "/admin/support" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
     { label: "Import Data", icon: FileUp, href: "/admin/import" },
     { label: "Financial Matching", icon: CreditCard, href: "/sourcing/invoices?mode=match" },
@@ -46,159 +47,109 @@ const supplierLinks = [
     { label: "My Documents", icon: FileText, href: "/portal/documents" },
 ];
 
+/* ---- tiny helper for nav links ---- */
+const navCls = "flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-accent hover:text-accent-foreground transition-colors";
+
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
 
     return (
-        <div className={cn("w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
-            <div className="flex-1 overflow-y-auto min-h-0 pt-2 pb-10 scrollbar-thin scrollbar-thumb-muted">
-                <div className="px-3 py-2">
-                    <div className="mb-4 px-4 flex items-center gap-4">
-                        {/* Minimalist Geometric 'A' Logo */}
-                        <div className="relative shrink-0">
-                            <div className="h-10 w-10 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10">
-                                <svg viewBox="0 0 24 24" className="w-7 h-7 text-primary" fill="currentColor">
-                                    <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
-                                    <path d="M12 11L8 18H16L12 11Z" />
-                                    <path d="M2.5 20L10 6L12 10L5 21H2.5Z" />
-                                    <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
-                                </svg>
-                            </div>
-                        </div>
+        <div className={cn("w-56 xl:w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
+            <div className="flex-1 overflow-y-auto min-h-0 pb-2">
 
-                        {/* Classic Cinematic Serif Title */}
-                        <div className="flex flex-col tracking-tight">
-                            <h2 className="text-[28px] font-bold text-foreground font-display leading-none">
-                                Axiom
-                            </h2>
-                        </div>
+                {/* ── Brand ── */}
+                <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-8 w-8 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10 shrink-0">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-primary" fill="currentColor">
+                            <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
+                            <path d="M12 11L8 18H16L12 11Z" />
+                            <path d="M2.5 20L10 6L12 10L5 21H2.5Z" />
+                            <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
+                        </svg>
                     </div>
-                    <div className="space-y-0.5">
-                        <Link href={role === 'supplier' ? '/portal' : '/'}>
-                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                <LayoutDashboard className="mr-2 h-4 w-4" />
-                                Dashboard
-                            </span>
-                        </Link>
-                        {role !== 'supplier' && (
-                            <Link href="/suppliers">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <Users className="mr-2 h-4 w-4" />
-                                    Suppliers
-                                </span>
-                            </Link>
-                        )}
-                        <Link href="/copilot">
-                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground text-primary dark:text-primary font-bold transition-colors">
-                                <AxiomLogo className="mr-2 h-4 w-4" />
-                                Axiom Copilot
-                            </span>
-                        </Link>
-                        {role !== 'supplier' && (
-                            <Link href="/admin/agents">
-                                <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
-                                    <AxiomLogo className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                    AI Agents
-                                </span>
-                            </Link>
-                        )}
-                    </div>
+                    <h2 className="text-xl font-bold text-foreground font-display leading-none tracking-tight">
+                        Axiom
+                    </h2>
                 </div>
 
+                {/* ── Primary Nav ── */}
+                <div className="px-3 space-y-0.5">
+                    <Link href={role === 'supplier' ? '/portal' : '/'}>
+                        <span className={navCls}>
+                            <LayoutDashboard className="mr-2 h-4 w-4" />
+                            Dashboard
+                        </span>
+                    </Link>
+                    {role !== 'supplier' && (
+                        <Link href="/suppliers">
+                            <span className={navCls}>
+                                <Users className="mr-2 h-4 w-4" />
+                                Suppliers
+                            </span>
+                        </Link>
+                    )}
+                    <Link href="/copilot">
+                        <span className={cn(navCls, "text-primary dark:text-primary font-bold")}>
+                            <AxiomLogo className="mr-2 h-4 w-4" />
+                            Axiom Copilot
+                        </span>
+                    </Link>
+                    {role === 'admin' && (
+                        <Link href="/admin/agents">
+                            <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
+                                <AxiomLogo className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                AI Agents
+                            </span>
+                        </Link>
+                    )}
+                </div>
+
+                {/* ── Sourcing ── */}
                 {role !== 'supplier' && (
-                    <div className="px-3 py-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                    <div className="px-3 mt-3">
+                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             Sourcing
                         </h2>
                         <div className="space-y-0.5">
                             <Link href="/sourcing/parts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <Package className="mr-2 h-4 w-4" />
-                                    Parts Catalog
-                                </span>
+                                <span className={navCls}><Package className="mr-2 h-4 w-4" />Parts Catalog</span>
                             </Link>
                             <Link href="/sourcing/rfqs">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Sourcing Requests
-                                </span>
+                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Sourcing Requests</span>
                             </Link>
                             <Link href="/sourcing/requisitions">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <ShoppingCart className="mr-2 h-4 w-4" />
-                                    Internal Requisitions
-                                </span>
+                                <span className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Requisitions</span>
                             </Link>
                             <Link href="/sourcing/orders">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <ShoppingCart className="mr-2 h-4 w-4" />
-                                    Orders
-                                </span>
+                                <span className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Orders</span>
                             </Link>
                             <Link href="/sourcing/goods-receipts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <Truck className="mr-2 h-4 w-4" />
-                                    Goods Receipts
-                                </span>
+                                <span className={navCls}><Truck className="mr-2 h-4 w-4" />Goods Receipts</span>
                             </Link>
                             <Link href="/sourcing/invoices">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Invoice Records
-                                </span>
+                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Invoice Records</span>
                             </Link>
                             <Link href="/sourcing/contracts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Framework Agreements
-                                </span>
+                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Agreements</span>
                             </Link>
                             <Link href="/transactions">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <ArrowRightLeft className="mr-2 h-4 w-4" />
-                                    Transactions
-                                </span>
+                                <span className={navCls}><ArrowRightLeft className="mr-2 h-4 w-4" />Transactions</span>
                             </Link>
-                        </div>
-                    </div>
-                )}
-
-                {role !== 'supplier' && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Management
-                        </h2>
-                        <div className="space-y-0.5">
                             <Link href="/contacts">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <ContactRound className="mr-2 h-4 w-4" />
-                                    Contacts
-                                </span>
+                                <span className={navCls}><ContactRound className="mr-2 h-4 w-4" />Contacts</span>
                             </Link>
-                        </div>
-                    </div>
-                )}
-
-                {role !== 'supplier' && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Insights
-                        </h2>
-                        <div className="space-y-0.5">
                             <Link href="/savings">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <PiggyBank className="mr-2 h-4 w-4" />
-                                    Savings
-                                </span>
+                                <span className={navCls}><PiggyBank className="mr-2 h-4 w-4" />Savings</span>
                             </Link>
                         </div>
                     </div>
                 )}
 
+                {/* ── Vendor Portal ── */}
                 {role === 'supplier' && (
-                    <div className="px-3 py-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                    <div className="px-3 mt-3">
+                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             Vendor Portal
                         </h2>
                         <div className="space-y-0.5">
@@ -206,7 +157,7 @@ export async function Sidebar({ className }: { className?: string }) {
                                 const Icon = link.icon;
                                 return (
                                     <Link key={link.href} href={link.href}>
-                                        <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                                        <span className={navCls}>
                                             <Icon className="mr-2 h-4 w-4" />
                                             {link.label}
                                         </span>
@@ -217,31 +168,27 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
+                {/* ── Resources ── */}
                 {role !== 'supplier' && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                    <div className="px-3 mt-3 border-t border-border/50 pt-2">
+                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             Resources
                         </h2>
                         <div className="space-y-0.5">
                             <Link href="/docs">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <BookOpen className="mr-2 h-4 w-4" />
-                                    Axiom Playbook
-                                </span>
+                                <span className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</span>
                             </Link>
                             <Link href="/support">
-                                <span className="flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <LifeBuoy className="mr-2 h-4 w-4" />
-                                    Help & Support
-                                </span>
+                                <span className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</span>
                             </Link>
                         </div>
                     </div>
                 )}
 
+                {/* ── Admin / Intelligence ── */}
                 {(role === 'admin' || role === 'user') && (
-                    <div className="px-3 py-2 border-t border-border/50 mt-2 pt-2">
-                        <h2 className="mb-1.5 px-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                    <div className="px-3 mt-3 border-t border-border/50 pt-2">
+                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                             {role === 'admin' ? "Admin Control" : "Intelligence & Audit"}
                         </h2>
                         <div className="space-y-0.5">
@@ -255,17 +202,17 @@ export async function Sidebar({ className }: { className?: string }) {
                                     const Icon = link.icon;
                                     return (
                                         <Link key={link.href} href={link.href}>
-                                            <span className="flex items-center rounded-md px-3 py-1.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                            <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
                                                 <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
                                                 {link.label}
                                             </span>
                                         </Link>
                                     );
                                 })}
-                            <div className="h-20" aria-hidden="true" />
                         </div>
                     </div>
                 )}
+
             </div>
         </div>
     );

@@ -75,7 +75,7 @@ export function SuggestedRequisitions() {
                             </div>
                             {s.ai && (
                                 <div className="mt-3 p-2 bg-white/60 rounded-lg border border-emerald-100 text-[10px] text-emerald-900 leading-relaxed italic">
-                                    " {s.ai.insight} "
+                                    &ldquo; {s.ai.insight} &rdquo;
                                 </div>
                             )}
                         </div>

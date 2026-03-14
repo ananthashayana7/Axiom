@@ -23,7 +23,7 @@ export default async function PartsPage() {
   const totalInvoiceLinks = partsWithLinks.reduce((acc: number, p: any) => acc + (p.invoiceCount || 0), 0);
 
   return (
-    <div className="p-8 bg-muted/40 min-h-screen">
+    <div className="p-4 lg:p-8 bg-muted/40 min-h-full">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-primary font-outfit uppercase">Parts Intelligence</h1>

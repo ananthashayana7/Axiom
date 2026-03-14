@@ -94,7 +94,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="mb-6">
                 <Link href="/sourcing/rfqs" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
@@ -291,7 +291,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                             <div className="border-l border-primary/10 pl-4 flex flex-col justify-center">
                                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Commercial Terms</p>
                                                                 <p className="text-xs font-bold text-primary italic leading-relaxed">
-                                                                    "{analysis.terms}"
+                                                                    &ldquo;{analysis.terms}&rdquo;
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -331,7 +331,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 <div className="flex flex-col items-center justify-center py-10 text-center">
                                     <AlertTriangle className="h-10 w-10 text-yellow-500 mb-2" />
                                     <p className="font-semibold">No suppliers selected yet</p>
-                                    <p className="text-sm text-muted-foreground">Move the RFQ to 'Open' to trigger AI invitation logic.</p>
+                                    <p className="text-sm text-muted-foreground">Move the RFQ to &apos;Open&apos; to trigger AI invitation logic.</p>
                                 </div>
                             )}
                         </CardContent>
@@ -371,7 +371,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             </CardHeader>
                             <CardContent className="p-10">
                                 <div className="grid md:grid-cols-3 gap-8">
-                                    <div className="p-8 rounded-[2rem] bg-background border-2 border-green-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                                    <div className="p-4 lg:p-8 rounded-[2rem] bg-background border-2 border-green-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                                         <div className="space-y-4">
                                             <div className="p-3 bg-green-100 rounded-2xl w-fit">
                                                 <Wallet className="h-8 w-8 text-green-700" />
@@ -389,7 +389,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
                                     </div>
 
-                                    <div className="p-8 rounded-[2rem] bg-background border-2 border-blue-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                                    <div className="p-4 lg:p-8 rounded-[2rem] bg-background border-2 border-blue-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                                         <div className="space-y-4">
                                             <div className="p-3 bg-blue-100 rounded-2xl w-fit">
                                                 <Clock className="h-8 w-8 text-blue-700" />
@@ -401,13 +401,21 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-blue-50">
                                             <p className="text-2xl font-black text-foreground">
-                                                {[...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.supplier.name}
+                                                {(() => {
+                                                    const sorted = [...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks));
+                                                    const fastest = sorted[0];
+                                                    return fastest?.supplier.name;
+                                                })()}
                                             </p>
-                                            <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{JSON.parse([...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks))[0]?.aiAnalysis!).deliveryWeeks} Weeks Arrival</p>
+                                            <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{(() => {
+                                                const sorted = [...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks));
+                                                const fastest = sorted[0];
+                                                return fastest?.aiAnalysis ? JSON.parse(fastest.aiAnalysis).deliveryWeeks : 'N/A';
+                                            })()} Weeks Arrival</p>
                                         </div>
                                     </div>
 
-                                    <div className="p-10 rounded-[2rem] bg-primary text-primary-foreground shadow-2xl flex flex-col justify-between relative overflow-hidden group">
+                                    <div className="p-4 lg:p-10 rounded-[2rem] bg-primary text-primary-foreground shadow-2xl flex flex-col justify-between relative overflow-hidden group">
                                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-500">
                                             <Sparkles size={120} />
                                         </div>

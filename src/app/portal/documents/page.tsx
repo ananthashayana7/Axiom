@@ -44,15 +44,18 @@ export default function SupplierDocuments() {
     const [isPending, startTransition] = useTransition();
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    useEffect(() => {
-        loadDocs();
-    }, []);
-
     const loadDocs = async () => {
         const data = await getSupplierDocuments();
         setDocs(data);
         setLoading(false);
     };
+
+    useEffect(() => {
+        getSupplierDocuments().then(data => {
+            setDocs(data);
+            setLoading(false);
+        });
+    }, []);
 
     const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -73,7 +76,7 @@ export default function SupplierDocuments() {
     if (loading) return <div className="p-8">Syncing vault...</div>;
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Document Vault</h1>
@@ -116,7 +119,7 @@ export default function SupplierDocuments() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="file">File (PDF/Image)</Label>
-                                    <div className="flex items-center justify-center border-2 border-dashed rounded-xl p-8 hover:bg-muted/50 transition-colors cursor-pointer group">
+                                    <div className="flex items-center justify-center border-2 border-dashed rounded-xl p-4 lg:p-8 hover:bg-muted/50 transition-colors cursor-pointer group">
                                         <div className="flex flex-col items-center gap-2">
                                             <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
                                             <span className="text-sm text-muted-foreground">Click to select files</span>

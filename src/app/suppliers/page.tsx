@@ -94,7 +94,7 @@ export default function SuppliersPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-background p-8">
+        <div className="flex min-h-full flex-col bg-background p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
@@ -380,7 +380,7 @@ export default function SuppliersPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                            Axiom uses <strong>MCDA</strong> (Multi-Criteria Decision Analysis) to calculate your supplier scores. Every onboarding requires active validation of ISO certificates to appear in the "Compliance" channel.
+                            Axiom uses <strong>MCDA</strong> (Multi-Criteria Decision Analysis) to calculate your supplier scores. Every onboarding requires active validation of ISO certificates to appear in the &ldquo;Compliance&rdquo; channel.
                         </p>
                         <Link href="/docs">
                             <Button variant="link" size="sm" className="p-0 h-auto text-[11px] mt-4 text-primary font-bold">

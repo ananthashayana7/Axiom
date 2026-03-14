@@ -163,7 +163,7 @@ async function analyzeWithAI(
     fileName?: string
 ): Promise<ContractClauseAnalysis> {
     try {
-        const model = await getAiModel("gemini-1.5-flash");
+        const model = await getAiModel();
 
         const prompt = `
             You are a legal contract analyst specializing in procurement contracts.

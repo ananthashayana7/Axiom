@@ -133,7 +133,8 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                             variant="outline"
                             size="sm"
                             onClick={async () => {
-                                const res = await require("@/app/actions/parts").processLowStockAlerts();
+                                const { processLowStockAlerts } = await import("@/app/actions/parts");
+                                const res = await processLowStockAlerts();
                                 if (res.success) toast.success(res.message);
                                 else toast.error(res.error);
                             }}

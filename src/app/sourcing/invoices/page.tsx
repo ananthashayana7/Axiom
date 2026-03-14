@@ -14,28 +14,27 @@ import {
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
 import { toast } from "sonner";
+import { useCurrency } from '@/components/currency-provider';
 
 export const dynamic = 'force-dynamic';
 
-const INR_TO_EUR = 0.011;
+const CURRENCY_LOCALE: Record<string, string> = {
+    INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB', JPY: 'ja-JP',
+    CNY: 'zh-CN', KRW: 'ko-KR', AUD: 'en-AU', CAD: 'en-CA', BRL: 'pt-BR',
+    SGD: 'en-SG', CHF: 'de-CH', SEK: 'sv-SE', MYR: 'ms-MY', THB: 'th-TH',
+};
 
-function convertAmount(amount: string | number, from: string, to: string): number {
-    const val = typeof amount === 'string' ? parseFloat(amount) : amount;
-    if (from === to) return val;
-    if (from === 'INR' && to === 'EUR') return val * INR_TO_EUR;
-    if (from === 'EUR' && to === 'INR') return val / INR_TO_EUR;
-    return val;
-}
-
-function formatAmount(amount: number, currency: string): string {
-    if (currency === 'EUR') return `€${amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatAmount(amount: number, currencyCode: string): string {
+    const locale = CURRENCY_LOCALE[currencyCode] || 'en-US';
+    try { return new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount); }
+    catch { return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 }
 
 export default function InvoicesPage() {
+    const { geoLocale } = useCurrency();
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [displayCurrency, setDisplayCurrency] = useState<'INR' | 'EUR'>('INR');
+    const [displayCurrency, setDisplayCurrency] = useState<string>(geoLocale.currencyCode);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({
         invoiceNumber: '', status: 'all', country: '', continent: 'all',
@@ -71,13 +70,12 @@ export default function InvoicesPage() {
 
     const exportToCSV = () => {
         if (invoicesList.length === 0) { toast.error("No data to export"); return; }
-        const headers = ['Invoice #', 'Supplier', 'Status', 'Date', 'Amount (INR)', 'Amount (EUR)', 'Currency', 'Country', 'Region', 'Continent', 'Order Ref'];
+        const headers = ['Invoice #', 'Supplier', 'Status', 'Date', 'Amount', 'Currency', 'Country', 'Region', 'Continent', 'Order Ref'];
         const rows = invoicesList.map(inv => [
             inv.invoiceNumber, inv.supplierName || 'N/A', inv.status,
             new Date(inv.createdAt).toLocaleDateString(),
             Number(inv.amount).toFixed(2),
-            convertAmount(inv.amount, inv.currency || 'INR', 'EUR').toFixed(2),
-            inv.currency || 'INR', inv.country || inv.supplierCountry || 'N/A',
+            inv.currency || displayCurrency, inv.country || inv.supplierCountry || 'N/A',
             inv.region || 'N/A', inv.continent || 'N/A', (inv.orderId || '').slice(0, 8),
         ]);
         const csv = [headers, ...rows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
@@ -93,17 +91,17 @@ export default function InvoicesPage() {
 
     const exportToPDF = () => {
         if (invoicesList.length === 0) { toast.error("No data to export"); return; }
-        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(convertAmount(inv.amount, inv.currency || 'INR', displayCurrency), displayCurrency)}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
+        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(Number(inv.amount) || 0, displayCurrency)}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
         const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Currency: ${displayCurrency}</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
         const w = window.open('', '_blank');
         if (w) { w.document.write(html); w.document.close(); w.print(); }
         toast.success("PDF print dialog opened");
     };
 
-    const totalAmount = invoicesList.reduce((acc, inv) => acc + convertAmount(inv.amount || 0, inv.currency || 'INR', displayCurrency), 0);
+    const totalAmount = invoicesList.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -115,8 +113,13 @@ export default function InvoicesPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        <button onClick={() => setDisplayCurrency('INR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === 'INR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>₹ INR</button>
-                        <button onClick={() => setDisplayCurrency('EUR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === 'EUR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>€ EUR</button>
+                        {[
+                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
+                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
+                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
+                        ].map(opt => (
+                            <button key={opt.code} onClick={() => setDisplayCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
+                        ))}
                     </div>
                     <Button variant="outline" onClick={fetchInvoices} className="gap-2"><RefreshCcw className="h-4 w-4" /> Refresh</Button>
                     <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 relative">
@@ -290,7 +293,7 @@ export default function InvoicesPage() {
                                                 <td className="p-4 align-middle text-sm text-muted-foreground">{invoice.continent || '—'}</td>
                                                 <td className="p-4 align-middle text-muted-foreground text-sm">{new Date(invoice.createdAt).toLocaleDateString()}</td>
                                                 <td className="p-4 align-middle font-black tabular-nums">
-                                                    {formatAmount(convertAmount(invoice.amount || 0, invoice.currency || 'INR', displayCurrency), displayCurrency)}
+                                                    {formatAmount(Number(invoice.amount) || 0, displayCurrency)}
                                                 </td>
                                                 <td className="p-4 align-middle text-right">
                                                     <InvoiceActions invoiceId={invoice.id} status={invoice.status} />

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Wallet, Sparkles, Loader2, TrendingUp, TrendingDown, Target, Zap } from "lucide-react";
 import { analyzeSpend } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
+import { useCurrency } from '@/components/currency-provider';
 
 interface SpendOpportunity {
     type: "consolidation" | "contract" | "arbitrage";
@@ -23,6 +24,7 @@ interface SpendResult {
 export function SpendAnalysisView({ orders, suppliers }: { orders: any[], suppliers: any[] }) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<SpendResult | null>(null);
+    const { formatCurrency } = useCurrency();
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -40,14 +42,6 @@ export function SpendAnalysisView({ orders, suppliers }: { orders: any[], suppli
         } finally {
             setIsAnalyzing(false);
         }
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0
-        }).format(amount);
     };
 
     return (

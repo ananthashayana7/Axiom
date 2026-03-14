@@ -298,10 +298,9 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
         // Use AI to parse the quotation
         let analysis;
         try {
-            // We use the same prompt logic but for text
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            // Use the centralized AI provider
+            const { getAiModel } = await import("@/lib/ai-provider");
+            const model = await getAiModel("gemini-2.5-flash");
 
             const prompt = `
                 Analyze this quotation text and extract structured data:

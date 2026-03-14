@@ -82,7 +82,7 @@ export default function AdminImportPage() {
     };
 
     return (
-        <div className="min-h-screen bg-muted/40 p-8 space-y-6">
+        <div className="min-h-full bg-muted/40 p-4 lg:p-8 space-y-6">
             <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">

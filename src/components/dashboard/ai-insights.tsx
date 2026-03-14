@@ -8,7 +8,7 @@ import { analyzeSpend } from "@/app/actions/ai"
 
 export function AiInsights() {
     const [analysis, setAnalysis] = useState<any>(null)
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
 
     const handleAnalyze = async () => {
         setLoading(true)
@@ -18,7 +18,10 @@ export function AiInsights() {
     }
 
     useEffect(() => {
-        handleAnalyze()
+        analyzeSpend().then(result => {
+            setAnalysis(result)
+            setLoading(false)
+        })
     }, [])
 
     return (

@@ -88,7 +88,7 @@ export function GlobalRecordReceipt({ orders }: { orders: any[] }) {
                             ))}
                         </select>
                         {activeOrders.length === 0 && (
-                            <p className="text-[10px] text-amber-600 font-bold italic">No active 'Sent' or 'Approved' orders found.</p>
+                            <p className="text-[10px] text-amber-600 font-bold italic">No active &apos;Sent&apos; or &apos;Approved&apos; orders found.</p>
                         )}
                     </div>
 

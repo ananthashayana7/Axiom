@@ -180,6 +180,7 @@ export function TwoFactorSetup({ isEnabled: initialEnabled }: TwoFactorSetupProp
                                 <div className="space-y-6">
                                     <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl shadow-inner border min-h-[220px]">
                                         {!qrError ? (
+                                            /* eslint-disable-next-line @next/next/no-img-element */
                                             <img
                                                 src={setupData.qrCodeUrl}
                                                 alt="2FA QR Code"

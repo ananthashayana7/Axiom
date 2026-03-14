@@ -1,5 +1,3 @@
-'use server'
-
 import { getContracts } from "@/app/actions/contracts";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,7 +16,7 @@ export default async function ContractsPage() {
     const suppliers = await getSuppliers();
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-10">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-10">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Contract Management</h1>

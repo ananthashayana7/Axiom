@@ -2,7 +2,6 @@
 
 import { db } from "@/db";
 import { suppliers, procurementOrders, parts, orderItems } from "@/db/schema";
-// @ts-ignore
 import { count, eq, sum, sql, desc, inArray } from "drizzle-orm";
 
 export async function getDashboardStats() {

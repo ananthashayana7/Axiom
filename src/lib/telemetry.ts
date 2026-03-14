@@ -41,7 +41,7 @@ export class TelemetryService {
         metadata?: any
     ) {
         try {
-            let userId = metadata?.userId;
+            const userId = metadata?.userId;
 
             await db.insert(systemTelemetry).values({
                 type,

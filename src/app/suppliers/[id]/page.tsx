@@ -37,7 +37,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="mb-6 flex items-center justify-between">
                 <Link href="/suppliers" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />

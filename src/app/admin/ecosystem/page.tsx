@@ -63,7 +63,7 @@ export default function SupplierEcosystemPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 bg-stone-50/30 min-h-screen">
+        <div className="p-4 lg:p-8 space-y-8 bg-stone-50/30 min-h-full">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -220,7 +220,7 @@ export default function SupplierEcosystemPage() {
                                     </div>
                                     <div className="pt-2">
                                         <p className="text-[10px] uppercase font-black text-indigo-400 mb-2">Mitigation Action</p>
-                                        <p className="text-xs text-stone-300 font-medium leading-relaxed italic">"{hotspot.mitigationOptions[0]}"</p>
+                                        <p className="text-xs text-stone-300 font-medium leading-relaxed italic">&ldquo;{hotspot.mitigationOptions[0]}&rdquo;</p>
                                     </div>
                                 </div>
                             ))}

@@ -57,7 +57,7 @@ export default async function AdminAgentsPage() {
     }
 
     return (
-        <div className="p-10 space-y-8 bg-background min-h-full">
+        <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

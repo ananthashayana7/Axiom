@@ -70,7 +70,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">Access Control</h1>

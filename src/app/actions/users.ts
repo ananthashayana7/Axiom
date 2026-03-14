@@ -11,6 +11,11 @@ import { logActivity } from "./activity";
 
 export async function getUsers() {
     try {
+        const session = await auth();
+        if ((session?.user as any)?.role !== 'admin') {
+            return [];
+        }
+
         const allUsers = await db.select({
             id: users.id,
             name: users.name,

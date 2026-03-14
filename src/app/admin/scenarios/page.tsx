@@ -67,7 +67,7 @@ export default function ScenarioModelingPage() {
     };
 
     return (
-        <div className="p-8 space-y-8 bg-stone-50/50 min-h-screen">
+        <div className="p-4 lg:p-8 space-y-8 bg-stone-50/50 min-h-full">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -76,7 +76,7 @@ export default function ScenarioModelingPage() {
                         Scenario Modeling Engine
                     </h1>
                     <p className="text-sm text-stone-500 font-bold uppercase tracking-widest mt-1">
-                        Predictive "What-If" Intelligence & Impact Simulation
+                        Predictive &ldquo;What-If&rdquo; Intelligence & Impact Simulation
                     </p>
                 </div>
                 <div className="flex items-center gap-3 font-mono text-xs">

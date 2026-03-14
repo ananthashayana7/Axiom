@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from "@/db";
-import { supportTickets } from "@/db/schema";
+import { supportTickets, users } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
-import { sendSupportTicket } from "@/lib/services/email";
+import { sendEmail, sendSupportTicket } from "@/lib/services/email";
 import { revalidatePath } from "next/cache";
 
 let ticketCounter = Date.now();
@@ -31,14 +31,18 @@ export async function submitSupportTicket(data: {
         status: 'open',
     }).returning();
 
-    await sendSupportTicket(
+    const emailResult = await sendSupportTicket(
         session.user.email || 'no-reply@axiom.local',
         session.user.name || 'Axiom User',
         `${ticketNumber}: ${data.subject}`,
         `Category: ${data.category}\nPriority: ${data.priority}\n\n${data.description}`
     );
 
-    return ticket;
+    return {
+        ticket,
+        emailSent: emailResult.success,
+        emailError: emailResult.error || null,
+    };
 }
 
 export async function getUserTickets() {
@@ -66,20 +70,33 @@ export async function updateTicketStatus(id: string, status: 'open' | 'in_progre
 
     const [existing] = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
     const [ticket] = await db.update(supportTickets)
-        .set({ status, resolution: resolution ?? null, resolvedAt: status === 'resolved' ? new Date() : null })
+        .set({
+            status,
+            resolution: resolution ?? null,
+            resolvedAt: (status === 'resolved' || status === 'closed') ? new Date() : null,
+        })
         .where(eq(supportTickets.id, id))
         .returning();
 
-    if (existing && (status === 'resolved' || status === 'closed')) {
-        await sendSupportTicket(
-            actor?.email || 'axiom-no_reply@outlook.com',
-            actor?.name || 'Axiom Support',
-            `Update on ${existing.ticketNumber}`,
-            `Status: ${status}\n\nSubject: ${existing.subject}\n\nResolution: ${resolution || 'Ticket has been updated.'}`
-        );
+    if (existing) {
+        const [submitter] = await db
+            .select({ email: users.email, name: users.name })
+            .from(users)
+            .where(eq(users.id, existing.submittedById))
+            .limit(1);
+
+        if (submitter?.email) {
+            await sendEmail({
+                to: submitter.email,
+                replyTo: 'pma.axiom.support@gmail.com',
+                subject: `[Axiom Ticket Update] ${existing.ticketNumber} is now ${status}`,
+                body: `Hello ${submitter.name || 'User'},\n\nYour support ticket has been updated.\n\nTicket: ${existing.ticketNumber}\nSubject: ${existing.subject}\nStatus: ${status}\n\nResolution: ${resolution || 'No additional notes provided.'}\n\nUpdated by: ${actor?.name || 'Axiom Support'}\n\nRegards,\nAxiom Support\npma.axiom.support@gmail.com`,
+            });
+        }
     }
 
     revalidatePath('/support');
+    revalidatePath('/admin/support');
 
     return ticket;
 }

@@ -19,6 +19,7 @@ import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { InactivityTracker } from "@/components/shared/inactivity-tracker";
+import { CurrencyProvider } from "@/components/currency-provider";
 
 export default async function RootLayout({
   children,
@@ -40,12 +41,13 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider session={session}>
+            <CurrencyProvider>
             {session ? (
               <>
                 <Sidebar className="hidden lg:block h-full shrink-0" />
-                <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                   <Header />
-                  <main className="flex-1 overflow-y-auto">
+                  <main className="flex-1 overflow-auto">
                     {children}
                   </main>
                   <CommandPalette />
@@ -58,6 +60,7 @@ export default async function RootLayout({
               </main>
             )}
             <Toaster position="top-right" richColors />
+            </CurrencyProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

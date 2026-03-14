@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/db";
 import { platformSettings } from "@/db/schema";
 
-export async function getAiModel(modelName: string = "gemini-1.5-flash") {
+export async function getAiModel(modelName: string = "gemini-2.5-flash") {
     let apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     try {

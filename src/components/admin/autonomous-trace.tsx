@@ -33,11 +33,8 @@ const ACTIONS = [
 ];
 
 export function AutonomousTrace() {
-    const [logs, setLogs] = useState<TraceLog[]>([]);
-
-    useEffect(() => {
-        // Initial logs
-        const initialLogs: TraceLog[] = Array.from({ length: 5 }).map((_, i) => ({
+    const [logs, setLogs] = useState<TraceLog[]>(() => {
+        return Array.from({ length: 5 }).map((_, i) => ({
             id: Math.random().toString(36).substr(2, 9),
             timestamp: new Date(Date.now() - (5 - i) * 60000).toLocaleTimeString(),
             agent: AGENTS[i % AGENTS.length],
@@ -45,8 +42,9 @@ export function AutonomousTrace() {
             status: 'COMP',
             details: 'Execution verified. No drift detected.'
         }));
-        setLogs(initialLogs);
+    });
 
+    useEffect(() => {
         // Add periodic new logs
         const interval = setInterval(() => {
             const newLog: TraceLog = {

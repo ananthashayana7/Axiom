@@ -186,6 +186,25 @@ docker-compose restart
 docker-compose exec db psql -U postgres -d procurement_db
 ```
 
+### Outlook SMTP for Support Tickets
+Users can open tickets from `/support`; admins manage and close them from `/admin/support`.
+
+To enable real email delivery (instead of log-only mode):
+
+1. Copy the template:
+```bash
+cp .env.outlook.example .env
+```
+2. Fill SMTP values in `.env` (especially `SMTP_PASS`).
+3. Rebuild/restart app:
+```bash
+docker compose up -d --build app
+```
+
+Expected behavior:
+- User submits ticket → support mailbox receives new ticket mail.
+- Admin updates/closes ticket in `/admin/support` → ticket owner receives update mail.
+
 ---
 
 ## ⚠️ Important Security

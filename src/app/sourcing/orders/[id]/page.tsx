@@ -92,7 +92,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     const auditLogs = isAdmin ? await getAuditLogs('order', id) : [];
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="mb-6">
                 <Link href="/sourcing/orders" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
@@ -247,7 +247,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border">
+                    <div className="rounded-md border overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 border-b">
                                 <tr>

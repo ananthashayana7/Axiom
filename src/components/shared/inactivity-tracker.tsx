@@ -48,7 +48,7 @@ export function InactivityTracker({ timeoutMinutes = 30 }: { timeoutMinutes?: nu
             events.forEach(event => document.removeEventListener(event, handler));
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
         };
-    }, [session]);
+    }, [session, resetTimeout]);
 
     return null;
 }

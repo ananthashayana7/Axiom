@@ -17,7 +17,7 @@ export async function Header() {
     const role = (session?.user as SessionUser | undefined)?.role;
 
     return (
-        <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-8 transition-all font-sans">
+        <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-14 flex items-center justify-between px-4 lg:px-8 transition-all font-sans">
             <div className="flex items-center gap-8">
                 <div className="flex flex-col">
                     <h2 className="text-base font-bold text-foreground tracking-tight font-heading leading-tight">Intelligence Hub</h2>

@@ -69,7 +69,7 @@ const SECTIONS = [
         icon: Cpu,
         content: "Powering the Axiom Copilot and Automated Insights. We use Retrieval-Augmented Generation (RAG) to keep AI grounded in your actual data snapshot.",
         steps: [
-            "LLM Integration — Powered by Google Gemini AI (1.5 Flash/Pro) for massive context window and rapid processing.",
+            "LLM Integration — Powered by Google Gemini AI (2.5 Flash) for massive context window and rapid processing.",
             "RAG Architecture — The system injects live DB context (Spend, Risks, Parts) into prompts before AI processing.",
             "Deterministic Fallbacks — If the AI API is unreachable, heuristic-based scrapers maintain core analysis functionality.",
             "Natural Language Queries — 'Axiom Copilot' understands complex procurement intents like 'Show me suppliers with risk > 50'.",
@@ -200,7 +200,7 @@ const SECTIONS = [
         steps: [
             "Ticket Lifecycle — Submit, track, and resolve requests through Open, In Progress, Resolved, and Closed states.",
             "Priority Routing — Low/Medium/High/Critical prioritization enables operational triage.",
-            "Support Inbox — Notifications are routed through `axiom-no_reply@outlook.com` for consistent communication.",
+            "Support Inbox — Notifications are routed through `pma.axiom.support@gmail.com` for consistent communication.",
             "Knowledge Base — FAQ prompts cover login recovery, imports, currency logic, and module access.",
             "Role Governance — Admins can oversee all tickets while end users only access their own request history."
         ]

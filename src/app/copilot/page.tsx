@@ -83,7 +83,7 @@ export default function CopilotPage() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] bg-muted/30">
-            <div className="p-8 pb-4 flex items-center justify-between">
+            <div className="p-4 lg:p-8 pb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-primary font-outfit">
                         <AxiomLogo className="h-8 w-8 text-primary animate-pulse" />

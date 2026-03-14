@@ -47,7 +47,7 @@ export default function SupplierDashboard() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-background p-8 space-y-8">
+        <div className="flex min-h-full flex-col bg-background p-4 lg:p-8 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Supplier Command Center</h1>

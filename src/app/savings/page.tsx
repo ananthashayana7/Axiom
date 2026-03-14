@@ -12,21 +12,26 @@ import { TrendingDown, DollarSign, Target, Award, Download, PiggyBank, ArrowDown
 import { getSavingsData } from "@/app/actions/savings";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useCurrency } from '@/components/currency-provider';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function SavingsPage() {
+    const { geoLocale, formatCurrency: formatCurrencyGeo } = useCurrency();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [currency, setCurrency] = useState<'INR' | 'EUR'>('INR');
+    const [currency, setCurrency] = useState<string>(geoLocale.currencyCode);
 
     useEffect(() => {
         getSavingsData().then(d => { setData(d); setLoading(false); });
     }, []);
 
-    const fmt = (val: number) => currency === 'EUR'
-        ? `€${(val * 0.011).toLocaleString('de-DE', { minimumFractionDigits: 0 })}`
-        : `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
+    const fmt = (val: number) => {
+        const LOCALE: Record<string, string> = { INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB' };
+        const locale = LOCALE[currency] || geoLocale.locale;
+        try { return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(val); }
+        catch { return `${geoLocale.currencySymbol}${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}`; }
+    };
 
     const exportCSV = () => {
         if (!data) return;
@@ -55,7 +60,7 @@ export default function SavingsPage() {
     if (!data) return <div className="p-8 text-muted-foreground">Failed to load savings data.</div>;
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
@@ -67,8 +72,13 @@ export default function SavingsPage() {
                 </div>
                 <div className="flex gap-2 items-center">
                     <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        <button onClick={() => setCurrency('INR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'INR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>₹ INR</button>
-                        <button onClick={() => setCurrency('EUR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'EUR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>€ EUR</button>
+                        {[
+                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
+                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
+                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
+                        ].map(opt => (
+                            <button key={opt.code} onClick={() => setCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
+                        ))}
                     </div>
                     <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> Export</Button>
                 </div>
@@ -130,7 +140,7 @@ export default function SavingsPage() {
                             <BarChart data={data.savingsBySupplier?.slice(0, 10) || []} margin={{ top: 5, right: 20, bottom: 60, left: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                                 <XAxis dataKey="supplierName" angle={-35} textAnchor="end" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => currency === 'EUR' ? `€${(v * 0.011 / 1000).toFixed(0)}k` : `₹${(v / 1000).toFixed(0)}k`} />
+                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
                                 <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} />
                             </BarChart>
@@ -155,7 +165,7 @@ export default function SavingsPage() {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                                 <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => currency === 'EUR' ? `€${(v * 0.011 / 1000).toFixed(0)}k` : `₹${(v / 1000).toFixed(0)}k`} />
+                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
                                 <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#savingsGrad)" strokeWidth={2} />
                             </AreaChart>

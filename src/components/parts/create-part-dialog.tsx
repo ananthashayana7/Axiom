@@ -63,7 +63,7 @@ export function CreatePartDialog() {
                 <DialogHeader>
                     <DialogTitle>Add New Part</DialogTitle>
                     <DialogDescription>
-                        Enter the details of the new part below. Click save when you're done.
+                        Enter the details of the new part below. Click save when you&apos;re done.
                     </DialogDescription>
                 </DialogHeader>
                 <form action={handleSubmit}>

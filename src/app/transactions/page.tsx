@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Download, Filter, RefreshCcw, ArrowRightLeft, ShoppingCart, Truck, FileText, Handshake } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useCurrency } from '@/components/currency-provider';
 import { getOrders } from "@/app/actions/orders";
 import { getInvoices } from "@/app/actions/invoices";
 import { getGoodsReceipts } from "@/app/actions/goods-receipts";
@@ -25,26 +26,30 @@ const TX_TYPES = [
 ];
 
 export default function TransactionsPage() {
+    const { geoLocale, formatCurrency: formatCurrencyGeo } = useCurrency();
     const [txType, setTxType] = useState<TxType>('all');
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [rows, setRows] = useState<any[]>([]);
-    const [currency, setCurrency] = useState<'INR' | 'EUR'>('INR');
+    const [currency, setCurrency] = useState<string>(geoLocale.currencyCode);
 
-    const fmt = (val: number) => currency === 'EUR'
-        ? `€${(val * 0.011).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`
-        : `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const fmt = (val: number) => {
+        const locale = currency === 'EUR' ? 'de-DE' : currency === 'USD' ? 'en-US' : geoLocale.locale;
+        try { return new Intl.NumberFormat(locale, { style: 'currency', currency: currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val); }
+        catch { return `${geoLocale.currencySymbol}${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`; }
+    };
 
     useEffect(() => {
-        setLoading(true);
+        const cancelled = false;
         Promise.all([
             txType === 'all' || txType === 'orders' ? getOrders() : Promise.resolve([]),
             txType === 'all' || txType === 'invoices' ? getInvoices() : Promise.resolve([]),
             txType === 'all' || txType === 'goods_receipts' ? getGoodsReceipts() : Promise.resolve([]),
             txType === 'all' || txType === 'quantity_contracts' ? getContracts() : Promise.resolve([]),
         ]).then(([orders, invoices, receipts, contracts]) => {
+            if (cancelled) return;
             const combined = [
                 ...(orders as any[]).map(o => ({ ...o, _type: 'Order', _ref: o.id?.slice(0, 8), _amount: o.totalAmount, _status: o.status, _date: o.createdAt })),
                 ...(invoices as any[]).map(i => ({ ...i, _type: 'Invoice', _ref: i.invoiceNumber, _amount: i.amount, _status: i.status, _date: i.createdAt })),
@@ -83,7 +88,7 @@ export default function TransactionsPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-6">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
@@ -93,8 +98,13 @@ export default function TransactionsPage() {
                 </div>
                 <div className="flex gap-2 items-center">
                     <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        <button onClick={() => setCurrency('INR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'INR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>₹ INR</button>
-                        <button onClick={() => setCurrency('EUR')} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === 'EUR' ? "bg-primary text-white shadow" : "hover:bg-muted")}>€ EUR</button>
+                        {[
+                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
+                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
+                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
+                        ].map(opt => (
+                            <button key={opt.code} onClick={() => setCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
+                        ))}
                     </div>
                     <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> CSV</Button>
                 </div>

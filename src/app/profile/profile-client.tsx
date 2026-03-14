@@ -73,7 +73,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="max-w-4xl w-full mx-auto space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Profile</h1>

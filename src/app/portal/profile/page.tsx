@@ -47,7 +47,7 @@ export default function SupplierProfilePage() {
     if (!profile) return <div className="p-8">Unauthorized access to vendor profile.</div>;
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8 space-y-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-stone-900">Enterprise Profile</h1>
@@ -150,7 +150,7 @@ export default function SupplierProfilePage() {
                             </div>
                             <div className="pt-4 mt-4 border-t border-stone-800">
                                 <p className="text-xs text-stone-500 italic">
-                                    Your geographic location is plotted on Axiom's Global Risk Control Tower to monitor logistics disruptions.
+                                    Your geographic location is plotted on Axiom&apos;s Global Risk Control Tower to monitor logistics disruptions.
                                 </p>
                             </div>
                         </CardContent>
@@ -165,7 +165,7 @@ export default function SupplierProfilePage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                As a preferred partner, you have first access to Axiom's predictive replenishment forecasts.
+                                As a preferred partner, you have first access to Axiom&apos;s predictive replenishment forecasts.
                             </p>
                             <Button variant="link" className="p-0 h-auto text-xs font-bold text-primary hover:underline">
                                 Review Forecasts →

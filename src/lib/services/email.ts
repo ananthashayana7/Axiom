@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 export interface EmailPayload {
     to: string;
     subject: string;
@@ -5,32 +7,62 @@ export interface EmailPayload {
     replyTo?: string;
 }
 
-const SUPPORT_EMAIL = 'axiom-no_reply@outlook.com';
+export interface EmailSendResult {
+    success: boolean;
+    messageId?: string;
+    error?: string;
+}
+
+const SUPPORT_EMAIL = 'pma.axiom.support@gmail.com';
 
 export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
-    // Production: configure SMTP via env vars (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)
-    // sending via Nodemailer with Outlook SMTP or Azure Communication Services
     const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = Number(process.env.SMTP_PORT || 587);
     const smtpUser = process.env.SMTP_USER || SUPPORT_EMAIL;
     const smtpPass = process.env.SMTP_PASS;
+    const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+    const smtpFrom = process.env.SMTP_FROM || SUPPORT_EMAIL;
 
-    if (smtpHost && smtpPass) {
-        // In production Nodemailer would be used here:
-        // const transporter = nodemailer.createTransport({ host: smtpHost, port: 587, auth: { user: smtpUser, pass: smtpPass } });
-        // await transporter.sendMail({ from: SUPPORT_EMAIL, to, subject, text: body, replyTo: replyTo || SUPPORT_EMAIL });
-        console.log(`[EMAIL] PRODUCTION SMTP — Sending via ${smtpHost} from ${SUPPORT_EMAIL}`);
+    if (!smtpHost || !smtpPass) {
+        console.warn("[EMAIL] SMTP not configured. Set SMTP_HOST/SMTP_PASS (and optional SMTP_USER/SMTP_PORT/SMTP_SECURE/SMTP_FROM).");
+        return {
+            success: false,
+            error: 'SMTP_NOT_CONFIGURED',
+        } as EmailSendResult;
     }
 
-    console.log("=========== AXIOM EMAIL ===========");
-    console.log(`FROM:     ${SUPPORT_EMAIL}`);
-    console.log(`TO:       ${to}`);
-    console.log(`REPLY-TO: ${replyTo || SUPPORT_EMAIL}`);
-    console.log(`SUBJECT:  ${subject}`);
-    console.log(`BODY:\n${body}`);
-    console.log("===================================");
+    try {
+        const transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: smtpPort,
+            secure: smtpSecure,
+            auth: {
+                user: smtpUser,
+                pass: smtpPass,
+            },
+        });
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return { success: true, messageId: `axiom_${Date.now().toString(36)}` };
+        const info = await transporter.sendMail({
+            from: smtpFrom,
+            to,
+            replyTo: replyTo || smtpFrom,
+            subject,
+            text: body,
+        });
+
+        console.log(`[EMAIL] SENT | host=${smtpHost} | from=${smtpFrom} | to=${to} | messageId=${info.messageId}`);
+        return {
+            success: true,
+            messageId: info.messageId,
+        } as EmailSendResult;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown SMTP error';
+        console.error(`[EMAIL] SEND_FAILED | to=${to} | subject=${subject} | error=${errorMessage}`);
+        return {
+            success: false,
+            error: errorMessage,
+        } as EmailSendResult;
+    }
 }
 
 export async function sendSupportTicket(fromEmail: string, fromName: string, subject: string, description: string) {
@@ -38,7 +70,7 @@ export async function sendSupportTicket(fromEmail: string, fromName: string, sub
         to: SUPPORT_EMAIL,
         replyTo: fromEmail,
         subject: `[Support] ${subject}`,
-        body: `Support request from Axiom Platform\n\nFrom: ${fromName} <${fromEmail}>\nSubject: ${subject}\n\n${description}\n\n---\nAxiom Support | axiom-no_reply@outlook.com`,
+        body: `Support request from Axiom Platform\n\nFrom: ${fromName} <${fromEmail}>\nSubject: ${subject}\n\n${description}\n\n---\nAxiom Support | pma.axiom.support@gmail.com`,
     });
 }
 
@@ -57,6 +89,6 @@ Please log in and change your password immediately.
 
 Best regards,
 The Axiom Team
-axiom-no_reply@outlook.com`.trim()
+pma.axiom.support@gmail.com`.trim()
     };
 }

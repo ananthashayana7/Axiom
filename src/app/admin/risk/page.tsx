@@ -8,11 +8,8 @@ import {
     Globe,
     Wallet,
     ArrowUpRight,
-    ArrowDownRight,
     Search,
-    Filter,
     Activity,
-    CloudRainCombined,
     CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
@@ -24,10 +21,16 @@ import { GeoRiskMap } from "@/components/admin/geo-risk-map";
 import { getRiskComplianceStats } from "@/app/actions/risk";
 import { batchGeocodeSuppliers } from "@/app/actions/geocoding";
 import { GeocodeTrigger } from "@/components/admin/geocode-trigger";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
 export default async function RiskDashboardPage() {
+    const session = await auth();
+    if (!session?.user) redirect('/login');
+    const role = (session.user as any)?.role;
+    if (role !== 'admin' && role !== 'user') redirect('/');
     const stats = await getRiskComplianceStats();
 
     if (!stats) return <div className="p-8">Unable to load risk intelligence.</div>;
@@ -38,7 +41,7 @@ export default async function RiskDashboardPage() {
     const financialWatchlist = allSuppliers.filter((s: any) => (s.financialScore || 0) < 50);
 
     return (
-        <div className="flex min-h-screen flex-col bg-muted/40 p-8">
+        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">Risk & Compliance Intelligence</h1>

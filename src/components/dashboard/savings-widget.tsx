@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, PiggyBank, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useCurrency } from "@/components/currency-provider";
 
 interface SavingsWidgetProps {
     totalSpend: number;
@@ -12,6 +13,7 @@ interface SavingsWidgetProps {
 }
 
 export function SavingsWidget({ totalSpend, realizedSavings, savingsRate }: SavingsWidgetProps) {
+    const { formatCurrency } = useCurrency();
     return (
         <Card className="col-span-2 bg-gradient-to-br from-emerald-50 to-white border-emerald-100 shadow-sm">
             <CardHeader className="pb-2">
@@ -30,12 +32,12 @@ export function SavingsWidget({ totalSpend, realizedSavings, savingsRate }: Savi
                 <div className="grid grid-cols-3 gap-6 mb-6">
                     <div className="space-y-1">
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Spend</span>
-                        <div className="text-2xl font-bold text-slate-700">₹{totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <div className="text-2xl font-bold text-slate-700">{formatCurrency(totalSpend)}</div>
                     </div>
                     <div className="space-y-1">
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Realized Savings</span>
                         <div className="text-2xl font-bold text-emerald-600 flex items-center gap-2">
-                            ₹{realizedSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {formatCurrency(realizedSavings)}
                             <div className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center">
                                 <TrendingUp className="h-3 w-3 mr-1" />
                                 +{savingsRate}%
@@ -62,7 +64,7 @@ export function SavingsWidget({ totalSpend, realizedSavings, savingsRate }: Savi
                             <span className="text-muted-foreground">Logistics Rate Negotiation</span>
                             <div className="flex items-center gap-4">
                                 <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-700 bg-emerald-50">In Progress</Badge>
-                                <span className="font-mono font-medium">Est. ₹4.2L</span>
+                                <span className="font-mono font-medium">Est. {formatCurrency(420000)}</span>
                             </div>
                         </div>
                         <div className="separator border-b border-dashed border-emerald-100"></div>
@@ -70,7 +72,7 @@ export function SavingsWidget({ totalSpend, realizedSavings, savingsRate }: Savi
                             <span className="text-muted-foreground">Bulk IT Hardware Procurement</span>
                             <div className="flex items-center gap-4">
                                 <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50">Negotiating</Badge>
-                                <span className="font-mono font-medium">Est. ₹12.5L</span>
+                                <span className="font-mono font-medium">Est. {formatCurrency(1250000)}</span>
                             </div>
                         </div>
                     </div>

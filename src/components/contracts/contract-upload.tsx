@@ -75,7 +75,7 @@ export function ContractUpload({ onDataExtracted }: ContractUploadProps) {
             setUploading(false);
             setProgress(0);
         }
-    }, [onDataExtracted]);
+    }, []);
 
     const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -207,7 +207,7 @@ export function ContractUpload({ onDataExtracted }: ContractUploadProps) {
                         {extractedData.summary && (
                             <div className="bg-muted/50 p-3 rounded-lg border border-border/50">
                                 <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider block mb-1">Contract Summary</span>
-                                <p className="text-sm text-foreground/90 italic">"{extractedData.summary}"</p>
+                                <p className="text-sm text-foreground/90 italic">&ldquo;{extractedData.summary}&rdquo;</p>
                             </div>
                         )}
 

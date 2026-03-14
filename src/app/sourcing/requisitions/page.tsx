@@ -42,7 +42,7 @@ export default async function RequisitionsPage() {
     };
 
     return (
-        <div className="p-8 space-y-6">
+        <div className="p-4 lg:p-8 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Internal Requisitions</h1>
@@ -102,7 +102,7 @@ export default async function RequisitionsPage() {
                     <CardDescription>Comprehensive audit trail of internal procurement requests.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border overflow-hidden">
+                    <div className="rounded-md border overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50 border-b">
                                 <tr className="text-muted-foreground font-medium">
@@ -144,7 +144,7 @@ export default async function RequisitionsPage() {
                                             </div>
                                         </td>
                                         <td className="p-4 align-middle text-muted-foreground whitespace-nowrap">
-                                            {req.createdAt ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(req.createdAt)) : 'N/A'}
+                                            {req.createdAt ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(req.createdAt)) : 'N/A'}
                                         </td>
                                         <td className="p-4 align-middle text-right">
                                             <RequisitionActions

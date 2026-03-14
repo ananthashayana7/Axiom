@@ -53,7 +53,7 @@ async function getDatabaseContext() {
                 suppliers: supCount.count,
                 parts: pCount.count,
                 orders: ordCount.count,
-                totalSpend: `₹${Number(totalSpend).toLocaleString()}`
+                totalSpend: Number(totalSpend).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })
             },
             topCategories: categorySpend,
             riskySuppliers,
@@ -151,7 +151,7 @@ export async function getFullAiInsights() {
     if (!context) return null;
 
     try {
-        const model = await getAiModel("gemini-1.5-flash");
+        const model = await getAiModel();
         const prompt = `
             You are a senior procurement analyst at Axiom (a Tacto-like platform).
             Analyze this data and provide:
@@ -235,7 +235,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
                 return directResponse;
             }
 
-            const model = await getAiModel("gemini-1.5-flash");
+            const model = await getAiModel();
             const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
                 You are Axiom Copilot, an analytical and efficient procurement AI. 
@@ -269,7 +269,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
                      "keys": ["value"],
                      "insight": "Short technical insight."
                    }
-                5. FORMATTING: Use Indian Rupee (₹) symbols for currency.
+                5. FORMATTING: Use the appropriate currency symbol based on the data context. Default to ₹ for Indian Rupee values.
                 6. GROUNDING & RELIABILITY: 
                    - Answer ONLY based on the provided "Database State" or history.
                    - If a user asks for information not present in the data, state: "I do not have access to that specific data in my current enterprise snapshot."

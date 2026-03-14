@@ -1,8 +1,7 @@
 # Dockerfile for Axiom (Tacto-like Procurement Intelligence Platform)
 
 # Base stage for dependencies
-FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS base
 WORKDIR /app
 
 # Install dependencies

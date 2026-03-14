@@ -199,7 +199,7 @@ async function generateStrategyWithAI(data: {
     );
 
     try {
-        const model = await getAiModel("gemini-1.5-flash");
+        const model = await getAiModel();
 
         const prompt = `
             You are a senior procurement negotiation expert. Generate a negotiation strategy for the following scenario.
@@ -318,7 +318,7 @@ export async function generateCounterOfferEmail(
     }
 
     try {
-        const model = await getAiModel("gemini-1.5-flash");
+        const model = await getAiModel();
 
         const prompt = `
             Write a professional procurement counter-offer email based on this negotiation strategy:

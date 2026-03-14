@@ -48,25 +48,20 @@ export function MitigationAction({ supplierId, supplierName, currentRisk, type =
         })
     }
 
-    const Trigger = () => {
-        if (type === 'card') {
-            return (
-                <Button variant="outline" className="w-full mt-4 border-primary/20 hover:bg-primary/5 text-primary gap-2">
-                    Action Mitigation Plan <ShieldAlert size={14} />
-                </Button>
-            )
-        }
-        return (
-            <button className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 hover:underline">
-                Action Mitigation Plan <ArrowUpRight size={14} />
-            </button>
-        )
-    }
+    const triggerContent = type === 'card' ? (
+        <Button variant="outline" className="w-full mt-4 border-primary/20 hover:bg-primary/5 text-primary gap-2">
+            Action Mitigation Plan <ShieldAlert size={14} />
+        </Button>
+    ) : (
+        <button className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-4 hover:underline">
+            Action Mitigation Plan <ArrowUpRight size={14} />
+        </button>
+    )
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <span><Trigger /></span>
+                {triggerContent}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
