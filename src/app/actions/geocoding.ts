@@ -11,7 +11,7 @@ export async function geocodeSupplier(supplierId: string) {
         if (!supplier) return { success: false, error: "Supplier not found" };
 
         // For now, if we don't have a specific address field, we use city or name as hint
-        const locationHint = supplier.city || supplier.name;
+        const locationHint = supplier.city || supplier.name || "Unknown Region";
 
         const prompt = `
             You are a Geographic Intelligence Agent. 
@@ -47,8 +47,13 @@ export async function geocodeSupplier(supplierId: string) {
 
         return { success: false, error: "Failed to parse coordinates" };
     } catch (error) {
-        console.error("Geocoding Error:", error);
-        return { success: false, error: "Geocoding failed" };
+        console.error("Geocoding Error, using heuristic fallback:", error);
+        const coords = { latitude: null as number | null, longitude: null as number | null };
+        return {
+            success: false,
+            error: "AI geocoding unavailable",
+            data: { ...coords, countryCode: "XX", source: "heuristic", note: "No geocode persisted; manual verification required." }
+        };
     }
 }
 

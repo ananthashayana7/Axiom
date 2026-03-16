@@ -1,11 +1,59 @@
 'use server'
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/auth";
 
 import { getAiModel } from "@/lib/ai-provider";
 
 // Providers are now managed by getAiModel()
+
+function decodeTextFromBase64(data: string) {
+    try {
+        return Buffer.from(data, "base64").toString("utf-8");
+    } catch {
+        return "";
+    }
+}
+
+function extractAmounts(text: string) {
+    return [...text.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d.,]+)\b/gi)]
+        .map(m => parseFloat(m[1].replace(/,/g, "")))
+        .filter(n => !Number.isNaN(n));
+}
+
+function deriveTrend(prev: number, current: number): "up" | "down" | "stable" {
+    if (current > prev * 1.05) return "up";
+    if (current < prev * 0.95) return "down";
+    return "stable";
+}
+
+function riskLevelFromScore(score: number): "low" | "medium" | "high" | "critical" {
+    if (score > 85) return "critical";
+    if (score > 65) return "high";
+    if (score > 45) return "medium";
+    return "low";
+}
+
+type ComplianceFinding = { type: "mismatch" | "missing" | "risk"; description: string; severity: "low" | "medium" | "high" };
+type ComplianceStatus = "compliant" | "partial" | "non-compliant";
+type Variance = { sku: string; variancePercentage: number; trend: "up" | "down" | "stable" };
+type HistoricalPart = {
+    id?: string;
+    sku?: string;
+    shouldCost?: number;
+    unitPrice?: number;
+    price?: number;
+    avgPrice?: number;
+};
+type OrderLike = { totalAmount?: number; amount?: number; status?: string };
+type SupplierLike = { category?: string; name?: string };
+const RISK_WEIGHT_ON_TIME = 0.3;
+const RISK_WEIGHT_QUALITY = 0.3;
+const RISK_WEIGHT_FINANCIAL = 0.4;
+const PARTIAL_COMPLIANCE_THRESHOLD = 0.5;
+const MIN_PARTIAL_THRESHOLD = 1;
+const ESTIMATED_CONSOLIDATION_SAVINGS_RATE = 0.05;
+const TOTAL_SAVINGS_PERCENTAGE = 0.04;
+const NEW_ITEM_VARIANCE_PERCENTAGE = 100; // sentinel variance when no baseline exists
 
 /**
  * Offer Parsing Agent
@@ -56,8 +104,27 @@ export async function parseOffer(fileData: string, fileName: string) {
 
         return { success: false, error: "Failed to parse JSON from AI response" };
     } catch (error) {
-        console.error("Offer Parsing Error:", error);
-        return { success: false, error: "Failed to process document" };
+        console.error("Offer Parsing Error, using heuristic fallback:", error);
+        const text = decodeTextFromBase64(fileData);
+        const amounts = extractAmounts(text);
+        const totalAmount = amounts.length ? Math.max(...amounts) : 0;
+        const deliveryMatch = text.match(/(\d+)\s*(weeks?|week|days?|day)/i);
+        const deliveryLeadTime = deliveryMatch ? deliveryMatch[0] : "4 weeks";
+        const supplierMatch = text.match(/supplier[:\-]\s*([A-Za-z0-9 .-]+)/i);
+        const paymentMatch = text.match(/net\s*\d+|advance|prepaid|cod/i);
+
+        return {
+            success: true,
+            data: {
+                items: [],
+                totalAmount,
+                deliveryLeadTime,
+                validityPeriod: "30 days",
+                supplierName: supplierMatch ? supplierMatch[1].trim() : "Unknown Supplier",
+                paymentTerms: paymentMatch ? paymentMatch[0] : "Standard",
+                note: "Heuristic parse used because AI model was unavailable."
+            }
+        };
     }
 }
 
@@ -104,8 +171,37 @@ export async function analyzeCompliance(documents: { name: string, content: stri
 
         return { success: false, error: "Failed to parse compliance data" };
     } catch (error) {
-        console.error("Compliance Analysis Error:", error);
-        return { success: false, error: "Failed to analyze compliance" };
+        console.error("Compliance Analysis Error, using heuristic fallback:", error);
+        const keywords = rfqRequirements
+            .split(/[\n,;]+/)
+            .map(k => k.trim())
+            .filter(k => k.length > 2);
+
+        const combinedDocs = documents.map(d => `${d.name}: ${d.content}`.toLowerCase()).join(" ");
+        const missing: ComplianceFinding[] = [];
+
+        for (const key of keywords) {
+            const normalized = key.toLowerCase();
+            if (!combinedDocs.includes(normalized)) {
+                missing.push({
+                    type: "missing",
+                    description: `Requirement "${key}" not explicitly found in provided documents.`,
+                    severity: "medium"
+                });
+            }
+        }
+
+        // allow up to configured percentage missing to remain "partial"
+        const partialThreshold = Math.max(MIN_PARTIAL_THRESHOLD, Math.floor(keywords.length * PARTIAL_COMPLIANCE_THRESHOLD));
+        const status: ComplianceStatus =
+            missing.length === 0 ? "compliant" :
+                missing.length <= partialThreshold ? "partial" : "non-compliant";
+
+        const recommendation = (missing.length === 0
+            ? "All stated requirements are present. Proceed to commercial evaluation."
+            : `Review ${missing.length} missing requirement(s) and request updated documentation from suppliers.`) + " (Heuristic check – verify manually.)";
+
+        return { success: true, data: { status, findings: missing, recommendation } };
     }
 }
 
@@ -154,8 +250,48 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
 
         return { success: false, error: "Failed to parse cost analysis" };
     } catch (error) {
-        console.error("Cost Analysis Error:", error);
-        return { success: false, error: "Failed to analyze costs" };
+        console.error("Cost Analysis Error, using heuristic fallback:", error);
+        const historicalMap = new Map<string, HistoricalPart>();
+        (historicalParts as HistoricalPart[]).forEach((p) => {
+            const key = p.sku || p.id;
+            if (key) historicalMap.set(key, p);
+        });
+
+        let potentialSavings = 0;
+        const variances = quoteItems.map((item, index) => {
+            const sku = item.sku || item.part?.sku || item.name || `ITEM_${index + 1}`;
+            const quoted = Number(item.unitPrice ?? item.price ?? item.amount ?? item.totalAmount ?? 0);
+            const history = historicalMap.get(sku) || (item.partId ? historicalMap.get(item.partId) : undefined);
+            const baseline = Number((history?.shouldCost ?? history?.unitPrice ?? history?.price ?? history?.avgPrice ?? quoted ?? 0));
+            let varianceRaw = 0;
+            if (baseline > 0) {
+                varianceRaw = ((quoted - baseline) / baseline) * 100;
+            } else if (quoted > 0) {
+                varianceRaw = NEW_ITEM_VARIANCE_PERCENTAGE; // treat as new pricing without baseline
+            }
+            const quantity = Number(item.quantity || 1);
+            if (baseline > 0) {
+                const delta = baseline - quoted;
+                if (delta > 0) {
+                    potentialSavings += delta * quantity;
+                }
+            }
+            const safeBaseline = baseline > 0 ? baseline : 1;
+            const safeQuoted = quoted > 0 ? quoted : safeBaseline;
+
+            return {
+                sku,
+                variancePercentage: Math.round(varianceRaw),
+                trend: deriveTrend(safeBaseline, safeQuoted)
+            } as Variance;
+        });
+
+        const hotSku = variances.sort((a, b) => b.variancePercentage - a.variancePercentage)[0];
+        const negotiationStrategy = hotSku
+            ? `Anchor negotiations on ${hotSku.sku} where variance is ${hotSku.variancePercentage}% above historical. Push for baseline pricing first, then volume rebates. (Heuristic fallback — validate numbers manually.)`
+            : "Compare quotes against recent purchases and request best-and-final offers for top SKUs. (Heuristic fallback — validate numbers manually.)";
+
+        return { success: true, data: { variances, negotiationStrategy, potentialSavings } };
     }
 }
 
@@ -206,8 +342,33 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
 
         return { success: false, error: "Failed to parse risk analysis" };
     } catch (error) {
-        console.error("Risk Analysis Error:", error);
-        return { success: false, error: "Failed to analyze risk" };
+        console.error("Risk Analysis Error, using heuristic fallback:", error);
+        const onTime = Number(supplierData.onTimeDelivery || supplierData.onTime || 90);
+        const quality = Number(supplierData.qualityScore || supplierData.quality || 90);
+        const financial = Number(supplierData.riskScore || supplierData.financialRisk || 50);
+
+        const riskScore = Math.round(
+            (100 - onTime) * RISK_WEIGHT_ON_TIME +
+            (100 - quality) * RISK_WEIGHT_QUALITY +
+            financial * RISK_WEIGHT_FINANCIAL
+        );
+        const boundedScore = Math.min(100, Math.max(0, riskScore));
+        const overallRiskLevel = riskLevelFromScore(boundedScore);
+
+        const keyAlerts = [];
+        if (onTime < 90) keyAlerts.push("On-time delivery below 90%");
+        if (quality < 85) keyAlerts.push("Quality score below 85%");
+        if (financial > 60) keyAlerts.push("Financial risk above threshold");
+
+        return {
+            success: true,
+            data: {
+                overallRiskLevel,
+                riskScore: boundedScore,
+                mitigationStrategy: "Diversify volume across 2 suppliers and request quarterly scorecards. (Heuristic fallback — validate).",
+                keyAlerts: [...keyAlerts, "Heuristic scoring used because AI model was unavailable."]
+            }
+        };
     }
 }
 
@@ -215,7 +376,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
  * Spend Analysis Agent
  * Identifies savings opportunities across the platform
  */
-export async function analyzeSpend(orders: any[], suppliers: any[]) {
+export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[]) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -256,8 +417,28 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
 
         return { success: false, error: "Failed to parse spend analysis" };
     } catch (error) {
-        console.error("Spend Analysis Error:", error);
-        return { success: false, error: "Failed to analyze spend" };
+        console.error("Spend Analysis Error, using heuristic fallback:", error);
+        const total = orders.reduce((acc, o) => acc + Number(o.totalAmount || o.amount || 0), 0);
+        const avg = orders.length ? total / orders.length : 0;
+        const overlappingCategories = new Set<string>();
+        suppliers.forEach((s) => {
+            if (s.category) overlappingCategories.add(s.category);
+        });
+
+        const opportunities = Array.from(overlappingCategories).slice(0, 3).map((cat) => ({
+            type: "consolidation",
+            description: `Consolidate spend in category '${cat}' with 1-2 strategic suppliers.`,
+            estimatedSavings: Math.round(avg * ESTIMATED_CONSOLIDATION_SAVINGS_RATE)
+        }));
+
+        return {
+            success: true,
+            data: {
+                totalSavingPotential: Math.round(total * TOTAL_SAVINGS_PERCENTAGE),
+                opportunities,
+                actionPlan: "Negotiate volume contracts for top categories, rebid high-variance SKUs, and enforce approval for off-contract spend. (Heuristic fallback — validate figures.)"
+            }
+        };
     }
 }
 /**
@@ -310,7 +491,23 @@ export async function parseContractDocument(fileData: string, fileName: string) 
 
         return { success: false, error: "Failed to parse legal data from AI response" };
     } catch (error) {
-        console.error("Contract Parsing Error:", error);
-        return { success: false, error: "Failed to process contract document" };
+        console.error("Contract Parsing Error, using heuristic fallback:", error);
+        const text = decodeTextFromBase64(fileData);
+        const dateMatches = [...text.matchAll(/\b(20\d{2}-\d{2}-\d{2}|20\d{2}\/\d{2}\/\d{2})\b/g)].map(m => m[1]);
+        const liabilityMatch = text.match(/(?:cap|liability)[^0-9]{0,10}([\d.,]+)/i);
+        const renewal = /auto[-\s]?renew/i.test(text);
+
+        return {
+            success: true,
+            data: {
+                effectiveDate: dateMatches[0] || null,
+                expirationDate: dateMatches[1] || null,
+                noticePeriodDays: 30,
+                liabilityCapAmount: liabilityMatch ? parseFloat(liabilityMatch[1].replace(/,/g, "")) : null,
+                priceLockDurationMonths: 12,
+                autoRenewal: renewal,
+                summary: "Heuristic contract summary generated without AI model. Review key dates and liability terms manually."
+            }
+        };
     }
 }
