@@ -72,6 +72,7 @@ export async function predictReplenishmentAlert(partId: string) {
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();

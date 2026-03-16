@@ -152,6 +152,7 @@ export async function getFullAiInsights() {
 
     try {
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const prompt = `
             You are a senior procurement analyst at Axiom (a Tacto-like platform).
             Analyze this data and provide:
@@ -236,6 +237,7 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
             }
 
             const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
             const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
                 You are Axiom Copilot, an analytical and efficient procurement AI. 

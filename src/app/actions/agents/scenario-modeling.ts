@@ -146,6 +146,7 @@ async function generateScenarioWithAI(
     baselineData: Record<string, unknown>
 ): Promise<ScenarioResult> {
     const model = await getAiModel();
+    if (!model) throw new Error("AI model not available");
 
     const prompt = `You are a procurement analytics expert. Analyze this what-if scenario and provide projections.
 

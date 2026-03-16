@@ -189,6 +189,9 @@ async function generateForecastWithAI(
     try {
         const model = await getAiModel();
 
+        // If no AI model available, use statistical fallback immediately
+        if (!model) throw new Error("AI model not available");
+
         const prompt = `
             You are a demand forecasting expert. Analyze the following historical order data and provide a demand forecast.
             

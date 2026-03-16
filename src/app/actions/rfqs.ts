@@ -301,6 +301,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
             // Use the centralized AI provider
             const { getAiModel } = await import("@/lib/ai-provider");
             const model = await getAiModel("gemini-2.5-flash");
+            if (!model) throw new Error("AI model not available");
 
             const prompt = `
                 Analyze this quotation text and extract structured data:

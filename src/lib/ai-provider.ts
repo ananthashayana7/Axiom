@@ -16,9 +16,15 @@ export async function getAiModel(modelName: string = "gemini-2.5-flash") {
     }
 
     if (!apiKey || apiKey.trim().length === 0) {
-        throw new Error("AI Provider: Missing valid Gemini API Key. Please configure it in Settings or Environment variables.");
+        console.warn("AI Provider: No Gemini API key configured — agents will use statistical fallback logic.");
+        return null;
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    return genAI.getGenerativeModel({ model: modelName });
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        return genAI.getGenerativeModel({ model: modelName });
+    } catch (error) {
+        console.error("AI Provider: Failed to initialize Gemini model.", error);
+        return null;
+    }
 }

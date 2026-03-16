@@ -34,6 +34,7 @@ export async function parseOffer(fileData: string, fileName: string) {
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         // fileData is expected to be a base64 encoded string
         const result = await model.generateContent([
             prompt,
@@ -91,6 +92,7 @@ export async function analyzeCompliance(documents: { name: string, content: stri
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -140,6 +142,7 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -191,6 +194,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -240,6 +244,7 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -284,6 +289,7 @@ export async function parseContractDocument(fileData: string, fileName: string) 
         `;
 
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const result = await model.generateContent([
             prompt,
             {
