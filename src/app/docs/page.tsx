@@ -230,6 +230,118 @@ const SECTIONS = [
             "Real-time Logs — Telemetry-driven error tracking provides deep visibility into server-side failures.",
             "CI/CD Ready — Built-in linting and type-checking ensure code quality remains high during iterative development."
         ]
+    },
+    {
+        id: "sourcing_workflow",
+        title: "Sourcing Request Workflow",
+        icon: ShoppingCart,
+        content: "A Sourcing Request (RFQ) is the formal process of inviting competitive quotes from qualified suppliers before committing to a purchase. Axiom walks you through each step.",
+        steps: [
+            "Create New Sourcing Request — Navigate to Sourcing → RFQs → New RFQ. Fill in the Part/SKU, required quantity, target delivery date, and attached specifications.",
+            "Supplier Invitation — Add one or more suppliers to the RFQ. Each supplier receives an invitation via their registered email and can respond through the Supplier Portal.",
+            "Quote Collection — Suppliers submit their unit price, lead time, and validity period. All quotes are tracked against the original RFQ for a full audit trail.",
+            "Quote Comparison — Use the built-in comparison view to rank suppliers by price, lead time, and historical performance score.",
+            "Award Decision — Select the winning quote to auto-generate a linked Purchase Order (PO). The rejected suppliers receive notifications.",
+            "PO Lifecycle — The PO moves through: Draft → Pending Approval → Approved → Sent to Supplier → Fulfilled (after goods receipt) → Closed."
+        ]
+    },
+    {
+        id: "requisitions_workflow",
+        title: "Internal Requisitions",
+        icon: FileText,
+        content: "Internal Requisitions allow any authorized user to request materials or services. They go through an approval workflow before becoming a PO.",
+        steps: [
+            "Submit Requisition — Go to Sourcing → Requisitions → New Requisition. Select the Part/SKU, quantity, urgency, and the department making the request.",
+            "Auto-Budget Check — The system validates the request against the department's allocated budget envelope.",
+            "Manager Approval — Requisitions above a threshold require manager-level approval. Notifications go to department leads automatically.",
+            "PO Conversion — Once approved, Procurement can convert the requisition to a PO with a single click, pre-filling all line items.",
+            "Status Tracking — Requisitioners can track approval status in real-time: Draft → Submitted → Under Review → Approved/Rejected → Converted to PO.",
+            "Rejection Handling — Rejected requisitions return to the requester with the reason noted, allowing resubmission with corrections."
+        ]
+    },
+    {
+        id: "invoice_workflow",
+        title: "Invoice Management & 3-Way Match",
+        icon: Scale,
+        content: "Invoice management in Axiom enforces 3-way matching to prevent fraudulent or erroneous payments. Each invoice must align with its PO and Goods Receipt.",
+        steps: [
+            "Invoice Receipt — Suppliers submit invoices via the Supplier Portal, or procurement staff manually logs them in Sourcing → Invoice Records.",
+            "Currency Integrity — Every invoice preserves its original currency (INR, EUR, USD, etc.). Axiom never auto-converts amounts — what was invoiced is what is shown.",
+            "3-Way Match — Admin navigates to Admin → Financial Matching. For each pending invoice, verify: (1) Supplier matches PO, (2) Quantities match GR, (3) Amount matches agreed price.",
+            "Match Outcome — Click 'Match' to approve (status → Matched), or 'Dispute' to flag for supplier clarification (status → Disputed).",
+            "Payment Release — Only Matched invoices can be moved to 'Paid'. Disputed invoices are frozen until the supplier responds and the admin resolves.",
+            "Audit Completeness — Every status change (Pending → Matched → Paid) is logged in the Audit Trail with user ID, timestamp, and invoice reference."
+        ]
+    },
+    {
+        id: "process_reorders",
+        title: "Process Reorders (Parts Intelligence)",
+        icon: Package,
+        content: "The 'Process Reorders' action in Parts Intelligence triggers the automated replenishment workflow for critical and low-stock SKUs.",
+        steps: [
+            "Stock Monitoring — Axiom continuously compares current stock levels against Min Stock Level and Reorder Point thresholds.",
+            "Alert Classification — Parts below Reorder Point are 'Low Stock'; parts below Min Stock Level are 'Critical' (highlighted in red).",
+            "Process Reorders Click — Clicking 'Process Reorders' on a critical part opens a pre-filled Requisition with the recommended order quantity (up to max stock level).",
+            "Auto-Assignment — The system suggests the supplier with the best performance score and last quoted price for the SKU.",
+            "Approval Fast-Track — Reorder requisitions above critical threshold can be auto-approved by admin policy for zero-delay procurement.",
+            "Replenishment Loop — Once the PO is fulfilled and goods are received, stock levels automatically update and alerts clear."
+        ]
+    },
+    {
+        id: "supplier_data",
+        title: "Supplier Data: Tier, ESG, Financial, Compliance",
+        icon: ShieldCheck,
+        content: "Supplier scorecards in Axiom are dynamically computed from transaction history, performance logs, and compliance events — not manual entry.",
+        steps: [
+            "Tier Classification — Tier 1 (Strategic), Tier 2 (Preferred), Tier 3 (Transactional). Updated by procurement managers based on spend volume and relationship depth.",
+            "Financial Health Score — Calculated from: on-time payment rate, invoice dispute rate, order fulfillment rate, and external credit signals (manually entered or API-fed).",
+            "ESG Score — Environment, Social, Governance index. Updated via performance log entries tagged as ESG events (e.g., 'Passed ISO 14001 audit', 'CSR Report submitted').",
+            "Compliance Status — Tracks certification expiry dates (ISO, SOC2, GDPR, local regulations). Admin can log compliance milestones via Supplier Performance Logs.",
+            "Automated Degradation — Repeated disputes, late deliveries, or failed QC inspections progressively lower the performance score automatically.",
+            "Manual Overrides — Admin can set scores directly when external audit reports provide authoritative data not captured in transaction logs."
+        ]
+    },
+    {
+        id: "risk_intelligence",
+        title: "Risk Intelligence",
+        icon: ShieldCheck,
+        content: "Risk Intelligence gives a real-time view of supply chain vulnerabilities across geopolitical, financial, and operational dimensions.",
+        steps: [
+            "Risk Score Computation — Each supplier's risk score (0–100) is derived from: financial health, ESG performance, delivery reliability, compliance status, and geographic risk.",
+            "Geographic Risk Map — Countries are color-coded: Green = suppliers with low risk (<45), Amber = moderate (45–70), Red = high risk (>70). Only countries with actual suppliers are highlighted.",
+            "Risk Categories — Operational Risk (delivery failures), Financial Risk (low health score), ESG Risk (non-compliance), Geopolitical Risk (country risk index).",
+            "Intervention Actions — For any high-risk supplier, admin can: open a Sourcing Request to dual-source, add a Performance Log, or place the supplier on watchlist.",
+            "Watchlist & Alerts — Suppliers crossing risk thresholds auto-generate alerts visible in the Risk Intelligence panel and the Notification Center.",
+            "Reliability of Scores — Risk scores are as reliable as the data entered. Keeping supplier performance logs, QC records, and compliance dates updated directly improves accuracy."
+        ]
+    },
+    {
+        id: "ai_agents",
+        title: "AI Agents",
+        icon: Sparkles,
+        content: "Axiom's AI agents are resilient, context-aware autonomous workers that analyze your live procurement data and surface actionable intelligence.",
+        steps: [
+            "Resilience Design — Every agent has a deterministic fallback path: if the Gemini API is unavailable or returns an error, heuristic algorithms compute the same output using rule-based logic.",
+            "Context Injection — Before each agent run, the system injects a snapshot of relevant DB records (suppliers, orders, spend, risk) into the prompt for grounded responses.",
+            "Available Agents — (1) Spend Optimizer: finds cost-reduction opportunities, (2) Risk Detector: surfaces new supplier risks, (3) Demand Forecaster: predicts reorder dates.",
+            "Agent Execution Log — Every agent run is recorded in `agent_executions` with duration, success status, and output summary for full traceability.",
+            "Manual Trigger vs Auto — Agents can be manually triggered by admin or set to run on a schedule (daily/weekly) via the Admin → Agents panel.",
+            "Output Actions — Agent insights are surfaced as notifications and, where applicable, auto-draft Requisitions or Risk Alerts for admin review."
+        ]
+    },
+    {
+        id: "account_management",
+        title: "Account Management & Roles",
+        icon: Lock,
+        content: "Axiom uses a role-based access control (RBAC) system. Account creation is exclusively the admin's responsibility.",
+        steps: [
+            "Admin Role — Full access: can see, create, edit, and delete across all modules. Can manage users, configure settings, run financial matching, and purge data.",
+            "User Role — Operational access: can view all sections and perform day-to-day actions (create orders, log receipts, submit tickets). Cannot access Admin Settings, User Management, or Financial Matching.",
+            "Supplier Role — Portal-only access: can view their RFQs, submit quotes, upload invoices, and track purchase orders. Cannot access internal procurement data.",
+            "Account Creation — Only the admin can create user accounts via Admin → User Management. Self-registration is disabled for security.",
+            "Password Policy — All passwords are bcrypt-hashed (12 rounds). Users can change passwords via Admin Settings → Security. Admins can reset user passwords.",
+            "2FA Enforcement — Two-Factor Authentication (TOTP-based) is required for all logins. Admins enable/manage 2FA status from Admin Settings → Security."
+        ]
     }
 ];
 
