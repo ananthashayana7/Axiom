@@ -10,6 +10,39 @@ import { auth } from "@/auth";
 import { parseOffer } from "./ai-agents";
 import { users as usersTable } from "@/db/schema";
 
+function heuristicQuotationSummary(quoteText: string) {
+    const text = quoteText || "";
+    const amountMatches = [...text.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d.,]+)\b/gi)]
+        .map(m => parseFloat(m[1].replace(/,/g, "")))
+        .filter(n => !Number.isNaN(n));
+
+    const deliveryMatch = text.match(/(\d+)\s*(weeks?|week|wks?|days?|day)/i);
+    let deliveryWeeks = 4;
+    if (deliveryMatch) {
+        const num = parseInt(deliveryMatch[1]);
+        if (!Number.isNaN(num)) {
+            deliveryWeeks = /day/i.test(deliveryMatch[2]) ? Math.max(1, Math.ceil(num / 7)) : num;
+        }
+    }
+
+    const termsMatch = text.match(/net\s*(\d+)/i) || text.match(/advance|prepaid|cod/i);
+    const terms = termsMatch ? `Payment terms: ${termsMatch[0]}` : "Standard terms - please confirm with supplier.";
+
+    const totalAmount = amountMatches.length > 0 ? Math.max(...amountMatches) : 0;
+    const highlights = [];
+    if (amountMatches.length > 0) highlights.push(`Detected ${amountMatches.length} numeric amount(s).`);
+    if (deliveryMatch) highlights.push(`Indicated delivery in ~${deliveryWeeks} week(s).`);
+    highlights.push("Heuristic parsing applied (AI unavailable).");
+
+    return {
+        totalAmount,
+        deliveryWeeks,
+        terms,
+        highlights,
+        aiConfidence: amountMatches.length > 0 ? 55 : 35
+    };
+}
+
 export async function getRFQs() {
     const session = await auth();
     if (!session) return [];
@@ -330,13 +363,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
             }
         } catch (aiError) {
             console.error("AI Quotation Parsing failed, using fallback:", aiError);
-            analysis = {
-                totalAmount: 0,
-                deliveryWeeks: 0,
-                terms: "Error parsing quote",
-                highlights: ["AI parsing failed"],
-                aiConfidence: 0
-            };
+            analysis = heuristicQuotationSummary(quoteText);
         }
 
         const analysisString = JSON.stringify(analysis);
