@@ -1,6 +1,11 @@
+'use server'
+
 /**
  * Agent Index - Central export for all AI agents
  */
+
+import { auth } from "@/auth";
+import { TelemetryService } from "@/lib/telemetry";
 
 // P0 Agents
 import {
@@ -62,6 +67,8 @@ import {
     analyzeSupplierDependency
 } from './supplier-ecosystem';
 
+import { AGENT_REGISTRY, AGENT_BUNDLES, type AgentName, type AgentBundleName } from './registry';
+
 export {
     runDemandForecastingAgent,
     getReplenishmentAlerts,
@@ -91,157 +98,96 @@ export {
     analyzeSupplierDependency
 };
 
-// Agent metadata for registry
-export const AGENT_REGISTRY = [
-    {
-        name: 'demand-forecasting',
-        displayName: 'Demand Forecasting',
-        description: 'Predicts future part requirements based on historical patterns',
-        category: 'procurement',
-        triggers: ['scheduled', 'manual', 'copilot'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 60000,
-        version: '1.0.0'
-    },
-    {
-        name: 'fraud-detection',
-        displayName: 'Fraud Detection',
-        description: 'Identifies anomalies and suspicious patterns in transactions',
-        category: 'risk',
-        triggers: ['scheduled', 'event', 'manual'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 45000,
-        version: '1.0.0'
-    },
-    {
-        name: 'payment-optimizer',
-        displayName: 'Payment Optimizer',
-        description: 'Analyzes payment timing for early discount capture',
-        category: 'financial',
-        triggers: ['scheduled', 'manual', 'copilot'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 30000,
-        version: '1.0.0'
-    },
-    {
-        name: 'negotiations-autopilot',
-        displayName: 'Negotiations Autopilot',
-        description: 'Generates negotiation strategies and counter-offers',
-        category: 'procurement',
-        triggers: ['manual', 'copilot'],
-        isEnabled: true,
-        requiresApproval: true,
-        maxRetries: 2,
-        timeoutMs: 45000,
-        version: '1.0.0'
-    },
-    {
-        name: 'contract-clause-analyzer',
-        displayName: 'Contract Clause Analyzer',
-        description: 'Identifies risky clauses and compliance issues',
-        category: 'compliance',
-        triggers: ['manual', 'event', 'copilot'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 60000,
-        version: '1.0.0'
-    },
-    {
-        name: 'smart-approval-routing',
-        displayName: 'Smart Approval Routing',
-        description: 'ML-based approval path optimization with risk assessment',
-        category: 'workflow',
-        triggers: ['event', 'manual'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 30000,
-        version: '1.0.0'
-    },
-    {
-        name: 'predictive-bottleneck',
-        displayName: 'Predictive Bottleneck',
-        description: 'Identifies workflow delays and predicts bottlenecks',
-        category: 'workflow',
-        triggers: ['scheduled', 'manual'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 45000,
-        version: '1.0.0'
-    },
-    {
-        name: 'auto-remediation',
-        displayName: 'Auto-Remediation',
-        description: 'Automatically resolves common workflow issues',
-        category: 'workflow',
-        triggers: ['scheduled', 'manual'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 60000,
-        version: '1.0.0'
-    },
-    {
-        name: 'scenario-modeling',
-        displayName: 'Scenario Modeling',
-        description: 'AI-powered what-if analysis for procurement decisions',
-        category: 'analytics',
-        triggers: ['manual', 'copilot'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 60000,
-        version: '1.0.0'
-    },
-    {
-        name: 'supplier-ecosystem',
-        displayName: 'Supplier Ecosystem',
-        description: 'Maps supplier relationships and risk propagation',
-        category: 'analytics',
-        triggers: ['scheduled', 'manual'],
-        isEnabled: true,
-        requiresApproval: false,
-        maxRetries: 2,
-        timeoutMs: 90000,
-        version: '1.0.0'
-    }
-] as const;
-
-export type AgentName = typeof AGENT_REGISTRY[number]['name'];
-
-export type AgentBundleName = 'post-import' | 'compliance-sweep' | 'workflow-recovery';
-
-const AGENT_BUNDLES: Record<AgentBundleName, AgentName[]> = {
-    'post-import': ['demand-forecasting', 'fraud-detection', 'payment-optimizer'],
-    'compliance-sweep': ['fraud-detection', 'contract-clause-analyzer', 'payment-optimizer'],
-    'workflow-recovery': ['predictive-bottleneck', 'smart-approval-routing', 'auto-remediation'],
-};
-
 /**
  * Centralized dispatcher for running agents from the UI
  */
 export async function triggerAgentDispatch(agentName: AgentName) {
+    const started = Date.now();
     console.log(`[AgentDispatcher] Triggering ${agentName}...`);
 
+    const agentMeta = AGENT_REGISTRY.find(a => a.name === agentName);
+    if (!agentMeta) {
+        return {
+            success: false,
+            error: `Dispatcher not implemented for ${agentName}`,
+            agentName: "system",
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0
+        };
+    }
+
+    const session = await auth();
+    const role = (session?.user as { role?: string } | undefined)?.role ?? 'guest';
+
+    if (!session?.user) {
+        await TelemetryService.trackEvent('AgentDispatch', 'blocked_unauthenticated', { agentName });
+        return {
+            success: false,
+            error: "You must be signed in to dispatch AI agents.",
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0
+        };
+    }
+
+    if (!agentMeta.isEnabled) {
+        await TelemetryService.trackEvent('AgentDispatch', 'blocked_disabled', { agentName, role });
+        return {
+            success: false,
+            error: "This agent is currently disabled.",
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0
+        };
+    }
+
+    if (agentMeta.requiresApproval && role !== 'admin') {
+        await TelemetryService.trackEvent('AgentDispatch', 'blocked_requires_approval', { agentName, role });
+        return {
+            success: false,
+            error: "Admin approval is required before this agent can run. Please request an administrator to dispatch it.",
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0
+        };
+    }
+
+    const enforceTimeout = <T>(promise: Promise<T>) =>
+        Promise.race([
+            promise,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Agent ${agentName} timed out after ${agentMeta.timeoutMs}ms`)), agentMeta.timeoutMs)
+            )
+        ]);
+
     try {
+        let result: {
+            success: boolean;
+            error?: string;
+            agentName?: string;
+            timestamp?: Date;
+            executionTimeMs?: number;
+            confidence?: number;
+            reasoning?: string;
+        };
+
         switch (agentName) {
             case 'demand-forecasting':
-                return await runDemandForecastingAgent();
+                result = await enforceTimeout(runDemandForecastingAgent());
+                break;
             case 'fraud-detection':
-                return await runFraudDetectionAgent();
+                result = await enforceTimeout(runFraudDetectionAgent());
+                break;
             case 'payment-optimizer':
-                return await runPaymentOptimizationAgent();
+                result = await enforceTimeout(runPaymentOptimizationAgent());
+                break;
             case 'negotiations-autopilot':
                 // Requires specific context, but we can run a global analysis as a "pilot"
-                return {
+                result = {
                     success: false,
                     error: "Negotiations Autopilot requires a specific RFQ context. Please use the RFQ Detail page.",
                     agentName: "negotiations-autopilot",
@@ -249,24 +195,31 @@ export async function triggerAgentDispatch(agentName: AgentName) {
                     executionTimeMs: 0,
                     confidence: 0
                 };
+                break;
             case 'contract-clause-analyzer':
-                return await analyzeContractClauses();
+                result = await enforceTimeout(analyzeContractClauses());
+                break;
             case 'smart-approval-routing':
-                return await processAutoApprovals();
+                result = await enforceTimeout(processAutoApprovals());
+                break;
             case 'predictive-bottleneck':
-                return await detectBottlenecks();
+                result = await enforceTimeout(detectBottlenecks());
+                break;
             case 'auto-remediation':
-                return await runAutoRemediation();
+                result = await enforceTimeout(runAutoRemediation());
+                break;
             case 'scenario-modeling':
-                return await runScenarioAnalysis({
+                result = await enforceTimeout(runScenarioAnalysis({
                     scenarioType: 'price_change',
                     description: 'Global 5% market price volatility analysis',
                     parameters: { percentChange: 5 }
-                });
+                }));
+                break;
             case 'supplier-ecosystem':
-                return await buildSupplierEcosystem();
+                result = await enforceTimeout(buildSupplierEcosystem());
+                break;
             default:
-                return {
+                result = {
                     success: false,
                     error: `Dispatcher not implemented for ${agentName}`,
                     agentName: "system",
@@ -274,7 +227,16 @@ export async function triggerAgentDispatch(agentName: AgentName) {
                     executionTimeMs: 0,
                     confidence: 0
                 };
+                break;
         }
+
+        return {
+            ...result,
+            agentName: result.agentName ?? agentName,
+            timestamp: result.timestamp ?? new Date(),
+            executionTimeMs: result.executionTimeMs ?? Date.now() - started,
+            confidence: result.confidence ?? 0
+        };
     } catch (error) {
         console.error(`[AgentDispatcher] Error running ${agentName}:`, error);
         return {
@@ -282,7 +244,7 @@ export async function triggerAgentDispatch(agentName: AgentName) {
             error: error instanceof Error ? error.message : "Internal execution error",
             agentName: agentName as string,
             timestamp: new Date(),
-            executionTimeMs: 0,
+            executionTimeMs: Date.now() - started,
             confidence: 0
         };
     }

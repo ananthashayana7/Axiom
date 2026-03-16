@@ -24,8 +24,8 @@ export interface AgentMetadata {
     description: string;
     category: AgentCategory;
     triggers: AgentTrigger[];
-    inputSchema?: Record<string, unknown>;
-    outputSchema?: Record<string, unknown>;
+    inputSchema?: unknown;
+    outputSchema?: unknown;
     version: string;
     isEnabled: boolean;
     requiresApproval: boolean;  // For actions that modify data

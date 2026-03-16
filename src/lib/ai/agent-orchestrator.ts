@@ -6,7 +6,6 @@
 
 'use server'
 
-import { db } from "@/db";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import type {
@@ -15,8 +14,7 @@ import type {
     AgentContext,
     AgentExecutionOptions,
     AgentChain,
-    AgentCategory,
-    AgentTrigger
+    AgentCategory
 } from "./agent-types";
 
 // Agent Registry - Central storage for all registered agents
@@ -25,6 +23,30 @@ const agentRegistry = new Map<string, RegisteredAgent>();
 interface RegisteredAgent {
     metadata: AgentMetadata;
     executor: (context: AgentContext, input: unknown) => Promise<AgentResult>;
+}
+
+function validateAgentInput(agentName: string, input: unknown, schema?: unknown): {
+    ok: boolean;
+    data?: unknown;
+    error?: string;
+} {
+    const maybeZod = schema as {
+        safeParse?: (data: unknown) => { success: boolean; data?: unknown; error?: { issues?: Array<{ path: (string | number)[]; message: string }> } };
+    } | undefined;
+
+    if (maybeZod?.safeParse) {
+        const parsed = maybeZod.safeParse(input);
+        if (!parsed.success) {
+            const details = parsed.error?.issues?.slice(0, 2)?.map(issue => `${issue.path.join('.') || 'input'}: ${issue.message}`)?.join('; ');
+            return {
+                ok: false,
+                error: `Invalid input for ${agentName}${details ? ` (${details})` : ''}`
+            };
+        }
+        return { ok: true, data: parsed.data };
+    }
+
+    return { ok: true, data: input };
 }
 
 /**
@@ -100,6 +122,35 @@ export async function executeAgent<T = unknown>(
         };
     }
 
+    const validation = validateAgentInput(agentName, input, agent.metadata.inputSchema);
+    if (!validation.ok) {
+        const failedResult: AgentResult<T> = {
+            success: false,
+            error: validation.error ?? 'Input validation failed',
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName,
+            timestamp: new Date()
+        };
+
+        await TelemetryService.trackError('AgentOrchestrator', `${agentName}_validation_failed`, new Error(failedResult.error), {
+            userId: context.userId
+        });
+
+        await logAgentExecution({
+            agentName,
+            status: 'failed',
+            inputContext: JSON.stringify(input),
+            errorMessage: failedResult.error,
+            executionTimeMs: failedResult.executionTimeMs,
+            triggeredBy: context.triggeredBy,
+            userId: context.userId
+        });
+
+        return failedResult;
+    }
+
+    const sanitizedInput = validation.data;
     const maxRetries = options.maxRetries ?? agent.metadata.maxRetries ?? 2;
     const timeoutMs = options.timeoutMs ?? agent.metadata.timeoutMs ?? 30000;
 
@@ -112,7 +163,7 @@ export async function executeAgent<T = unknown>(
         try {
             // Execute with timeout
             const result = await Promise.race([
-                agent.executor(context, input),
+                agent.executor(context, sanitizedInput),
                 new Promise<never>((_, reject) =>
                     setTimeout(() => reject(new Error('Agent execution timed out')), timeoutMs)
                 )
@@ -122,7 +173,7 @@ export async function executeAgent<T = unknown>(
             await logAgentExecution({
                 agentName,
                 status: 'success',
-                inputContext: JSON.stringify(input),
+                inputContext: JSON.stringify(sanitizedInput),
                 outputData: JSON.stringify(result.data),
                 confidenceScore: result.confidence,
                 tokenUsage: result.tokenUsage,
@@ -165,7 +216,7 @@ export async function executeAgent<T = unknown>(
     await logAgentExecution({
         agentName,
         status: 'failed',
-        inputContext: JSON.stringify(input),
+        inputContext: JSON.stringify(sanitizedInput),
         errorMessage: errorResult.error,
         executionTimeMs: errorResult.executionTimeMs,
         triggeredBy: context.triggeredBy,
@@ -254,7 +305,7 @@ export async function executeAgentChain<T = unknown>(
 /**
  * Get agent execution statistics
  */
-export async function getAgentStats(agentName?: string, days: number = 7): Promise<{
+export async function getAgentStats(agentName?: string, _days: number = 7): Promise<{
     totalExecutions: number;
     successRate: number;
     avgExecutionTime: number;
@@ -319,7 +370,11 @@ function mapAgentInput(
 ): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
     for (const [targetKey, sourceKey] of Object.entries(mapping)) {
-        mapped[targetKey] = previousOutput[sourceKey];
+        if (Object.prototype.hasOwnProperty.call(previousOutput, sourceKey)) {
+            mapped[targetKey] = previousOutput[sourceKey];
+        } else {
+            console.warn(`Input mapping warning: "${sourceKey}" not found on previous output for target "${targetKey}"`);
+        }
     }
     return mapped;
 }

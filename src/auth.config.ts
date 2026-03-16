@@ -7,6 +7,9 @@ export const authConfig = {
     },
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
+            const allowBypass = process.env.ALLOW_DEMO_BYPASS === 'true';
+            if (allowBypass && process.env.NODE_ENV !== 'production') return true;
+
             const isLoggedIn = !!auth?.user;
             const isOnLoginPage = nextUrl.pathname.startsWith('/login');
             const isOnAdminPage = nextUrl.pathname.startsWith('/admin');

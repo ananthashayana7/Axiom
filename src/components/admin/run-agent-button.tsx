@@ -8,9 +8,11 @@ import { toast } from 'sonner';
 
 interface RunAgentButtonProps {
     agentName: AgentName;
+    requiresApproval?: boolean;
+    isEnabled?: boolean;
 }
 
-export function RunAgentButton({ agentName }: RunAgentButtonProps) {
+export function RunAgentButton({ agentName, requiresApproval = false, isEnabled = true }: RunAgentButtonProps) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleRun = async () => {
@@ -41,7 +43,8 @@ export function RunAgentButton({ agentName }: RunAgentButtonProps) {
             size="sm"
             className="flex-1 gap-1"
             onClick={handleRun}
-            disabled={isLoading}
+            disabled={isLoading || !isEnabled}
+            variant={requiresApproval ? "outline" : "default"}
         >
             {isLoading ? (
                 <>
@@ -51,7 +54,7 @@ export function RunAgentButton({ agentName }: RunAgentButtonProps) {
             ) : (
                 <>
                     <Play className="h-3 w-3" />
-                    Run
+                    {requiresApproval ? 'Admin Run' : 'Run'}
                 </>
             )}
         </Button>

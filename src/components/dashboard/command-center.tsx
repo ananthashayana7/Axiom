@@ -31,7 +31,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
-import { AGENT_REGISTRY } from "@/app/actions/agents";
+import { AGENT_REGISTRY } from "@/app/actions/agents/registry";
 import { runFraudDetectionAgent, getOpenFraudAlerts } from "@/app/actions/agents/fraud-detection";
 import { runPaymentOptimizationAgent, getPaymentOptimizationSummary } from "@/app/actions/agents/payment-optimizer";
 import { runDemandForecastingAgent, getReplenishmentAlerts } from "@/app/actions/agents/demand-forecasting";
