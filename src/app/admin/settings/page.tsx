@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useTransition, useEffect, useState } from "react";
+import React, { useTransition, useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ export default function AdminSettingsPage() {
     const [initialSettings, setInitialSettings] = useState<any>(null);
     const [accessDenied, setAccessDenied] = useState(false);
 
-    const loadSettings = async () => {
+    const loadSettings = useCallback(async () => {
         const data = await getSettings();
         // If role came back as non-admin, deny access
         if (data.role !== 'admin') {
@@ -29,12 +29,11 @@ export default function AdminSettingsPage() {
         setSettings(data);
         setInitialSettings(data);
         setIsLocked(data.isSettingsLocked === 'yes');
-    };
+    }, []);
 
     useEffect(() => {
         loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [loadSettings]);
 
     const isDirty = initialSettings && settings && (
         settings.platformName !== initialSettings.platformName ||

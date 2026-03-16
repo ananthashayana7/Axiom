@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { updateTicketStatus } from "@/app/actions/support";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,23 @@ export default function SupportAdminClient({ tickets: initialTickets }: { ticket
         }
         return seed;
     });
+
+    // Sync state when parent passes new initialTickets (e.g. on re-render after server refresh)
+    useEffect(() => {
+        setTickets(initialTickets);
+        setEdits(prev => {
+            const merged = { ...prev };
+            for (const ticket of initialTickets) {
+                if (!merged[ticket.id]) {
+                    merged[ticket.id] = {
+                        status: (ticket.status || 'open') as TicketStatus,
+                        resolution: ticket.resolution || '',
+                    };
+                }
+            }
+            return merged;
+        });
+    }, [initialTickets]);
 
     const filteredTickets = useMemo(() => {
         return tickets.filter(t => {

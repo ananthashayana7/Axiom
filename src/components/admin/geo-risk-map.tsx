@@ -108,10 +108,7 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
     const supplierCountryRisk = useMemo(() => {
         const map: Record<string, { total: number; count: number }> = {};
         for (const s of suppliers) {
-            // Try to get country alpha3 from supplier's countryCode field if available
-            // We'll match by rough lat/lng proximity to country centers for now
-            // Better: use countryCode from supplier data if available
-            const countryCode = (s as any).countryCode;
+            const countryCode = s.countryCode;
             if (countryCode) {
                 const alpha3 = getAlpha3(countryCode) || countryCode;
                 if (!map[alpha3]) map[alpha3] = { total: 0, count: 0 };

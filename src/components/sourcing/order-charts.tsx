@@ -109,7 +109,7 @@ export function OrderCharts({ orders }: OrderChartsProps) {
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="month" tick={{ fontSize: 10 }} />
                             <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-                            <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString()}`, 'Amount']} />
+                            <Tooltip formatter={(v) => [`${Number(v).toLocaleString()}`, 'Amount']} />
                             <Bar dataKey="amount" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Amount" />
                         </BarChart>
                     </ResponsiveContainer>

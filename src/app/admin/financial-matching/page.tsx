@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { getInvoices } from "@/app/actions/invoices";
 import { updateInvoiceStatus } from "@/app/actions/invoices";
 import {
@@ -14,8 +13,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 
 const CURRENCY_LOCALE: Record<string, string> = {
     INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB', JPY: 'ja-JP',
@@ -34,8 +31,6 @@ function formatAmount(amount: number, currencyCode: string): string {
         return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     }
 }
-
-export const dynamic = 'force-dynamic';
 
 export default function FinancialMatchingPage() {
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
