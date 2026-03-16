@@ -59,7 +59,8 @@ export default async function RiskDashboardPage() {
                             name: s.name,
                             latitude: parseFloat(s.latitude || "0"),
                             longitude: parseFloat(s.longitude || "0"),
-                            riskScore: s.riskScore || 0
+                            riskScore: s.riskScore || 0,
+                            countryCode: s.countryCode || null,
                         }))
                     }
                 />

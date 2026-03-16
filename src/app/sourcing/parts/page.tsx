@@ -2,6 +2,7 @@ import React from 'react';
 import { getPartLinkedCounts, getParts } from "@/app/actions/parts";
 import { CreatePartDialog } from "@/components/parts/create-part-dialog";
 import { PartsClient } from "@/components/parts/parts-client";
+import { PartCharts } from "@/components/parts/part-charts";
 
 export const dynamic = 'force-dynamic';
 
@@ -131,6 +132,9 @@ export default async function PartsPage() {
           </div>
         </div>
       </div>
+
+      {/* Charts Section */}
+      <PartCharts parts={partsWithLinks} />
 
       <PartsClient initialParts={JSON.parse(JSON.stringify(partsWithLinks))} />
     </div>

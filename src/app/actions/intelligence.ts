@@ -9,6 +9,7 @@ import { getAiModel } from "@/lib/ai-provider";
 export async function getMarketTrend(partName: string, category: string) {
     try {
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
         const prompt = `Provide supply chain intelligence and predictive market forecasting for ${partName} (${category}). Return JSON {trend: "up"|"down"|"stable"|"volatile", reason: "1-sentence context", source: "Axiom Predictive Engine (Gemini 2.5)"}`;
         const result = await model.generateContent(prompt);
         const jsonMatch = result.response.text().match(/\{[\s\S]*\}/);

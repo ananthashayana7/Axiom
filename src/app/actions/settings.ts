@@ -88,9 +88,9 @@ export async function updateSettings(formData: FormData) {
         }
 
         const platformName = formData.get("siteName") as string;
-        const defaultCurrency = formData.get("currency") as string;
-        const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';
+        // Currency is now auto-detected from user locale — no manual override from form
         const geminiApiKey = formData.get("geminiApiKey") as string;
+        const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';
 
         const currentSettings = await getSettings();
 
@@ -101,7 +101,7 @@ export async function updateSettings(formData: FormData) {
 
         const updateData: SettingsUpdateInput = {
             platformName,
-            defaultCurrency,
+            defaultCurrency: (currentSettings as any).defaultCurrency || 'INR', // preserve existing value
             isSettingsLocked: isSettingsLocked === 'on' || isSettingsLocked === 'yes' ? 'yes' : 'no',
             updatedAt: new Date()
         };

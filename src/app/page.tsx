@@ -77,90 +77,132 @@ export default async function Home() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Spend */}
-        <Link href={isAgent ? "/admin/analytics" : "/sourcing/orders"} className="block transition-transform hover:scale-[1.02] group">
-          <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer h-full accent-shimmer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Enterprise Spend</CardTitle>
-              <div className="p-2 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors">
-                <IndianRupee className="h-4 w-4 text-emerald-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-slate-900 tracking-tighter">
-                {formatCurrency(stats.totalSpend)}
-              </div>
-              <div className="flex items-center gap-1 mt-2">
-                {!stats.isFirstMonth ? (
-                  <Badge variant="outline" className={cn(
-                    "text-[10px] font-bold px-1.5 py-0",
-                    Number(stats.momChange) >= 0 ? "bg-emerald-50/50 text-emerald-700 border-emerald-100" : "bg-red-50/50 text-red-700 border-red-100"
-                  )}>
-                    <TrendingUp className={cn("h-3 w-3 mr-1", Number(stats.momChange) < 0 && "rotate-180")} />
-                    {Number(stats.momChange) >= 0 ? "+" : ""}{stats.momChange}%
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] font-bold bg-slate-50/50 text-slate-600 border-slate-100 px-1.5 py-0">
-                    New baseline
-                  </Badge>
-                )}
-                <span className="text-[10px] text-muted-foreground font-medium uppercase">vs last month</span>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Enterprise Spend</CardTitle>
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <IndianRupee className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-slate-900 tracking-tighter">
+              {formatCurrency(stats.totalSpend)}
+            </div>
+            <div className="flex items-center gap-1 mt-2">
+              {!stats.isFirstMonth ? (
+                <Badge variant="outline" className={cn(
+                  "text-[10px] font-bold px-1.5 py-0",
+                  Number(stats.momChange) >= 0 ? "bg-emerald-50/50 text-emerald-700 border-emerald-100" : "bg-red-50/50 text-red-700 border-red-100"
+                )}>
+                  <TrendingUp className={cn("h-3 w-3 mr-1", Number(stats.momChange) < 0 && "rotate-180")} />
+                  {Number(stats.momChange) >= 0 ? "+" : ""}{stats.momChange}%
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] font-bold bg-slate-50/50 text-slate-600 border-slate-100 px-1.5 py-0">
+                  New baseline
+                </Badge>
+              )}
+              <span className="text-[10px] text-muted-foreground font-medium uppercase">vs last month</span>
+            </div>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+              <Link href={isAgent ? "/admin/analytics" : "/sourcing/orders"} className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
+                  View Analytics
+                </Button>
+              </Link>
+              {isAdmin && (
+                <Link href="/sourcing/orders">
+                  <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white">
+                    New Order
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Active Suppliers */}
-        <Link href="/suppliers" className="block transition-transform hover:scale-[1.02] group">
-          <Card className="glass-card border-l-4 border-l-emerald-500 shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Verified Network</CardTitle>
-              <div className="p-2 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors">
-                <Users className="h-4 w-4 text-emerald-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.supplierCount}</div>
-              <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                Active global suppliers
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="glass-card border-l-4 border-l-emerald-500 shadow-lg hover:shadow-emerald-500/20 transition-all h-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Verified Network</CardTitle>
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <Users className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.supplierCount}</div>
+            <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              Active global suppliers
+            </p>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+              <Link href="/suppliers" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
+                  View Suppliers
+                </Button>
+              </Link>
+              {isAdmin && (
+                <Link href="/suppliers?action=new">
+                  <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-500 hover:bg-emerald-600 text-white">
+                    Add
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Pending Orders */}
-        <Link href="/sourcing/orders" className="block transition-transform hover:scale-[1.02] group">
-          <Card className="glass-card border-l-4 border-l-sky-500 shadow-lg hover:shadow-sky-500/20 transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Active Funnel</CardTitle>
-              <div className="p-2 bg-sky-50 rounded-lg group-hover:bg-sky-100 transition-colors">
-                <CreditCard className="h-4 w-4 text-sky-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.pendingCount}</div>
-              <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase font-mono">Operations: {stats.fulfilledCount} Fulfilled</p>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="glass-card border-l-4 border-l-sky-500 shadow-lg hover:shadow-sky-500/20 transition-all h-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Active Funnel</CardTitle>
+            <div className="p-2 bg-sky-50 rounded-lg">
+              <CreditCard className="h-4 w-4 text-sky-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.pendingCount}</div>
+            <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase font-mono">{stats.fulfilledCount} Fulfilled · {stats.pendingCount} Active</p>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+              <Link href="/sourcing/orders" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
+                  View Orders
+                </Button>
+              </Link>
+              <Link href="/sourcing/orders">
+                <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-sky-500 hover:bg-sky-600 text-white">
+                  Track
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Live Inventory */}
-        <Link href="/sourcing/parts" className="block transition-transform hover:scale-[1.02] group">
-          <Card className="glass-card border-l-4 border-l-amber-500 shadow-lg hover:shadow-amber-500/20 transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Warehouse Load</CardTitle>
-              <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
-                <Boxes className="h-4 w-4 text-amber-600" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-slate-900 tracking-tighter">{Number(stats.totalInventory).toLocaleString()}</div>
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-[10px] text-muted-foreground font-medium uppercase">Units across {stats.partCount} SKUs</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+        <Card className="glass-card border-l-4 border-l-amber-500 shadow-lg hover:shadow-amber-500/20 transition-all h-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Warehouse Load</CardTitle>
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <Boxes className="h-4 w-4 text-amber-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-slate-900 tracking-tighter">{Number(stats.totalInventory).toLocaleString()}</div>
+            <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase">Units across {stats.partCount} SKUs</p>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+              <Link href="/sourcing/parts" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
+                  Inventory
+                </Button>
+              </Link>
+              <Link href="/sourcing/parts?filter=critical">
+                <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-amber-500 hover:bg-amber-600 text-white">
+                  Reorder
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

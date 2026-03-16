@@ -22,6 +22,7 @@ interface SupplierMarker {
     latitude: number;
     longitude: number;
     riskScore: number;
+    countryCode?: string | null;
 }
 
 interface GeoRiskMapProps {
@@ -103,6 +104,23 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
     const { geoLocale } = useCurrency();
     const userAlpha3 = useMemo(() => getAlpha3(geoLocale.country), [geoLocale.country]);
 
+    // Build a map of alpha3 → average risk score for countries with suppliers
+    const supplierCountryRisk = useMemo(() => {
+        const map: Record<string, { total: number; count: number }> = {};
+        for (const s of suppliers) {
+            const countryCode = s.countryCode;
+            if (countryCode) {
+                const alpha3 = getAlpha3(countryCode) || countryCode;
+                if (!map[alpha3]) map[alpha3] = { total: 0, count: 0 };
+                map[alpha3].total += s.riskScore;
+                map[alpha3].count++;
+            }
+        }
+        return Object.fromEntries(
+            Object.entries(map).map(([k, v]) => [k, v.total / v.count])
+        );
+    }, [suppliers]);
+
     const defaultZoom = useMemo(() => {
         const center = COUNTRY_CENTERS[userAlpha3];
         if (center) return { coordinates: [center[0], center[1]] as [number, number], zoom: center[2] };
@@ -130,6 +148,30 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
     const handleMoveEnd = useCallback((pos: { coordinates: [number, number]; zoom: number }) => {
         setPosition(pos);
     }, []);
+
+    const getCountryFill = (alpha3: string) => {
+        const avgRisk = supplierCountryRisk[alpha3];
+        if (avgRisk !== undefined) {
+            // Color by risk level
+            if (avgRisk > 70) return '#ef4444'; // high risk — red
+            if (avgRisk > 45) return '#f59e0b'; // medium risk — amber
+            return '#10b981'; // low risk — green
+        }
+        // User's home country gets a subtle blue tint
+        if (alpha3 === userAlpha3) return '#1e3a5f';
+        return '#292524'; // default
+    };
+
+    const getCountryHover = (alpha3: string) => {
+        const avgRisk = supplierCountryRisk[alpha3];
+        if (avgRisk !== undefined) {
+            if (avgRisk > 70) return '#fca5a5';
+            if (avgRisk > 45) return '#fcd34d';
+            return '#34d399';
+        }
+        if (alpha3 === userAlpha3) return '#1e40af';
+        return '#44403c';
+    };
 
     return (
         <Card className="h-full border-none shadow-none bg-stone-900 overflow-hidden relative group">
@@ -167,6 +209,7 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
                             {({ geographies }) =>
                                 geographies.map((geo) => {
                                     const alpha3 = getCountryAlpha3FromGeo(geo);
+                                    const hasSuppliers = supplierCountryRisk[alpha3] !== undefined;
                                     const isUserCountry = alpha3 === userAlpha3;
 
                                     return (
@@ -177,23 +220,23 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
                                             onMouseLeave={() => setHoveredGeo(null)}
                                             style={{
                                                 default: {
-                                                    fill: isUserCountry ? '#10b981' : '#292524',
-                                                    stroke: '#44403c',
-                                                    strokeWidth: 0.4,
+                                                    fill: getCountryFill(alpha3),
+                                                    stroke: hasSuppliers ? '#78716c' : isUserCountry ? '#3b82f6' : '#44403c',
+                                                    strokeWidth: hasSuppliers ? 0.6 : 0.4,
                                                     outline: 'none',
                                                     transition: 'fill 0.2s ease',
                                                 },
                                                 hover: {
-                                                    fill: isUserCountry ? '#34d399' : '#44403c',
-                                                    stroke: '#78716c',
-                                                    strokeWidth: 0.6,
+                                                    fill: getCountryHover(alpha3),
+                                                    stroke: '#a8a29e',
+                                                    strokeWidth: 0.8,
                                                     outline: 'none',
-                                                    cursor: 'pointer',
+                                                    cursor: hasSuppliers ? 'pointer' : 'default',
                                                 },
                                                 pressed: {
-                                                    fill: isUserCountry ? '#059669' : '#57534e',
-                                                    stroke: '#78716c',
-                                                    strokeWidth: 0.6,
+                                                    fill: getCountryHover(alpha3),
+                                                    stroke: '#a8a29e',
+                                                    strokeWidth: 0.8,
                                                     outline: 'none',
                                                 },
                                             }}
@@ -310,10 +353,13 @@ export function GeoRiskMap({ suppliers }: GeoRiskMapProps) {
             {/* Legend */}
             <div className="absolute bottom-4 right-3 flex gap-3 bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/5 z-10">
                 <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> Your Country
+                    <span className="h-2 w-2 rounded-full bg-blue-800" /> Home Base
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 opacity-60" /> Operational
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> Suppliers (Low Risk)
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
+                    <span className="h-2 w-2 rounded-full bg-amber-500" /> Moderate Risk
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
                     <span className="h-2 w-2 rounded-full bg-red-500" /> High Risk

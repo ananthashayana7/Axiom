@@ -1,55 +1,68 @@
 'use client'
 
-import React, { useTransition, useEffect, useState } from "react";
+import React, { useTransition, useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Shield, Settings as SettingsIcon, Globe, Loader2, Lock, Unlock, AlertTriangle } from "lucide-react";
+import { Shield, Settings as SettingsIcon, Globe, Loader2, Lock, Unlock, AlertTriangle, Info, KeyRound } from "lucide-react";
 import { updateSettings, getSettings, flushAuthCache } from "@/app/actions/settings";
 import { toast } from "sonner";
 import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
 import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
-// import { Switch } from "@/components/ui/switch"; // Removed unused component
+import { redirect } from "next/navigation";
 
 export default function AdminSettingsPage() {
     const [isPending, startTransition] = useTransition();
     const [settings, setSettings] = useState<any>(null);
     const [isLocked, setIsLocked] = useState(true);
     const [initialSettings, setInitialSettings] = useState<any>(null);
+    const [accessDenied, setAccessDenied] = useState(false);
+
+    const loadSettings = useCallback(async () => {
+        const data = await getSettings();
+        // If role came back as non-admin, deny access
+        if (data.role !== 'admin') {
+            setAccessDenied(true);
+            return;
+        }
+        setSettings(data);
+        setInitialSettings(data);
+        setIsLocked(data.isSettingsLocked === 'yes');
+    }, []);
 
     useEffect(() => {
-        async function loadSettings() {
-            const data = await getSettings();
-            setSettings(data);
-            setInitialSettings(data);
-            setIsLocked(data.isSettingsLocked === 'yes');
-        }
         loadSettings();
-    }, []);
+    }, [loadSettings]);
 
     const isDirty = initialSettings && settings && (
         settings.platformName !== initialSettings.platformName ||
-        settings.defaultCurrency !== initialSettings.defaultCurrency ||
         (settings.geminiApiKey || '') !== (initialSettings.geminiApiKey || '') ||
         isLocked !== (initialSettings.isSettingsLocked === 'yes')
     );
 
     async function handleSubmit(formData: FormData) {
-        // If it's a switch, we need to manually add it if it's off, or handle its value
-        // But here we'll just let the action handle it
         startTransition(async () => {
             const result = await updateSettings(formData);
             if (result.success) {
                 toast.success("Settings updated successfully");
-                const data = await getSettings();
-                setSettings(data);
-                setInitialSettings(data);
-                setIsLocked(data.isSettingsLocked === 'yes');
+                await loadSettings();
             } else {
                 toast.error(result.error || "Failed to update settings");
             }
         });
+    }
+
+    if (accessDenied) {
+        return (
+            <div className="p-4 lg:p-8 flex items-center justify-center h-screen">
+                <div className="text-center space-y-2">
+                    <Shield className="h-10 w-10 text-red-500 mx-auto" />
+                    <p className="font-bold text-red-600 uppercase text-sm">Admin Access Required</p>
+                    <p className="text-muted-foreground text-xs">Only administrators can access system settings.</p>
+                </div>
+            </div>
+        );
     }
 
     if (!settings) {
@@ -73,7 +86,7 @@ export default function AdminSettingsPage() {
                                 <SettingsIcon className="h-5 w-5 text-amber-600" />
                                 <CardTitle>General Configuration</CardTitle>
                             </div>
-                            <CardDescription>Main system parameters and localization settings.</CardDescription>
+                            <CardDescription>Main system parameters and platform identity.</CardDescription>
                         </div>
                         <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-lg border">
                             <Label htmlFor="isSettingsLocked" className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
@@ -104,14 +117,14 @@ export default function AdminSettingsPage() {
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="currency">Base Currency</Label>
-                                <Input
-                                    id="currency"
-                                    name="currency"
-                                    defaultValue={settings.defaultCurrency}
-                                    disabled={isLocked}
-                                    onChange={(e) => setSettings({ ...settings, defaultCurrency: e.target.value })}
-                                />
+                                <Label className="flex items-center gap-1">
+                                    <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Currency
+                                </Label>
+                                <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm text-muted-foreground">
+                                    <Info className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                    <span>Auto-detected from user&apos;s locale / timezone — no manual override needed.</span>
+                                </div>
                             </div>
                         </div>
                     </CardContent>
@@ -133,11 +146,20 @@ export default function AdminSettingsPage() {
                             </div>
                             <div className="grid gap-2">
                                 <Label>Two-Factor Authentication (2FA)</Label>
-                                <TwoFactorSetup isEnabled={settings.isTwoFactorEnabled} />
+                                <TwoFactorSetup
+                                    isEnabled={settings.isTwoFactorEnabled}
+                                    onStatusChange={(enabled) => setSettings((prev: any) => ({ ...prev, isTwoFactorEnabled: enabled }))}
+                                />
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                            <div className="grid gap-2 flex items-end">
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                    Flush Authorization Cache
+                                </Label>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 rounded-md p-2 border">
+                                    <strong>What this does:</strong> Revalidates all server-rendered pages and clears any in-memory role/permission caches. Useful after updating user roles, enabling/disabling 2FA, or applying permission changes so they reflect immediately without waiting for cache expiry.
+                                </p>
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -145,7 +167,7 @@ export default function AdminSettingsPage() {
                                     onClick={async () => {
                                         const result = await flushAuthCache();
                                         if (result.success) {
-                                            toast.success("Authorization cache flushed");
+                                            toast.success("Authorization cache flushed — all pages will re-render with fresh permissions.");
                                         } else {
                                             toast.error(result.error);
                                         }
@@ -161,10 +183,10 @@ export default function AdminSettingsPage() {
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <Globe className="h-5 w-5 text-amber-600" />
+                            <KeyRound className="h-5 w-5 text-amber-600" />
                             <CardTitle>AI Provider Configuration</CardTitle>
                         </div>
-                        <CardDescription>Configure Gemini key used by Axiom Copilot and AI agents.</CardDescription>
+                        <CardDescription>Configure the Gemini API key used by Axiom Copilot and AI agents. Only you (admin) can view or change this key.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -179,11 +201,8 @@ export default function AdminSettingsPage() {
                                     placeholder="AIza..."
                                     className="bg-background"
                                     disabled={isLocked}
+                                    autoComplete="new-password"
                                 />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="benchmarkingInterval">Default Model</Label>
-                                <Input id="benchmarkingInterval" type="text" value="gemini-2.5-flash" className="bg-background" disabled />
                             </div>
                         </div>
                     </CardContent>
@@ -195,7 +214,7 @@ export default function AdminSettingsPage() {
                             <AlertTriangle className="h-5 w-5" />
                             <CardTitle className="font-black uppercase tracking-tighter">System Maintenance</CardTitle>
                         </div>
-                        <CardDescription>Critical system utilities for administrative use.</CardDescription>
+                        <CardDescription>Critical system utilities for administrative use only.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -203,24 +222,18 @@ export default function AdminSettingsPage() {
                                 <h4 className="text-sm font-bold text-red-700 uppercase tracking-tight">Warning: Data Purge</h4>
                                 <p className="text-xs text-muted-foreground leading-relaxed">
                                     Performing a database reset will wipe ALL procurement history, suppliers, and parts.
-                                    This is typically used during handover or environment migrations.
+                                    Admin and user accounts are preserved. This is typically used during handover or environment migrations.
                                 </p>
                             </div>
                             <div className="flex items-center">
-                                {settings.role === 'admin' ? (
-                                    <ResetDatabaseButton />
-                                ) : (
-                                    <div className="p-4 border border-red-200 bg-red-50 text-red-700 rounded-lg text-xs font-bold uppercase tracking-tighter">
-                                        Administrative Access Required
-                                    </div>
-                                )}
+                                <ResetDatabaseButton />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 <div className="flex justify-end gap-3 mt-4">
-                    <Button type="button" variant="ghost">Reset Defaults</Button>
+                    <Button type="button" variant="ghost" onClick={loadSettings}>Reset</Button>
                     <Button type="submit" disabled={isPending || !isDirty} className="min-w-[140px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
                         {isPending ? (
                             <>

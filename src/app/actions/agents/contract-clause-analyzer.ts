@@ -164,6 +164,7 @@ async function analyzeWithAI(
 ): Promise<ContractClauseAnalysis> {
     try {
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
 
         const prompt = `
             You are a legal contract analyst specializing in procurement contracts.

@@ -200,6 +200,7 @@ async function generateStrategyWithAI(data: {
 
     try {
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
 
         const prompt = `
             You are a senior procurement negotiation expert. Generate a negotiation strategy for the following scenario.
@@ -319,6 +320,7 @@ export async function generateCounterOfferEmail(
 
     try {
         const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
 
         const prompt = `
             Write a professional procurement counter-offer email based on this negotiation strategy:
