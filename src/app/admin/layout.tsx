@@ -5,10 +5,11 @@ type SessionUser = {
     role?: string | null;
 };
 
-// Paths that regular users (non-admin) are allowed to access
-const USER_ALLOWED_PATHS = ['/admin/audit', '/admin/analytics', '/admin/risk'];
-
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEMO_BYPASS === 'true') {
+        return <>{children}</>;
+    }
+
     const session = await auth();
 
     if (!session?.user) {
