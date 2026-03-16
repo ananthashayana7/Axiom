@@ -188,8 +188,9 @@ export default function AdminImportPage() {
                             {dryRunResult.issues?.length ? (
                                 <div className="space-y-2 max-h-48 overflow-auto pr-2 text-sm">
                                     {dryRunResult.issues.map((issue: any, idx: number) => (
-                                        <div key={idx} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                                            Row {issue.row}: {issue.message}
+                                        <div key={idx} className={`rounded-md border px-3 py-2 ${issue.row <= 1 ? 'border-red-300 bg-red-50 text-red-800 font-semibold' : 'border-amber-200 bg-amber-50'}`}>
+                                            {/* row 0 = empty-file error, row 1 = header-level error */}
+                                            {issue.row <= 1 ? '⚠ Header issue: ' : `Row ${issue.row}: `}{issue.message}
                                         </div>
                                     ))}
                                 </div>

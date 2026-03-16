@@ -119,31 +119,48 @@ export async function getRecentOrders() {
 
 export async function getMonthlySpend() {
     try {
+        const now = new Date();
+        // Use setMonth so negative month values are handled safely by the Date API
+        const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth(), 1);
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+
         const orders = await db.select({
             amount: procurementOrders.totalAmount,
             createdAt: procurementOrders.createdAt,
-        }).from(procurementOrders);
+        }).from(procurementOrders)
+            .where(sql`${procurementOrders.createdAt} >= ${twelveMonthsAgo}`);
 
-        const monthlyData: Record<string, { total: number, orders: number }> = {};
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        // Build a rolling 12-month window in chronological order
+        const buckets: { name: string; year: number; month: number; total: number; orders: number }[] = [];
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth(), 1);
+            d.setMonth(d.getMonth() - i);
+            buckets.push({
+                name: monthNames[d.getMonth()],
+                year: d.getFullYear(),
+                month: d.getMonth(),
+                total: 0,
+                orders: 0,
+            });
+        }
 
         orders.forEach(order => {
             if (!order.createdAt) return;
-            const month = months[order.createdAt.getMonth()];
-            const amount = parseFloat(order.amount || "0");
-
-            if (!monthlyData[month]) {
-                monthlyData[month] = { total: 0, orders: 0 };
+            const oMonth = order.createdAt.getMonth();
+            const oYear = order.createdAt.getFullYear();
+            const bucket = buckets.find(b => b.month === oMonth && b.year === oYear);
+            if (bucket) {
+                bucket.total += parseFloat(order.amount || "0");
+                bucket.orders += 1;
             }
-            monthlyData[month].total += amount;
-            monthlyData[month].orders += 1;
         });
 
-        // Return all months in order
-        return months.map(m => ({
-            name: m,
-            total: Math.floor(monthlyData[m]?.total || 0),
-            orders: monthlyData[m]?.orders || 0
+        return buckets.map(b => ({
+            name: b.name,
+            total: Math.floor(b.total),
+            orders: b.orders,
         }));
     } catch (error) {
         console.error("Failed to fetch monthly spend:", error);

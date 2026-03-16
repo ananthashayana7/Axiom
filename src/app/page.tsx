@@ -62,11 +62,22 @@ export default async function Home() {
     supplierAnalytics
   };
 
+  const roleBadgeClass = isAdmin
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-blue-50 text-blue-700 border-blue-200";
+
   return (
     <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full" suppressHydrationWarning>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">Command Center</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">Command Center</h1>
+            {userRole && (
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${roleBadgeClass}`}>
+                {isAdmin ? "Admin" : "User"} logged in
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">Enterprise Sourcing & intelligence</p>
         </div>
         <div className="flex items-center space-x-3">

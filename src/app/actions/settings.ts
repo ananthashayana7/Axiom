@@ -78,7 +78,8 @@ export async function getSettings() {
             defaultCurrency: 'INR',
             isSettingsLocked: 'no',
             geminiApiKey: null,
-            role: role || 'user'
+            role: role || 'user',
+            isTwoFactorEnabled: false,
         };
     }
 }
