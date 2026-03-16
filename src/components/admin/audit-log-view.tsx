@@ -113,8 +113,20 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
         setSelectedEntities([]);
     };
 
+    // Pagination
+    const PAGE_SIZE = 50;
+    const [currentPage, setCurrentPage] = useState(1);
+    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+    const paginatedLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
     return (
         <div className="space-y-6">
+            {/* Summary bar */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 rounded-lg px-4 py-2 border">
+                <span><strong className="text-foreground">{filteredLogs.length}</strong> of <strong className="text-foreground">{initialLogs.length}</strong> audit events</span>
+                <span>Page {currentPage} of {totalPages}</span>
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-1 items-center gap-2">
                     <div className="relative flex-1 max-w-sm">
@@ -205,7 +217,7 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
-                                {filteredLogs.length > 0 ? filteredLogs.map((log) => (
+                                {filteredLogs.length > 0 ? paginatedLogs.map((log) => (
                                     <tr key={log.id} className="hover:bg-muted/10 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <Badge
@@ -257,6 +269,27 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="text-xs">
+                        &laquo; First
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-xs">
+                        &lsaquo; Prev
+                    </Button>
+                    <span className="text-xs text-muted-foreground px-2">
+                        Page {currentPage} / {totalPages}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-xs">
+                        Next &rsaquo;
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="text-xs">
+                        Last &raquo;
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

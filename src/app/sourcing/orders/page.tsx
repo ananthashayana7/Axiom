@@ -8,6 +8,7 @@ import { getOrders } from "@/app/actions/orders";
 import { getSuppliers } from "@/app/actions/suppliers";
 import Link from "next/link";
 import { OrderActions } from "@/components/sourcing/order-actions";
+import { OrderCharts } from "@/components/sourcing/order-charts";
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,9 @@ export default async function OrdersPage() {
 
                 <CreateOrderDialog suppliers={suppliers} parts={parts} />
             </div>
+
+            {/* Order Charts */}
+            <OrderCharts orders={ordersList} />
 
             <Card>
                 <CardHeader>
