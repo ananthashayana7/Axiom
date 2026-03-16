@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -19,9 +19,10 @@ import { Loader2, ShieldCheck, ShieldAlert, Key, Smartphone, Copy, Check } from 
 
 interface TwoFactorSetupProps {
     isEnabled: boolean;
+    onStatusChange?: (enabled: boolean) => void;
 }
 
-export function TwoFactorSetup({ isEnabled: initialEnabled }: TwoFactorSetupProps) {
+export function TwoFactorSetup({ isEnabled: initialEnabled, onStatusChange }: TwoFactorSetupProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isEnabled, setIsEnabled] = useState(initialEnabled);
     const [isPending, setIsPending] = useState(false);
@@ -29,8 +30,12 @@ export function TwoFactorSetup({ isEnabled: initialEnabled }: TwoFactorSetupProp
     const [setupData, setSetupData] = useState<{ secret: string; qrCodeUrl: string } | null>(null);
     const [verificationCode, setVerificationCode] = useState('');
     const [hasCopied, setHasCopied] = useState(false);
-
     const [qrError, setQrError] = useState(false);
+
+    // Sync with parent when prop changes (e.g. after page re-fetches settings)
+    useEffect(() => {
+        setIsEnabled(initialEnabled);
+    }, [initialEnabled]);
 
     const handleStartSetup = async () => {
         setIsPending(true);
@@ -60,6 +65,7 @@ export function TwoFactorSetup({ isEnabled: initialEnabled }: TwoFactorSetupProp
             if (result.success) {
                 toast.success("2FA enabled successfully");
                 setIsEnabled(true);
+                onStatusChange?.(true);
                 setIsOpen(false);
                 setStep('initial');
             } else {
@@ -81,6 +87,7 @@ export function TwoFactorSetup({ isEnabled: initialEnabled }: TwoFactorSetupProp
             if (result.success) {
                 toast.success("2FA disabled");
                 setIsEnabled(false);
+                onStatusChange?.(false);
             } else {
                 toast.error(result.error || "Failed to disable 2FA");
             }

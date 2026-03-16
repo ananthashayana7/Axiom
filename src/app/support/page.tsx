@@ -149,11 +149,11 @@ export default function SupportPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> My Tickets</CardTitle>
-                    <CardDescription>Track the status of your support requests.</CardDescription>
+                    <CardDescription>Track the status of your support requests. Closed tickets are archived and hidden from this view.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
-                    {tickets.length === 0 ? (
-                        <div className="py-12 text-center text-muted-foreground italic">No tickets yet. Submit a ticket above when you need help.</div>
+                    {tickets.filter((t: any) => t.status !== 'closed').length === 0 ? (
+                        <div className="py-12 text-center text-muted-foreground italic">No active tickets. Submit a ticket above when you need help.</div>
                     ) : (
                         <div className="rounded-md overflow-auto">
                             <table className="w-full text-sm">
@@ -165,7 +165,7 @@ export default function SupportPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {tickets.map((t: any) => (
+                                    {tickets.filter((t: any) => t.status !== 'closed').map((t: any) => (
                                         <tr key={t.id} className="border-b hover:bg-muted/50 transition-colors">
                                             <td className="p-4 align-middle font-mono text-xs font-bold text-primary">{t.ticketNumber}</td>
                                             <td className="p-4 align-middle font-medium max-w-xs truncate">{t.subject}</td>
@@ -185,6 +185,11 @@ export default function SupportPage() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                    {tickets.filter((t: any) => t.status === 'closed').length > 0 && (
+                        <div className="px-4 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
+                            {tickets.filter((t: any) => t.status === 'closed').length} closed ticket(s) archived — contact support to reopen.
                         </div>
                     )}
                 </CardContent>

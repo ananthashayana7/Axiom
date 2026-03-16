@@ -91,14 +91,20 @@ export default function InvoicesPage() {
 
     const exportToPDF = () => {
         if (invoicesList.length === 0) { toast.error("No data to export"); return; }
-        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(Number(inv.amount) || 0, displayCurrency)}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
-        const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Currency: ${displayCurrency}</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(Number(inv.amount) || 0, inv.currency || displayCurrency)} ${inv.currency || displayCurrency}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
+        const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Amounts in original invoice currencies</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
         const w = window.open('', '_blank');
         if (w) { w.document.write(html); w.document.close(); w.print(); }
         toast.success("PDF print dialog opened");
     };
 
-    const totalAmount = invoicesList.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
+    // Group totals by currency to show multi-currency summary
+    const currencyTotals = invoicesList.reduce((acc: Record<string, number>, inv) => {
+        const c = inv.currency || displayCurrency;
+        acc[c] = (acc[c] || 0) + (Number(inv.amount) || 0);
+        return acc;
+    }, {});
+    const currencyTotalEntries = Object.entries(currencyTotals);
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
@@ -112,15 +118,6 @@ export default function InvoicesPage() {
                     <p className="text-muted-foreground mt-1 font-medium">Filter, track and export invoices across all regions.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        {[
-                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
-                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
-                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
-                        ].map(opt => (
-                            <button key={opt.code} onClick={() => setDisplayCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", displayCurrency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
-                        ))}
-                    </div>
                     <Button variant="outline" onClick={fetchInvoices} className="gap-2"><RefreshCcw className="h-4 w-4" /> Refresh</Button>
                     <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 relative">
                         <Filter className="h-4 w-4" /> Filters
@@ -238,8 +235,18 @@ export default function InvoicesPage() {
                         <Coins className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold tabular-nums">{formatAmount(totalAmount, displayCurrency)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Displayed in {displayCurrency}</p>
+                        {currencyTotalEntries.length === 0 ? (
+                            <div className="text-2xl font-bold tabular-nums">—</div>
+                        ) : currencyTotalEntries.length === 1 ? (
+                            <div className="text-2xl font-bold tabular-nums">{formatAmount(currencyTotalEntries[0][1], currencyTotalEntries[0][0])}</div>
+                        ) : (
+                            <div className="space-y-1">
+                                {currencyTotalEntries.map(([c, amt]) => (
+                                    <div key={c} className="text-sm font-bold tabular-nums">{formatAmount(amt, c)}</div>
+                                ))}
+                            </div>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">In original invoice currencies</p>
                     </CardContent>
                 </Card>
             </div>
@@ -249,7 +256,7 @@ export default function InvoicesPage() {
                 <CardHeader>
                     <CardTitle>Invoice Ledger</CardTitle>
                     <CardDescription>
-                        {loading ? "Loading invoices..." : `${invoicesList.length} invoice(s) found — amounts in ${displayCurrency}`}
+                        {loading ? "Loading invoices..." : `${invoicesList.length} invoice(s) found — amounts shown in their original currency`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -263,7 +270,7 @@ export default function InvoicesPage() {
                                 <table className="w-full caption-bottom text-sm">
                                     <thead>
                                         <tr className="border-b bg-muted/50">
-                                            {['Invoice #', 'Supplier', 'Status', 'Country', 'Region', 'Continent', 'Date', `Amount (${displayCurrency})`, 'Actions'].map(h => (
+                                            {['Invoice #', 'Supplier', 'Status', 'Country', 'Region', 'Continent', 'Date', 'Amount', 'Actions'].map(h => (
                                                 <th key={h} className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase">{h}</th>
                                             ))}
                                         </tr>
@@ -293,7 +300,8 @@ export default function InvoicesPage() {
                                                 <td className="p-4 align-middle text-sm text-muted-foreground">{invoice.continent || '—'}</td>
                                                 <td className="p-4 align-middle text-muted-foreground text-sm">{new Date(invoice.createdAt).toLocaleDateString()}</td>
                                                 <td className="p-4 align-middle font-black tabular-nums">
-                                                    {formatAmount(Number(invoice.amount) || 0, displayCurrency)}
+                                                    {formatAmount(Number(invoice.amount) || 0, invoice.currency || displayCurrency)}
+                                                    {invoice.currency && <span className="text-[10px] text-muted-foreground ml-1 font-normal">{invoice.currency}</span>}
                                                 </td>
                                                 <td className="p-4 align-middle text-right">
                                                     <InvoiceActions invoiceId={invoice.id} status={invoice.status} />

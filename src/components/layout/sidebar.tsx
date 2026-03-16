@@ -34,7 +34,7 @@ const adminLinks = [
     { label: "Support Tickets", icon: LifeBuoy, href: "/admin/support" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
     { label: "Import Data", icon: FileUp, href: "/admin/import" },
-    { label: "Financial Matching", icon: CreditCard, href: "/sourcing/invoices?mode=match" },
+    { label: "Financial Matching", icon: CreditCard, href: "/admin/financial-matching" },
     { label: "Spend Intelligence", icon: BarChart3, href: "/admin/analytics" },
     { label: "Risk Intelligence", icon: ShieldAlert, href: "/admin/risk" },
     { label: "Admin Settings", icon: Settings, href: "/admin/settings" },
