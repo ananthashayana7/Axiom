@@ -27,6 +27,42 @@ function normalizeHeader(header: string) {
     return header.trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+/**
+ * Checks that the CSV headers contain all required fields for a given entity type.
+ * Required fields may be satisfied by any of their accepted aliases.
+ * Returns an array of ImportIssue for any missing required fields.
+ */
+function checkRequiredHeaders(headers: string[], entityType: EntityType): ImportIssue[] {
+    const requiredGroups: Record<EntityType, { field: string; aliases: string[] }[]> = {
+        suppliers: [
+            { field: 'name', aliases: ['name', 'supplier_name'] },
+            { field: 'contact_email', aliases: ['contact_email', 'email'] },
+        ],
+        parts: [
+            { field: 'sku', aliases: ['sku', 'material', 'material_number'] },
+            { field: 'name', aliases: ['name', 'part_name', 'description'] },
+        ],
+        invoices: [
+            { field: 'invoice_number', aliases: ['invoice_number', 'invoice'] },
+            { field: 'order_id', aliases: ['order_id'] },
+            { field: 'supplier_id', aliases: ['supplier_id'] },
+            { field: 'amount', aliases: ['amount', 'invoice_amount'] },
+        ],
+    };
+
+    const issues: ImportIssue[] = [];
+    for (const group of requiredGroups[entityType]) {
+        const found = group.aliases.some(alias => headers.includes(alias));
+        if (!found) {
+            issues.push({
+                row: 1,
+                message: `Missing required column: "${group.field}". Accepted header names: ${group.aliases.map(a => `"${a}"`).join(', ')}.`,
+            });
+        }
+    }
+    return issues;
+}
+
 function parseCsvLine(line: string): string[] {
     const values: string[] = [];
     let current = '';
@@ -171,7 +207,7 @@ async function requireAdmin() {
 export async function dryRunSapImport(csvText: string, entityType: EntityType): Promise<DryRunResult> {
     await requireAdmin();
 
-    const { rows } = parseCsv(csvText);
+    const { headers, rows } = parseCsv(csvText);
     const issues: ImportIssue[] = [];
 
     if (!rows.length) {
@@ -182,6 +218,19 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
             invalidRows: 0,
             issues: [{ row: 0, message: 'CSV has no data rows.' }],
             preview: [],
+        };
+    }
+
+    // Validate required headers before running row-level validation
+    const headerIssues = checkRequiredHeaders(headers, entityType);
+    if (headerIssues.length > 0) {
+        return {
+            success: false,
+            totalRows: rows.length,
+            validRows: 0,
+            invalidRows: rows.length,
+            issues: headerIssues,
+            preview: rows.slice(0, 10),
         };
     }
 
@@ -207,7 +256,7 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
 export async function executeSapImport(csvText: string, entityType: EntityType) {
     await requireAdmin();
 
-    const { rows } = parseCsv(csvText);
+    const { headers, rows } = parseCsv(csvText);
     const issues: ImportIssue[] = [];
     let inserted = 0;
     let updated = 0;
@@ -215,6 +264,18 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
 
     if (!rows.length) {
         return { success: false, message: 'CSV has no data rows.', inserted, updated, skipped };
+    }
+
+    // Validate headers before attempting any DB writes
+    const headerIssues = checkRequiredHeaders(headers, entityType);
+    if (headerIssues.length > 0) {
+        return {
+            success: false,
+            message: headerIssues.map(i => i.message).join(' '),
+            inserted,
+            updated,
+            skipped,
+        };
     }
 
     if (entityType === 'suppliers') {
