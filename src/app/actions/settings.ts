@@ -21,10 +21,13 @@ type SettingsUpdateInput = {
 };
 
 export async function getSettings() {
-    try {
-        const session = await auth();
-        const role = (session?.user as SessionUser | undefined)?.role;
+    // Resolve the session/role BEFORE the database try/catch so that even if
+    // the DB query fails, we still return the correct role (and don't falsely
+    // show "Admin Access Required" to a legitimately-logged-in admin).
+    const session = await auth();
+    const role = (session?.user as SessionUser | undefined)?.role;
 
+    try {
         // Only admins can access settings
         if (!session?.user || role !== 'admin') {
             return {
@@ -75,7 +78,7 @@ export async function getSettings() {
             defaultCurrency: 'INR',
             isSettingsLocked: 'no',
             geminiApiKey: null,
-            role: 'user'
+            role: role || 'user'
         };
     }
 }

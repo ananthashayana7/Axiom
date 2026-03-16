@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { User, Settings, Search, LogOut, Terminal } from "lucide-react";
 import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
+import { cn } from "@/lib/utils";
 
 type SessionUser = {
     role?: string | null;
@@ -15,6 +16,13 @@ export async function Header() {
     const session = await auth();
     const userName = session?.user?.name || "User";
     const role = (session?.user as SessionUser | undefined)?.role;
+
+    const roleBadgeClass =
+        role === 'admin'
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : role === 'supplier'
+            ? "bg-purple-50 text-purple-700 border-purple-200"
+            : "bg-blue-50 text-blue-700 border-blue-200";
 
     return (
         <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-14 flex items-center justify-between px-4 lg:px-8 transition-all font-sans">
@@ -51,6 +59,14 @@ export async function Header() {
                             {userName.charAt(0)}
                         </div>
                         <span className="hidden xl:inline">{userName}</span>
+                        {role && (
+                            <span className={cn(
+                                "hidden sm:inline text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                                roleBadgeClass
+                            )}>
+                                {role}
+                            </span>
+                        )}
                     </Link>
                     <form
                         action={async () => {

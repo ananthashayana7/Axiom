@@ -33,7 +33,14 @@ export default function LoginPage() {
                 setShow2FA(true);
                 setShowSetup2FA(false);
                 processedError = ''; // Don't display this as a user-facing error
-            } else if (errorMessage.includes('setup-2fa')) {
+            } else if (errorMessage.startsWith('setup-2fa:')) {
+                // QR code URL is embedded in the message — no extra server call needed
+                const qrCodeUrl = errorMessage.slice('setup-2fa:'.length);
+                setQrCodeUrl(qrCodeUrl);
+                setShowSetup2FA(true);
+                processedError = '';
+            } else if (errorMessage === 'setup-2fa') {
+                // Fallback: try the legacy client-side setup (may fail without a session)
                 handleStart2FASetup();
                 processedError = ''; // Don't display this as a user-facing error
             } else {
@@ -60,7 +67,8 @@ export default function LoginPage() {
         if (setupCode.length !== 6) return;
         setIsVerifyingSetup(true);
         try {
-            const result = await verifyAndEnableTwoFactor(setupCode);
+            // Pass identifier so the server action can locate the user without a session
+            const result = await verifyAndEnableTwoFactor(setupCode, identifier);
             if (result.success) {
                 setSetupSuccess(true);
                 toast.success("2FA enabled successfully!");
