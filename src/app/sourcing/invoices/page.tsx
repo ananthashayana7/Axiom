@@ -91,7 +91,19 @@ export default function InvoicesPage() {
 
     const exportToPDF = () => {
         if (invoicesList.length === 0) { toast.error("No data to export"); return; }
-        const rows = invoicesList.map(inv => `<tr><td>${inv.invoiceNumber}</td><td>${inv.supplierName || 'N/A'}</td><td>${inv.status?.toUpperCase()}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${formatAmount(Number(inv.amount) || 0, inv.currency || displayCurrency)} ${inv.currency || displayCurrency}</td><td>${inv.country || inv.supplierCountry || 'N/A'}</td><td>${inv.region || 'N/A'}</td><td>${inv.continent || 'N/A'}</td></tr>`).join('');
+        // Sanitize function to prevent XSS when inserting into HTML
+        const escapeHtml = (str: string) =>
+            String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+
+        const rows = invoicesList.map(inv => {
+            const currency = inv.currency || displayCurrency;
+            return `<tr><td>${escapeHtml(inv.invoiceNumber)}</td><td>${escapeHtml(inv.supplierName || 'N/A')}</td><td>${escapeHtml((inv.status || '').toUpperCase())}</td><td>${escapeHtml(new Date(inv.createdAt).toLocaleDateString())}</td><td>${escapeHtml(formatAmount(Number(inv.amount) || 0, currency))} ${escapeHtml(currency)}</td><td>${escapeHtml(inv.country || inv.supplierCountry || 'N/A')}</td><td>${escapeHtml(inv.region || 'N/A')}</td><td>${escapeHtml(inv.continent || 'N/A')}</td></tr>`;
+        }).join('');
         const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Amounts in original invoice currencies</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
         const w = window.open('', '_blank');
         if (w) { w.document.write(html); w.document.close(); w.print(); }
