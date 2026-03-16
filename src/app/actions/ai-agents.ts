@@ -26,9 +26,34 @@ function deriveTrend(prev: number, current: number): "up" | "down" | "stable" {
     return "stable";
 }
 
+function riskLevelFromScore(score: number): "low" | "medium" | "high" | "critical" {
+    if (score > 85) return "critical";
+    if (score > 65) return "high";
+    if (score > 45) return "medium";
+    return "low";
+}
+
 type ComplianceFinding = { type: "mismatch" | "missing" | "risk"; description: string; severity: "low" | "medium" | "high" };
 type ComplianceStatus = "compliant" | "partial" | "non-compliant";
 type Variance = { sku: string; variancePercentage: number; trend: "up" | "down" | "stable" };
+type HistoricalPart = {
+    id?: string;
+    sku?: string;
+    shouldCost?: number;
+    unitPrice?: number;
+    price?: number;
+    avgPrice?: number;
+};
+type OrderLike = { totalAmount?: number; amount?: number; status?: string };
+type SupplierLike = { category?: string; name?: string };
+const RISK_WEIGHT_ON_TIME = 0.3;
+const RISK_WEIGHT_QUALITY = 0.3;
+const RISK_WEIGHT_FINANCIAL = 0.4;
+const PARTIAL_COMPLIANCE_THRESHOLD = 0.5;
+const MIN_PARTIAL_THRESHOLD = 1;
+const ESTIMATED_CONSOLIDATION_SAVINGS_RATE = 0.05;
+const TOTAL_SAVINGS_PERCENTAGE = 0.04;
+const NEW_ITEM_VARIANCE_PERCENTAGE = 100; // sentinel variance when no baseline exists
 
 /**
  * Offer Parsing Agent
@@ -95,8 +120,9 @@ export async function parseOffer(fileData: string, fileName: string) {
                 totalAmount,
                 deliveryLeadTime,
                 validityPeriod: "30 days",
-                supplierName: supplierMatch ? supplierMatch[1].trim() : "Supplier (unverified)",
-                paymentTerms: paymentMatch ? paymentMatch[0] : "Standard"
+                supplierName: supplierMatch ? supplierMatch[1].trim() : "Unknown Supplier",
+                paymentTerms: paymentMatch ? paymentMatch[0] : "Standard",
+                note: "Heuristic parse used because AI model was unavailable."
             }
         };
     }
@@ -165,13 +191,15 @@ export async function analyzeCompliance(documents: { name: string, content: stri
             }
         }
 
+        // allow up to configured percentage missing to remain "partial"
+        const partialThreshold = Math.max(MIN_PARTIAL_THRESHOLD, Math.floor(keywords.length * PARTIAL_COMPLIANCE_THRESHOLD));
         const status: ComplianceStatus =
             missing.length === 0 ? "compliant" :
-                missing.length <= Math.max(1, Math.floor(keywords.length / 2)) ? "partial" : "non-compliant";
+                missing.length <= partialThreshold ? "partial" : "non-compliant";
 
-        const recommendation = missing.length === 0
+        const recommendation = (missing.length === 0
             ? "All stated requirements are present. Proceed to commercial evaluation."
-            : `Review ${missing.length} missing requirement(s) and request updated documentation from suppliers.`;
+            : `Review ${missing.length} missing requirement(s) and request updated documentation from suppliers.`) + " (Heuristic check – verify manually.)";
 
         return { success: true, data: { status, findings: missing, recommendation } };
     }
@@ -223,33 +251,45 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
         return { success: false, error: "Failed to parse cost analysis" };
     } catch (error) {
         console.error("Cost Analysis Error, using heuristic fallback:", error);
-        const variances = quoteItems.map((item) => {
-            const sku = item.sku || item.part?.sku || item.name || "ITEM";
+        const historicalMap = new Map<string, HistoricalPart>();
+        (historicalParts as HistoricalPart[]).forEach((p) => {
+            const key = p.sku || p.id;
+            if (key) historicalMap.set(key, p);
+        });
+
+        let potentialSavings = 0;
+        const variances = quoteItems.map((item, index) => {
+            const sku = item.sku || item.part?.sku || item.name || `ITEM_${index + 1}`;
             const quoted = Number(item.unitPrice ?? item.price ?? item.amount ?? item.totalAmount ?? 0);
-            const history = historicalParts.find((p: any) => p.sku === sku || p.id === item.partId);
+            const history = historicalMap.get(sku) || (item.partId ? historicalMap.get(item.partId) : undefined);
             const baseline = Number((history?.shouldCost ?? history?.unitPrice ?? history?.price ?? history?.avgPrice ?? quoted ?? 0));
-            const varianceRaw = baseline ? ((quoted - baseline) / baseline) * 100 : 0;
+            let varianceRaw = 0;
+            if (baseline > 0) {
+                varianceRaw = ((quoted - baseline) / baseline) * 100;
+            } else if (quoted > 0) {
+                varianceRaw = NEW_ITEM_VARIANCE_PERCENTAGE; // treat as new pricing without baseline
+            }
+            const quantity = Number(item.quantity || 1);
+            if (baseline > 0) {
+                const delta = baseline - quoted;
+                if (delta > 0) {
+                    potentialSavings += delta * quantity;
+                }
+            }
+            const safeBaseline = baseline > 0 ? baseline : 1;
+            const safeQuoted = quoted > 0 ? quoted : safeBaseline;
 
             return {
                 sku,
                 variancePercentage: Math.round(varianceRaw),
-                trend: deriveTrend(baseline || 1, quoted || baseline || 1)
+                trend: deriveTrend(safeBaseline, safeQuoted)
             } as Variance;
         });
 
-        const potentialSavings = variances.reduce((acc, v, idx) => {
-            const qty = Number(quoteItems[idx]?.quantity || 1);
-            const history = historicalParts.find((p: any) => p.sku === v.sku || p.id === quoteItems[idx]?.partId);
-            const baseline = Number(history?.shouldCost ?? history?.unitPrice ?? history?.price ?? history?.avgPrice ?? 0);
-            const quoted = Number(quoteItems[idx]?.unitPrice ?? quoteItems[idx]?.price ?? baseline);
-            const delta = baseline && quoted > baseline ? (quoted - baseline) * qty : 0;
-            return acc + delta;
-        }, 0);
-
         const hotSku = variances.sort((a, b) => b.variancePercentage - a.variancePercentage)[0];
         const negotiationStrategy = hotSku
-            ? `Anchor negotiations on ${hotSku.sku} where variance is ${hotSku.variancePercentage}% above historical. Push for baseline pricing first, then volume rebates.`
-            : "Compare quotes against recent purchases and request best-and-final offers for top SKUs.";
+            ? `Anchor negotiations on ${hotSku.sku} where variance is ${hotSku.variancePercentage}% above historical. Push for baseline pricing first, then volume rebates. (Heuristic fallback — validate numbers manually.)`
+            : "Compare quotes against recent purchases and request best-and-final offers for top SKUs. (Heuristic fallback — validate numbers manually.)";
 
         return { success: true, data: { variances, negotiationStrategy, potentialSavings } };
     }
@@ -307,12 +347,13 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
         const quality = Number(supplierData.qualityScore || supplierData.quality || 90);
         const financial = Number(supplierData.riskScore || supplierData.financialRisk || 50);
 
-        const riskScore = Math.round((100 - onTime) * 0.3 + (100 - quality) * 0.3 + financial * 0.4);
+        const riskScore = Math.round(
+            (100 - onTime) * RISK_WEIGHT_ON_TIME +
+            (100 - quality) * RISK_WEIGHT_QUALITY +
+            financial * RISK_WEIGHT_FINANCIAL
+        );
         const boundedScore = Math.min(100, Math.max(0, riskScore));
-        const overallRiskLevel: "low" | "medium" | "high" | "critical" =
-            boundedScore > 85 ? "critical" :
-                boundedScore > 65 ? "high" :
-                    boundedScore > 45 ? "medium" : "low";
+        const overallRiskLevel = riskLevelFromScore(boundedScore);
 
         const keyAlerts = [];
         if (onTime < 90) keyAlerts.push("On-time delivery below 90%");
@@ -324,8 +365,8 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
             data: {
                 overallRiskLevel,
                 riskScore: boundedScore,
-                mitigationStrategy: "Diversify volume across 2 suppliers and request quarterly scorecards.",
-                keyAlerts
+                mitigationStrategy: "Diversify volume across 2 suppliers and request quarterly scorecards. (Heuristic fallback — validate).",
+                keyAlerts: [...keyAlerts, "Heuristic scoring used because AI model was unavailable."]
             }
         };
     }
@@ -335,7 +376,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
  * Spend Analysis Agent
  * Identifies savings opportunities across the platform
  */
-export async function analyzeSpend(orders: any[], suppliers: any[]) {
+export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[]) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -377,25 +418,25 @@ export async function analyzeSpend(orders: any[], suppliers: any[]) {
         return { success: false, error: "Failed to parse spend analysis" };
     } catch (error) {
         console.error("Spend Analysis Error, using heuristic fallback:", error);
-        const total = orders.reduce((acc, o: any) => acc + Number(o.totalAmount || o.amount || 0), 0);
+        const total = orders.reduce((acc, o) => acc + Number(o.totalAmount || o.amount || 0), 0);
         const avg = orders.length ? total / orders.length : 0;
         const overlappingCategories = new Set<string>();
-        suppliers.forEach((s: any) => {
+        suppliers.forEach((s) => {
             if (s.category) overlappingCategories.add(s.category);
         });
 
         const opportunities = Array.from(overlappingCategories).slice(0, 3).map((cat) => ({
             type: "consolidation",
             description: `Consolidate spend in category '${cat}' with 1-2 strategic suppliers.`,
-            estimatedSavings: Math.round(avg * 0.05)
+            estimatedSavings: Math.round(avg * ESTIMATED_CONSOLIDATION_SAVINGS_RATE)
         }));
 
         return {
             success: true,
             data: {
-                totalSavingPotential: Math.round(total * 0.04),
+                totalSavingPotential: Math.round(total * TOTAL_SAVINGS_PERCENTAGE),
                 opportunities,
-                actionPlan: "Negotiate volume contracts for top categories, rebid high-variance SKUs, and enforce approval for off-contract spend."
+                actionPlan: "Negotiate volume contracts for top categories, rebid high-variance SKUs, and enforce approval for off-contract spend. (Heuristic fallback — validate figures.)"
             }
         };
     }

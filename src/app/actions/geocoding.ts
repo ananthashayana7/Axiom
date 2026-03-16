@@ -5,21 +5,13 @@ import { db } from "@/db";
 import { suppliers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-function pseudoGeoFromString(input: string) {
-    const hash = input.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    const latitude = ((hash % 12000) / 100) - 60;  // -60 to +60
-    const longitude = ((hash % 36000) / 100) - 180; // -180 to +180
-    return { latitude: latitude.toFixed(4), longitude: longitude.toFixed(4) };
-}
-
 export async function geocodeSupplier(supplierId: string) {
-    let locationHint = "";
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
         if (!supplier) return { success: false, error: "Supplier not found" };
 
         // For now, if we don't have a specific address field, we use city or name as hint
-        locationHint = supplier.city || supplier.name || supplierId;
+        const locationHint = supplier.city || supplier.name || "Unknown Region";
 
         const prompt = `
             You are a Geographic Intelligence Agent. 
@@ -56,15 +48,12 @@ export async function geocodeSupplier(supplierId: string) {
         return { success: false, error: "Failed to parse coordinates" };
     } catch (error) {
         console.error("Geocoding Error, using heuristic fallback:", error);
-        const coords = pseudoGeoFromString(locationHint || supplierId);
-
-        await db.update(suppliers).set({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            countryCode: "UN"
-        }).where(eq(suppliers.id, supplierId));
-
-        return { success: true, data: { ...coords, countryCode: "UN" } };
+        const coords = { latitude: null as number | null, longitude: null as number | null };
+        return {
+            success: false,
+            error: "AI geocoding unavailable",
+            data: { ...coords, countryCode: "XX", source: "heuristic", note: "No geocode persisted; manual verification required." }
+        };
     }
 }
 

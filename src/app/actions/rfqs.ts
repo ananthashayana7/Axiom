@@ -10,6 +10,9 @@ import { auth } from "@/auth";
 import { parseOffer } from "./ai-agents";
 import { users as usersTable } from "@/db/schema";
 
+const HEURISTIC_CONFIDENCE_NUMERIC = 55; // we trust extracted numeric signals moderately
+const HEURISTIC_CONFIDENCE_DEFAULT = 35; // base confidence when only structural parsing succeeds
+
 function heuristicQuotationSummary(quoteText: string) {
     const text = quoteText || "";
     const amountMatches = [...text.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d.,]+)\b/gi)]
@@ -39,7 +42,7 @@ function heuristicQuotationSummary(quoteText: string) {
         deliveryWeeks,
         terms,
         highlights,
-        aiConfidence: amountMatches.length > 0 ? 55 : 35
+        aiConfidence: amountMatches.length > 0 ? HEURISTIC_CONFIDENCE_NUMERIC : HEURISTIC_CONFIDENCE_DEFAULT
     };
 }
 
