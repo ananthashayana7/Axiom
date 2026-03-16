@@ -15,7 +15,12 @@ export const authConfig = {
             const isOnSourcingPage = nextUrl.pathname.startsWith('/sourcing');
 
             if (isOnLoginPage) {
-                if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
+                if (isLoggedIn) {
+                    const role = (auth?.user as any)?.role;
+                    if (role === 'admin') return Response.redirect(new URL('/admin', nextUrl));
+                    if (role === 'supplier') return Response.redirect(new URL('/portal', nextUrl));
+                    return Response.redirect(new URL('/', nextUrl));
+                }
                 return true;
             }
 

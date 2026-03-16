@@ -4,7 +4,7 @@ import { signIn, auth } from '@/auth';
 import { AuthError } from 'next-auth';
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, ilike } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { TotpService } from "@/lib/totp";
@@ -20,13 +20,23 @@ export async function authenticate(
         const password = formData.get('password') as string;
         const code = formData.get('code') as string;
 
-        // Note: We'll modify the login flow to handle a "require-2fa" status
-        // For now, this is the standard sign-in
+        // Determine post-login redirect based on user's role
+        let redirectTo = '/';
+        try {
+            const [userRecord] = await db
+                .select({ role: users.role })
+                .from(users)
+                .where(ilike(users.email, identifier))
+                .limit(1);
+            if (userRecord?.role === 'admin') redirectTo = '/admin';
+            else if (userRecord?.role === 'supplier') redirectTo = '/portal';
+        } catch { /* fallback to '/' */ }
+
         await signIn('credentials', {
             identifier,
             password,
-            code, // We need to pass the code to the authorize callback
-            redirectTo: '/',
+            code,
+            redirectTo,
         });
     } catch (error: any) {
         if (isRedirectError(error)) {
@@ -49,6 +59,14 @@ export async function authenticate(
         }
 
         if (errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
+            // Set up 2FA server-side using the identifier — no session needed here
+            // because the password was already verified in authorize() before this error was thrown.
+            const identifier = formData.get('identifier') as string;
+            const setupResult = await setupTwoFactorForLogin(identifier);
+            if (setupResult.success && setupResult.qrCodeUrl) {
+                // Embed the QR code URL in the return value so the client can display it directly
+                return `setup-2fa:${setupResult.qrCodeUrl}`;
+            }
             return 'setup-2fa';
         }
 
@@ -61,6 +79,37 @@ export async function authenticate(
         }
 
         return error.message || 'An unexpected error occurred. Please try again.';
+    }
+}
+
+/**
+ * Sets up 2FA for a user identified by email during the login flow,
+ * without requiring an active session (password has already been verified by authorize()).
+ */
+async function setupTwoFactorForLogin(identifier: string) {
+    try {
+        const [user] = await db
+            .select({ id: users.id, email: users.email })
+            .from(users)
+            .where(ilike(users.email, identifier))
+            .limit(1);
+
+        if (!user) return { success: false as const };
+
+        const secret = TotpService.generateSecret();
+        const otpauthUrl = TotpService.getOtpAuthUrl(secret, user.email);
+
+        await db.update(users)
+            .set({ twoFactorSecret: secret, isTwoFactorEnabled: false })
+            .where(eq(users.id, user.id));
+
+        return {
+            success: true as const,
+            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`
+        };
+    } catch (error) {
+        console.error("Failed to set up 2FA during login:", error);
+        return { success: false as const };
     }
 }
 
@@ -91,14 +140,26 @@ export async function setupTwoFactor() {
     }
 }
 
-export async function verifyAndEnableTwoFactor(token: string) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        return { success: false, error: "Not authenticated" };
+
+export async function verifyAndEnableTwoFactor(token: string, identifier?: string) {
+    let userId: string;
+
+    if (identifier) {
+        // Called during login flow — no session yet; password was already verified by authorize()
+        const [user] = await db.select({ id: users.id }).from(users).where(ilike(users.email, identifier)).limit(1);
+        if (!user) return { success: false, error: "User not found" };
+        userId = user.id;
+    } else {
+        // Called from settings page — requires an active session
+        const session = await auth();
+        if (!session?.user?.id) {
+            return { success: false, error: "Not authenticated" };
+        }
+        userId = session.user.id;
     }
 
     try {
-        const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
         if (!user || !user.twoFactorSecret) {
             return { success: false, error: "2FA not initialized" };
         }
@@ -110,7 +171,7 @@ export async function verifyAndEnableTwoFactor(token: string) {
 
         await db.update(users)
             .set({ isTwoFactorEnabled: true })
-            .where(eq(users.id, session.user.id));
+            .where(eq(users.id, userId));
 
         revalidatePath("/admin/settings");
         return { success: true, message: "Two-factor authentication enabled successfully" };
