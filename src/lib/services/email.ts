@@ -24,7 +24,7 @@ export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
     const smtpFrom = process.env.SMTP_FROM || SUPPORT_EMAIL;
 
     if (!smtpPass) {
-        console.warn("[EMAIL] SMTP not configured. Set SMTP_PASS or SMTP_PASSWORD (and optional SMTP_HOST/SMTP_USER/SMTP_PORT/SMTP_SECURE/SMTP_FROM).");
+        console.warn("[EMAIL] SMTP not configured. Set SMTP_PASS or SMTP_PASSWORD (set SMTP_HOST if not using the default smtp.gmail.com, plus optional SMTP_USER/SMTP_PORT/SMTP_SECURE/SMTP_FROM).");
         return {
             success: false,
             error: 'SMTP_NOT_CONFIGURED',
