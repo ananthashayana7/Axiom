@@ -195,7 +195,7 @@ To enable real email delivery (instead of log-only mode):
 ```bash
 cp .env.outlook.example .env
 ```
-2. Fill SMTP values in `.env` (especially `SMTP_PASS`).
+2. Fill SMTP values in `.env` (set `SMTP_PASS` or `SMTP_PASSWORD`; host defaults to `smtp.gmail.com`).
 3. Rebuild/restart app:
 ```bash
 docker compose up -d --build app
