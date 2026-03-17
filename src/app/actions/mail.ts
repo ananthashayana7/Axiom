@@ -12,7 +12,7 @@ export async function sendUserEmail(to: string, userName: string) {
     const senderName = session.user?.name || "Axiom Admin";
 
     try {
-        await sendEmail({
+        const result = await sendEmail({
             to,
             subject: `Message from ${senderName} via Axiom`,
             body: `
@@ -31,6 +31,10 @@ Best regards,
 The Axiom Team
             `.trim()
         });
+        if (!result.success) {
+            console.error("Failed to send user email:", result.error);
+            return { success: false, error: result.error || "Failed to send email" };
+        }
         return { success: true };
     } catch (error) {
         console.error("Failed to send user email:", error);

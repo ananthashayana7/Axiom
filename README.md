@@ -191,12 +191,16 @@ Users can open tickets from `/support`; admins manage and close them from `/admi
 
 To enable real email delivery (instead of log-only mode):
 
-1. Copy the template:
+1. Create/update your `.env` with SMTP settings (either `SMTP_PASS` or `SMTP_PASSWORD` is accepted):
 ```bash
-cp .env.outlook.example .env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=pma.axiom.support@gmail.com
+SMTP_PASS=<app-password>     # or set SMTP_PASSWORD
+SMTP_FROM=pma.axiom.support@gmail.com
+SMTP_SECURE=false            # set to true only for port 465
 ```
-2. Fill SMTP values in `.env` (set `SMTP_PASS` or `SMTP_PASSWORD`; host defaults to `smtp.gmail.com`).
-3. Rebuild/restart app:
+2. Rebuild/restart app:
 ```bash
 docker compose up -d --build app
 ```

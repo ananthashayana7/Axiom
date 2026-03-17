@@ -39,6 +39,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-pma.axiom.support@gmail.com}
       SMTP_PASS: ${SMTP_PASS}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_FROM: ${SMTP_FROM:-pma.axiom.support@gmail.com}
       OPENAI_API_KEY: ${OPENAI_API_KEY}

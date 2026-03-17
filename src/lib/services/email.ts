@@ -17,7 +17,8 @@ const SUPPORT_EMAIL = 'pma.axiom.support@gmail.com';
 
 export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = Number(process.env.SMTP_PORT || 587);
+    const rawPort = Number(process.env.SMTP_PORT || 587);
+    const smtpPort = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 587;
     const smtpUser = process.env.SMTP_USER || SUPPORT_EMAIL;
     const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
     const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
@@ -40,7 +41,13 @@ export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
                 user: smtpUser,
                 pass: smtpPass,
             },
+            connectionTimeout: 15_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 20_000,
         });
+
+        // Fail fast if the SMTP connection/auth is not accepted
+        await transporter.verify();
 
         const info = await transporter.sendMail({
             from: smtpFrom,
@@ -57,10 +64,11 @@ export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
         } as EmailSendResult;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown SMTP error';
-        console.error(`[EMAIL] SEND_FAILED | to=${to} | subject=${subject} | error=${errorMessage}`);
+        const context = `host=${smtpHost} port=${smtpPort} secure=${smtpSecure}`;
+        console.error(`[EMAIL] SEND_FAILED | ${context} | to=${to} | subject=${subject} | error=${errorMessage}`);
         return {
             success: false,
-            error: errorMessage,
+            error: `SMTP connection failed: ${errorMessage}`,
         } as EmailSendResult;
     }
 }

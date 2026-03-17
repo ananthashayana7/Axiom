@@ -86,12 +86,15 @@ export async function updateTicketStatus(id: string, status: 'open' | 'in_progre
             .limit(1);
 
         if (submitter?.email) {
-            await sendEmail({
+            const ticketUpdateEmail = await sendEmail({
                 to: submitter.email,
                 replyTo: 'pma.axiom.support@gmail.com',
                 subject: `[Axiom Ticket Update] ${existing.ticketNumber} is now ${status}`,
                 body: `Hello ${submitter.name || 'User'},\n\nYour support ticket has been updated.\n\nTicket: ${existing.ticketNumber}\nSubject: ${existing.subject}\nStatus: ${status}\n\nResolution: ${resolution || 'No additional notes provided.'}\n\nUpdated by: ${actor?.name || 'Axiom Support'}\n\nRegards,\nAxiom Support\npma.axiom.support@gmail.com`,
             });
+            if (!ticketUpdateEmail.success) {
+                console.error(`[EMAIL] Failed to notify ${submitter.email} about ticket ${existing.ticketNumber}: ${ticketUpdateEmail.error}`);
+            }
         }
     }
 
