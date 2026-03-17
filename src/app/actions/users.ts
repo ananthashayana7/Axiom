@@ -80,11 +80,14 @@ export async function createUser(formData: FormData) {
 
         // Trigger Welcome Email
         const welcome = generateWelcomeEmail(name, email || employeeId || 'N/A', password);
-        await sendEmail({
+        const welcomeResult = await sendEmail({
             to: email,
             subject: welcome.subject,
             body: welcome.body,
         });
+        if (!welcomeResult.success) {
+            console.error(`[EMAIL] Failed to send welcome email to ${email}: ${welcomeResult.error}`);
+        }
 
         revalidatePath("/admin/users");
         return { success: true };
