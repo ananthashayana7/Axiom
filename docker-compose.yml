@@ -31,6 +31,7 @@ services:
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-pma.axiom.support@gmail.com}
+      # Support both SMTP_PASS and SMTP_PASSWORD (sendEmail falls back between them)
       SMTP_PASS: ${SMTP_PASS}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_SECURE: ${SMTP_SECURE:-false}
