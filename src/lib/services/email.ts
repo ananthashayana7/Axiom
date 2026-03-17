@@ -18,7 +18,7 @@ const SUPPORT_EMAIL = 'pma.axiom.support@gmail.com';
 export async function sendEmail({ to, subject, body, replyTo }: EmailPayload) {
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
     const rawPort = Number(process.env.SMTP_PORT || 587);
-    const smtpPort = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 587;
+    const smtpPort = Number.isFinite(rawPort) && rawPort > 0 && rawPort <= 65_535 ? rawPort : 587;
     const smtpUser = process.env.SMTP_USER || SUPPORT_EMAIL;
     const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
     const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;

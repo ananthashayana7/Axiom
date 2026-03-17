@@ -196,7 +196,7 @@ To enable real email delivery (instead of log-only mode):
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=pma.axiom.support@gmail.com
-SMTP_PASS=<app-password>     # or set SMTP_PASSWORD
+SMTP_PASS=YOUR_APP_PASSWORD  # or set SMTP_PASSWORD
 SMTP_FROM=pma.axiom.support@gmail.com
 SMTP_SECURE=false            # set to true only for port 465
 ```
