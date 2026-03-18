@@ -133,16 +133,20 @@ export default function SavingsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base">Top 10 — Savings by Supplier</CardTitle>
-                        <CardDescription>Negotiated cost reductions per supplier</CardDescription>
+                        <CardDescription>Spend vs savings per supplier — gap represents procurement efficiency</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={data.savingsBySupplier?.slice(0, 10) || []} margin={{ top: 5, right: 20, bottom: 60, left: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="supplierName" angle={-35} textAnchor="end" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                                <XAxis dataKey="supplierName" angle={-35} textAnchor="end" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} name="Savings" />
+                                {data.savingsBySupplier?.[0]?.spend !== undefined && (
+                                    <Bar dataKey="spend" fill="#3b82f6" fillOpacity={0.3} radius={[4, 4, 0, 0]} name="Spend" />
+                                )}
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -152,7 +156,7 @@ export default function SavingsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base">Monthly Savings Trend</CardTitle>
-                        <CardDescription>Cumulative savings achievement over time</CardDescription>
+                        <CardDescription>Savings trajectory with spend overlay</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -162,12 +166,20 @@ export default function SavingsPage() {
                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                                         <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                                     </linearGradient>
+                                    <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#savingsGrad)" strokeWidth={2} />
+                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#savingsGrad)" strokeWidth={2.5} name="Savings" dot={{ r: 3, fill: '#10b981' }} />
+                                {data.savingsTrend?.[0]?.spend !== undefined && (
+                                    <Area type="monotone" dataKey="spend" stroke="#3b82f6" fill="url(#spendGrad)" strokeWidth={1.5} strokeDasharray="5 5" name="Spend" />
+                                )}
                             </AreaChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -182,13 +194,13 @@ export default function SavingsPage() {
                     <CardContent>
                         <ResponsiveContainer width="100%" height={260}>
                             <PieChart>
-                                <Pie data={data.savingsByType || []} cx="50%" cy="50%" outerRadius={90} dataKey="value" nameKey="type" label={(entry: any) => `${entry?.type || 'Type'} ${((entry?.percent || 0) * 100).toFixed(0)}%`} labelLine={false}>
+                                <Pie data={data.savingsByType || []} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" nameKey="type" label={(entry: any) => `${entry?.type || 'Type'} ${((entry?.percent || 0) * 100).toFixed(0)}%`} labelLine={false}>
                                     {(data.savingsByType || []).map((_: any, i: number) => (
                                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Legend />
+                                <Legend wrapperStyle={{ fontSize: 11 }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>
