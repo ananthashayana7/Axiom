@@ -24,6 +24,7 @@ import {
 import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
+import { NavLink } from "@/components/layout/nav-link";
 
 type SessionUser = {
     role?: string | null;
@@ -75,26 +76,20 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {/* ── Primary Nav ── */}
                 <div className="px-3 space-y-0.5">
-                    <Link href={role === 'supplier' ? '/portal' : '/'}>
-                        <span className={navCls}>
-                            <LayoutDashboard className="mr-2 h-4 w-4" />
-                            Dashboard
-                        </span>
-                    </Link>
+                    <NavLink href={role === 'supplier' ? '/portal' : '/'} className={navCls}>
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                    </NavLink>
                     {role !== 'supplier' && (
-                        <Link href="/suppliers">
-                            <span className={navCls}>
-                                <Users className="mr-2 h-4 w-4" />
-                                Suppliers
-                            </span>
-                        </Link>
+                        <NavLink href="/suppliers" className={navCls}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Suppliers
+                        </NavLink>
                     )}
-                    <Link href="/copilot">
-                        <span className={cn(navCls, "text-primary dark:text-primary font-bold")}>
-                            <AxiomLogo className="mr-2 h-4 w-4" />
-                            Axiom Copilot
-                        </span>
-                    </Link>
+                    <NavLink href="/copilot" className={cn(navCls, "text-primary dark:text-primary font-bold")}>
+                        <AxiomLogo className="mr-2 h-4 w-4" />
+                        Axiom Copilot
+                    </NavLink>
                     {role === 'admin' && (
                         <Link href="/admin/agents">
                             <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
@@ -112,36 +107,16 @@ export async function Sidebar({ className }: { className?: string }) {
                             Sourcing
                         </h2>
                         <div className="space-y-0.5">
-                            <Link href="/sourcing/parts">
-                                <span className={navCls}><Package className="mr-2 h-4 w-4" />Parts Catalog</span>
-                            </Link>
-                            <Link href="/sourcing/rfqs">
-                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Sourcing Requests</span>
-                            </Link>
-                            <Link href="/sourcing/requisitions">
-                                <span className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Requisitions</span>
-                            </Link>
-                            <Link href="/sourcing/orders">
-                                <span className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Orders</span>
-                            </Link>
-                            <Link href="/sourcing/goods-receipts">
-                                <span className={navCls}><Truck className="mr-2 h-4 w-4" />Goods Receipts</span>
-                            </Link>
-                            <Link href="/sourcing/invoices">
-                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Invoice Records</span>
-                            </Link>
-                            <Link href="/sourcing/contracts">
-                                <span className={navCls}><FileText className="mr-2 h-4 w-4" />Agreements</span>
-                            </Link>
-                            <Link href="/transactions">
-                                <span className={navCls}><ArrowRightLeft className="mr-2 h-4 w-4" />Transactions</span>
-                            </Link>
-                            <Link href="/contacts">
-                                <span className={navCls}><ContactRound className="mr-2 h-4 w-4" />Contacts</span>
-                            </Link>
-                            <Link href="/savings">
-                                <span className={navCls}><PiggyBank className="mr-2 h-4 w-4" />Savings</span>
-                            </Link>
+                            <NavLink href="/sourcing/parts" className={navCls}><Package className="mr-2 h-4 w-4" />Parts Catalog</NavLink>
+                            <NavLink href="/sourcing/rfqs" className={navCls}><FileText className="mr-2 h-4 w-4" />Sourcing Requests</NavLink>
+                            <NavLink href="/sourcing/requisitions" className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Requisitions</NavLink>
+                            <NavLink href="/sourcing/orders" className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Orders</NavLink>
+                            <NavLink href="/sourcing/goods-receipts" className={navCls}><Truck className="mr-2 h-4 w-4" />Goods Receipts</NavLink>
+                            <NavLink href="/sourcing/invoices" className={navCls}><FileText className="mr-2 h-4 w-4" />Invoice Records</NavLink>
+                            <NavLink href="/sourcing/contracts" className={navCls}><FileText className="mr-2 h-4 w-4" />Agreements</NavLink>
+                            <NavLink href="/transactions" className={navCls}><ArrowRightLeft className="mr-2 h-4 w-4" />Transactions</NavLink>
+                            <NavLink href="/contacts" className={navCls}><ContactRound className="mr-2 h-4 w-4" />Contacts</NavLink>
+                            <NavLink href="/savings" className={navCls}><PiggyBank className="mr-2 h-4 w-4" />Savings</NavLink>
                         </div>
                     </div>
                 )}
@@ -156,12 +131,10 @@ export async function Sidebar({ className }: { className?: string }) {
                             {supplierLinks.map((link) => {
                                 const Icon = link.icon;
                                 return (
-                                    <Link key={link.href} href={link.href}>
-                                        <span className={navCls}>
-                                            <Icon className="mr-2 h-4 w-4" />
-                                            {link.label}
-                                        </span>
-                                    </Link>
+                                    <NavLink key={link.href} href={link.href} className={navCls}>
+                                        <Icon className="mr-2 h-4 w-4" />
+                                        {link.label}
+                                    </NavLink>
                                 );
                             })}
                         </div>
@@ -175,12 +148,8 @@ export async function Sidebar({ className }: { className?: string }) {
                             Resources
                         </h2>
                         <div className="space-y-0.5">
-                            <Link href="/docs">
-                                <span className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</span>
-                            </Link>
-                            <Link href="/support">
-                                <span className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</span>
-                            </Link>
+                            <NavLink href="/docs" className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</NavLink>
+                            <NavLink href="/support" className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</NavLink>
                         </div>
                     </div>
                 )}
@@ -201,12 +170,10 @@ export async function Sidebar({ className }: { className?: string }) {
                                 .map((link) => {
                                     const Icon = link.icon;
                                     return (
-                                        <Link key={link.href} href={link.href}>
-                                            <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
-                                                <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
-                                                {link.label}
-                                            </span>
-                                        </Link>
+                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
+                                            {link.label}
+                                        </NavLink>
                                     );
                                 })}
                         </div>

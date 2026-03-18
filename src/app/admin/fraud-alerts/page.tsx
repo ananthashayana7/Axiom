@@ -121,7 +121,7 @@ export default async function FraudAlertsPage() {
                                         </div>
                                     </div>
                                     {entityRoutes[alert.entityType] ? (
-                                        <Link href={entityRoutes[alert.entityType]}>
+                                        <Link href={`${entityRoutes[alert.entityType]}${alert.entityId ? `?id=${alert.entityId}` : ''}`}>
                                             <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent transition-colors">
                                                 {alert.entityType === 'invoice' && <FileText className="h-3 w-3 mr-1" />}
                                                 {alert.entityType === 'order' && <Banknote className="h-3 w-3 mr-1" />}

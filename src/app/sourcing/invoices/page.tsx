@@ -9,12 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
     FileText, CheckCircle2, Clock, AlertTriangle,
-    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins
+    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins, BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
 import { toast } from "sonner";
 import { useCurrency } from '@/components/currency-provider';
+import {
+    PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, LineChart, Line, Legend,
+} from 'recharts';
 
 export const dynamic = 'force-dynamic';
 
@@ -262,6 +266,98 @@ export default function InvoicesPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Charts Section */}
+            {!loading && invoicesList.length > 0 && (() => {
+                const STATUS_COLORS: Record<string, string> = { pending: '#f59e0b', matched: '#10b981', disputed: '#ef4444', paid: '#3b82f6' };
+                const statusData = Object.entries(
+                    invoicesList.reduce((acc: Record<string, number>, inv) => {
+                        const s = inv.status || 'unknown';
+                        acc[s] = (acc[s] || 0) + 1;
+                        return acc;
+                    }, {})
+                ).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value, fill: STATUS_COLORS[name] || '#94a3b8' }));
+
+                const continentData = Object.entries(
+                    invoicesList.reduce((acc: Record<string, number>, inv) => {
+                        const c = inv.continent || inv.supplierContinent || 'Unknown';
+                        acc[c] = (acc[c] || 0) + (Number(inv.amount) || 0);
+                        return acc;
+                    }, {})
+                ).map(([name, value]) => ({ name, amount: value })).sort((a, b) => b.amount - a.amount);
+
+                // Monthly trend from invoice dates
+                const monthlyMap: Record<string, number> = {};
+                invoicesList.forEach(inv => {
+                    const d = new Date(inv.createdAt);
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    monthlyMap[key] = (monthlyMap[key] || 0) + 1;
+                });
+                const trendData = Object.entries(monthlyMap).sort(([a], [b]) => a.localeCompare(b)).map(([month, count]) => ({ month, count }));
+
+                return (
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {/* Status Distribution */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <BarChart3 className="h-4 w-4 text-primary" /> Status Distribution
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <PieChart>
+                                        <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3} label={({ name, value }) => `${name} (${value})`}>
+                                            {statusData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+                                        </Pie>
+                                        <Tooltip />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        {/* Amount by Continent */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-primary" /> Amount by Region
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart data={continentData} layout="vertical" margin={{ left: 0, right: 16 }}>
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                        <XAxis type="number" tickFormatter={(v) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v)} tick={{ fontSize: 10 }} />
+                                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
+                                        <Tooltip formatter={(v: any) => formatAmount(Number(v), displayCurrency)} />
+                                        <Bar dataKey="amount" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        {/* Monthly Trend */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-primary" /> Invoice Volume Trend
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <LineChart data={trendData} margin={{ left: 0, right: 16 }}>
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                                        <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Line type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} name="Invoices" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
+                );
+            })()}
 
             {/* Invoice Table */}
             <Card>

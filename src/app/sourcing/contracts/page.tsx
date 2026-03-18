@@ -15,6 +15,7 @@ function getDaysUntilExpiry(validTo: Date | null | undefined): number | null {
 
 import { CreateContractDialog } from "@/components/sourcing/create-contract-dialog";
 import { ContractActions } from "@/components/sourcing/contract-actions";
+import { ContractCharts } from "@/components/contracts/contract-charts";
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,9 @@ export default async function ContractsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Charts */}
+            <ContractCharts contracts={contracts} />
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {contracts.map((contract: any) => {

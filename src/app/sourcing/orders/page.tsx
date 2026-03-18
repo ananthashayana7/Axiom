@@ -9,6 +9,7 @@ import { getSuppliers } from "@/app/actions/suppliers";
 import Link from "next/link";
 import { OrderActions } from "@/components/sourcing/order-actions";
 import { OrderCharts } from "@/components/sourcing/order-charts";
+import { formatPmaId } from "@/lib/utils/format-id";
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,7 @@ export default async function OrdersPage() {
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/30">
                                             <td className="p-4 align-middle font-mono text-xs">
                                                 <Link href={`/sourcing/orders/${order.id}`} className="font-bold text-primary hover:underline transition-colors">
-                                                    {order.id.slice(0, 8)}...
+                                                    {formatPmaId(order.id, 'order', order.createdAt)}
                                                 </Link>
                                             </td>
                                             <td className="p-4 align-middle font-bold text-slate-700">{order.supplier?.name || "Unknown Supplier"}</td>

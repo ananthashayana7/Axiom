@@ -59,7 +59,7 @@ docker-compose exec app node -r tsx/cjs src/db/seed.ts
 
 ### Step 5: Access the Portal
 - **Portal**: http://localhost:3000
-- **Default Login**: admin@example.com / password
+- **Default Login**: admin@axiomprocure.com / password
 
 ---
 
@@ -200,7 +200,7 @@ docker-compose up --build
 
 ### Verify Setup
 1. Visit http://localhost:3000
-2. Login with: admin@example.com / password
+2. Login with: admin@axiomprocure.com / password
 3. You should see the dashboard
 4. Test profile password change functionality
 

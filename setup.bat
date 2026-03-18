@@ -61,7 +61,7 @@ echo Setup Complete!
 echo ========================================
 echo.
 echo Portal URL: http://localhost:3000
-echo Login: admin@example.com
+echo Login: admin@axiomprocure.com
 echo Password: password
 echo.
 echo To stop the portal: docker-compose -f docker-compose.dev.yml down

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#10634a",
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -20,6 +20,7 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { InactivityTracker } from "@/components/shared/inactivity-tracker";
 import { CurrencyProvider } from "@/components/currency-provider";
+import { PageTransition } from "@/components/shared/page-transition";
 
 export default async function RootLayout({
   children,
@@ -48,7 +49,9 @@ export default async function RootLayout({
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                   <Header />
                   <main className="flex-1 overflow-auto">
-                    {children}
+                    <PageTransition>
+                      {children}
+                    </PageTransition>
                   </main>
                   <CommandPalette />
                 </div>

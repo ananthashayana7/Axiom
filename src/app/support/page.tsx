@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { submitSupportTicket, getUserTickets } from "@/app/actions/support";
 import { useSession } from "next-auth/react";
+import {
+    PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer,
+} from 'recharts';
 
 const CATEGORIES = ['Technical Issue', 'Billing', 'Data Import', 'Access & Permissions', 'Feature Request', 'General Enquiry'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
@@ -202,44 +206,103 @@ export default function SupportPage() {
             </Card>
 
             {/* Ticket Statistics */}
-            {tickets.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <BarChart3 className="h-5 w-5 text-primary" /> Ticket Overview
-                        </CardTitle>
-                        <CardDescription>Summary of your support activity.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="text-center p-4 rounded-lg bg-blue-50 border border-blue-100">
-                                <p className="text-2xl font-black text-blue-600">
-                                    {tickets.filter((t: any) => t.status === 'open').length}
-                                </p>
-                                <p className="text-xs font-medium text-blue-500 mt-1">Open</p>
+            {tickets.length > 0 && (() => {
+                const STATUS_COLORS: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280' };
+                const statusData = Object.entries(
+                    tickets.reduce((acc: Record<string, number>, t: any) => {
+                        const s = t.status || 'open';
+                        acc[s] = (acc[s] || 0) + 1;
+                        return acc;
+                    }, {})
+                ).map(([name, value]) => ({
+                    name: name.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                    value,
+                    fill: STATUS_COLORS[name] || '#94a3b8',
+                }));
+
+                const categoryData = Object.entries(
+                    tickets.reduce((acc: Record<string, number>, t: any) => {
+                        const c = t.category || 'General';
+                        acc[c] = (acc[c] || 0) + 1;
+                        return acc;
+                    }, {})
+                ).map(([name, value]) => ({ name, count: value })).sort((a, b) => b.count - a.count);
+
+                const CAT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+                return (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <BarChart3 className="h-5 w-5 text-primary" /> Ticket Overview
+                            </CardTitle>
+                            <CardDescription>Visual summary of your support activity.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {/* KPI Row */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className="text-center p-4 rounded-lg bg-blue-50 border border-blue-100">
+                                    <p className="text-2xl font-black text-blue-600">
+                                        {tickets.filter((t: any) => t.status === 'open').length}
+                                    </p>
+                                    <p className="text-xs font-medium text-blue-500 mt-1">Open</p>
+                                </div>
+                                <div className="text-center p-4 rounded-lg bg-amber-50 border border-amber-100">
+                                    <p className="text-2xl font-black text-amber-600">
+                                        {tickets.filter((t: any) => t.status === 'in_progress').length}
+                                    </p>
+                                    <p className="text-xs font-medium text-amber-500 mt-1">In Progress</p>
+                                </div>
+                                <div className="text-center p-4 rounded-lg bg-emerald-50 border border-emerald-100">
+                                    <p className="text-2xl font-black text-emerald-600">
+                                        {tickets.filter((t: any) => t.status === 'resolved').length}
+                                    </p>
+                                    <p className="text-xs font-medium text-emerald-500 mt-1">Resolved</p>
+                                </div>
+                                <div className="text-center p-4 rounded-lg bg-stone-50 border border-stone-100">
+                                    <p className="text-2xl font-black text-stone-500">
+                                        {tickets.filter((t: any) => t.status === 'closed').length}
+                                    </p>
+                                    <p className="text-xs font-medium text-stone-400 mt-1">Closed</p>
+                                </div>
                             </div>
-                            <div className="text-center p-4 rounded-lg bg-amber-50 border border-amber-100">
-                                <p className="text-2xl font-black text-amber-600">
-                                    {tickets.filter((t: any) => t.status === 'in_progress').length}
-                                </p>
-                                <p className="text-xs font-medium text-amber-500 mt-1">In Progress</p>
+
+                            {/* Charts Row */}
+                            <div className="grid md:grid-cols-2 gap-6">
+                                {/* Status Distribution Pie */}
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Status Distribution</p>
+                                    <ResponsiveContainer width="100%" height={200}>
+                                        <PieChart>
+                                            <Pie data={statusData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3}
+                                                label={({ name, value }) => `${name} (${value})`}>
+                                                {statusData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+                                            </Pie>
+                                            <Tooltip />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Category Bar Chart */}
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Tickets by Category</p>
+                                    <ResponsiveContainer width="100%" height={200}>
+                                        <BarChart data={categoryData} layout="vertical" margin={{ left: 0, right: 16 }}>
+                                            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                            <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                                            <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
+                                            <Tooltip />
+                                            <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Tickets">
+                                                {categoryData.map((_, idx) => <Cell key={idx} fill={CAT_COLORS[idx % CAT_COLORS.length]} />)}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
-                            <div className="text-center p-4 rounded-lg bg-emerald-50 border border-emerald-100">
-                                <p className="text-2xl font-black text-emerald-600">
-                                    {tickets.filter((t: any) => t.status === 'resolved').length}
-                                </p>
-                                <p className="text-xs font-medium text-emerald-500 mt-1">Resolved</p>
-                            </div>
-                            <div className="text-center p-4 rounded-lg bg-stone-50 border border-stone-100">
-                                <p className="text-2xl font-black text-stone-500">
-                                    {tickets.filter((t: any) => t.status === 'closed').length}
-                                </p>
-                                <p className="text-xs font-medium text-stone-400 mt-1">Closed</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                        </CardContent>
+                    </Card>
+                );
+            })()}
 
             {/* FAQ */}
             <Card>

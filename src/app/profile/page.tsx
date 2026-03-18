@@ -21,7 +21,8 @@ export default async function ProfilePage() {
     // Ensure role is not null
     const userWithRole = {
         ...user,
-        role: user.role || 'user' as const
+        role: user.role || 'user' as const,
+        twoFactorEnabled: user.twoFactorEnabled ?? false,
     };
 
     return <ProfileClient user={userWithRole} />;

@@ -83,7 +83,7 @@ export function GlobalRecordReceipt({ orders }: { orders: any[] }) {
                             <option value="">Select an active order...</option>
                             {activeOrders.map(order => (
                                 <option key={order.id} value={order.id}>
-                                    {order.supplier.name} — PO#{order.id.slice(0, 8).toUpperCase()} (₹{Number(order.totalAmount).toLocaleString()})
+                                    {order.supplier.name} — PO#{order.id.replace(/-/g, '').slice(0, 6).toUpperCase()} (₹{Number(order.totalAmount).toLocaleString()})
                                 </option>
                             ))}
                         </select>

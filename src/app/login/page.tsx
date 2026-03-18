@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { toast } from "sonner";
+import { AxiomLogo } from "@/components/shared/axiom-logo";
 
 export default function LoginPage() {
     const [errorMessage, formAction, isPending] = useActionState(
@@ -88,15 +89,23 @@ export default function LoginPage() {
 
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
-        alert("Please contact your administrator (admin@example.com) to reset your password.");
+        toast.info("Please contact your administrator (admin@axiomprocure.com) to reset your password.");
     };
 
     return (
-        <div className="flex min-h-full items-center justify-center bg-background">
-            <div className="w-full max-w-sm rounded-lg border bg-card p-4 lg:p-8 shadow-md">
-                <h1 className="mb-2 text-center text-3xl font-bold tracking-tight text-primary">Axiom</h1>
-                <p className="mb-6 text-center text-sm text-muted-foreground">
-                    {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Sign in to your account")}
+        <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+            {/* Ambient glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl pointer-events-none" />
+            <div className="w-full max-w-sm rounded-xl border bg-card/80 backdrop-blur-sm p-6 lg:p-8 shadow-xl relative z-10">
+                <div className="flex justify-center mb-3">
+                    <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                        <AxiomLogo className="h-7 w-7 text-primary" />
+                    </div>
+                </div>
+                <h1 className="mb-1 text-center text-3xl font-black tracking-tighter text-foreground">Axiom</h1>
+                <p className="mb-6 text-center text-xs text-muted-foreground font-medium uppercase tracking-widest">
+                    {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Procurement Intelligence")}
                 </p>
                 <form action={formAction} className="space-y-4">
                     {!show2FA && !showSetup2FA ? (

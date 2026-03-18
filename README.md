@@ -35,7 +35,7 @@ docker-compose exec app node -r tsx/cjs src/db/seed.ts
 
 ### Default Login
 - **URL:** http://localhost:3000
-- **Email:** admin@example.com
+- **Email:** admin@axiomprocure.com
 - **Password:** password
 
 ---
@@ -212,7 +212,7 @@ Expected behavior:
 ---
 
 ## ⚠️ Important Security
-1. **Change Default Admin Password**: After deployment, log in and change the password for `admin@example.com`.
+1. **Change Default Admin Password**: After deployment, log in and change the password for `admin@axiomprocure.com`.
 2. **Backups**: Ensure you back up Docker volume `procurement_db_data` regularly.
 3. **AUTH_SECRET**: Change the default AUTH_SECRET in production to a secure random string.
 

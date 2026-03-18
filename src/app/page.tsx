@@ -67,11 +67,11 @@ export default async function Home() {
     : "bg-blue-50 text-blue-700 border-blue-200";
 
   return (
-    <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full" suppressHydrationWarning>
+    <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">Command Center</h1>
+            <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase leading-none">Command Center</h1>
             {userRole && (
               <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${roleBadgeClass}`}>
                 {isAdmin ? "Admin" : "User"} logged in
@@ -90,13 +90,13 @@ export default async function Home() {
         {/* Total Spend */}
         <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Enterprise Spend</CardTitle>
-            <div className="p-2 bg-emerald-50 rounded-lg">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Enterprise Spend</CardTitle>
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
               <IndianRupee className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900 tracking-tighter">
+            <div className="text-3xl font-black text-foreground tracking-tighter">
               {formatCurrency(stats.totalSpend)}
             </div>
             <div className="flex items-center gap-1 mt-2">
@@ -109,13 +109,13 @@ export default async function Home() {
                   {Number(stats.momChange) >= 0 ? "+" : ""}{stats.momChange}%
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[10px] font-bold bg-slate-50/50 text-slate-600 border-slate-100 px-1.5 py-0">
+                <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
                   New baseline
                 </Badge>
               )}
               <span className="text-[10px] text-muted-foreground font-medium uppercase">vs last month</span>
             </div>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href={isAgent ? "/admin/analytics" : "/sourcing/orders"} className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
                   View Analytics
@@ -135,18 +135,18 @@ export default async function Home() {
         {/* Active Suppliers */}
         <Card className="glass-card border-l-4 border-l-emerald-500 shadow-lg hover:shadow-emerald-500/20 transition-all h-full">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Verified Network</CardTitle>
-            <div className="p-2 bg-emerald-50 rounded-lg">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Verified Network</CardTitle>
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
               <Users className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.supplierCount}</div>
+            <div className="text-3xl font-black text-foreground tracking-tighter">{stats.supplierCount}</div>
             <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
               Active global suppliers
             </p>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/suppliers" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
                   View Suppliers
@@ -166,15 +166,15 @@ export default async function Home() {
         {/* Pending Orders */}
         <Card className="glass-card border-l-4 border-l-sky-500 shadow-lg hover:shadow-sky-500/20 transition-all h-full">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Active Funnel</CardTitle>
-            <div className="p-2 bg-sky-50 rounded-lg">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Active Funnel</CardTitle>
+            <div className="p-2 bg-sky-50 dark:bg-sky-950/30 rounded-lg">
               <CreditCard className="h-4 w-4 text-sky-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.pendingCount}</div>
+            <div className="text-3xl font-black text-foreground tracking-tighter">{stats.pendingCount}</div>
             <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase font-mono">{stats.fulfilledCount} Fulfilled · {stats.pendingCount} Active</p>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/sourcing/orders" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
                   View Orders
@@ -192,15 +192,15 @@ export default async function Home() {
         {/* Live Inventory */}
         <Card className="glass-card border-l-4 border-l-amber-500 shadow-lg hover:shadow-amber-500/20 transition-all h-full">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-tight">Warehouse Load</CardTitle>
-            <div className="p-2 bg-amber-50 rounded-lg">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Warehouse Load</CardTitle>
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
               <Boxes className="h-4 w-4 text-amber-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900 tracking-tighter">{Number(stats.totalInventory).toLocaleString()}</div>
+            <div className="text-3xl font-black text-foreground tracking-tighter">{Number(stats.totalInventory).toLocaleString('en-IN')}</div>
             <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase">Units across {stats.partCount} SKUs</p>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/sourcing/parts" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
                   Inventory
@@ -254,7 +254,7 @@ export default async function Home() {
                     <Link key={s.id} href={`/suppliers/${s.id}`} className="block group">
                       <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-destructive/10 group-hover:border-destructive/30 group-hover:shadow-md transition-all">
                         <div>
-                          <p className="font-bold text-slate-800 group-hover:text-destructive transition-colors">{s.name}</p>
+                          <p className="font-bold text-foreground group-hover:text-destructive transition-colors">{s.name}</p>
                           <p className="text-[10px] font-mono text-muted-foreground uppercase">Intervention needed</p>
                         </div>
                         <div className="text-right">

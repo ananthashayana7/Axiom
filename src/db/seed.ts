@@ -23,11 +23,11 @@ async function seed() {
         await db.insert(users).values({
             id: uuidv4(),
             name: "Admin User",
-            email: "admin@example.com",
+            email: "admin@axiomprocure.com",
             password: hashedPassword,
             role: "admin",
         });
-        console.log("Created default admin: admin@example.com / password");
+        console.log("Created default admin: admin@axiomprocure.com / password");
         console.log("Seeding complete! Import real data via Admin → Import Data.");
     } catch (error) {
         console.error("Seeding failed:", error);

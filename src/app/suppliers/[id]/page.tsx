@@ -10,6 +10,7 @@ import { auth } from "@/auth";
 import { ArrowLeft, Building2, Mail, AlertTriangle, Calendar, Star, Trophy, Target, Activity } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
+import { formatPmaId } from "@/lib/utils/format-id";
 
 export const dynamic = 'force-dynamic';
 
@@ -247,7 +248,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle font-mono text-xs">
                                                 <Link href={`/sourcing/orders/${order.id}`} className="text-primary hover:underline">
-                                                    {order.id.slice(0, 8)}...
+                                                    {formatPmaId(order.id, 'order', order.createdAt)}
                                                 </Link>
                                             </td>
                                             <td className="p-4 align-middle font-medium">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>

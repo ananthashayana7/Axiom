@@ -6,14 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Shield, Loader, Eye, EyeOff } from "lucide-react";
+import { User, Shield, Loader, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { changePassword, updateProfile } from "@/app/actions/auth";
+import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
 
 interface User {
     id: string;
     name: string;
     email: string;
     role: 'admin' | 'user';
+    twoFactorEnabled?: boolean;
     createdAt: Date | null;
 }
 
@@ -25,6 +27,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
     const [isPending, startTransition] = useTransition();
     const [showCurrentPassword, setShowCurrentPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(user.twoFactorEnabled ?? false);
     const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -231,6 +234,25 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                 </Button>
                             </div>
                         </form>
+                    </CardContent>
+                </Card>
+
+                {/* Two-Factor Authentication */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Fingerprint className="h-5 w-5 text-primary" />
+                            Two-Factor Authentication
+                        </CardTitle>
+                        <CardDescription>
+                            Add an extra layer of security to your account using an authenticator app (Google Authenticator, Microsoft Authenticator, etc.).
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <TwoFactorSetup
+                            isEnabled={twoFactorEnabled}
+                            onStatusChange={(enabled) => setTwoFactorEnabled(enabled)}
+                        />
                     </CardContent>
                 </Card>
             </div>

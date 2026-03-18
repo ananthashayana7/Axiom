@@ -71,7 +71,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
             results.push({
                 id: o.id,
                 type: 'order',
-                title: `Order ${o.id.slice(0, 8)}`,
+                title: `Order ${o.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
                 subtitle: `Procurement Order • ${o.status}`,
                 href: path
             });

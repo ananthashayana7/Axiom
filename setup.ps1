@@ -71,7 +71,7 @@ Write-Host "Setup Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Portal URL: http://localhost:3000" -ForegroundColor Cyan
-Write-Host "Login: admin@example.com" -ForegroundColor Cyan
+Write-Host "Login: admin@axiomprocure.com" -ForegroundColor Cyan
 Write-Host "Password: password" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Commands:" -ForegroundColor Yellow

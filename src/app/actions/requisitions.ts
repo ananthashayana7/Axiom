@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { requisitions, auditLogs } from "@/db/schema";
+import { requisitions, auditLogs, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
@@ -41,6 +41,22 @@ export async function createRequisition(data: { title: string, description?: str
             entityId: requisition.id,
             details: `Requisition created for ${data.title} - Est. Amount: ${data.estimatedAmount}`
         });
+
+        // Notify all admin users that a new requisition requires review
+        try {
+            const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, 'admin'));
+            await Promise.allSettled(
+                adminUsers.map(admin =>
+                    createNotification({
+                        userId: admin.id,
+                        title: 'New Requisition Pending Approval',
+                        message: `"${data.title}" submitted by ${(session.user as any).name || 'a user'} — Est. ${data.estimatedAmount.toLocaleString()}`,
+                        type: 'info',
+                        link: `/sourcing/requisitions?id=${requisition.id}`,
+                    })
+                )
+            );
+        } catch { /* notification failure should not block requisition creation */ }
 
         revalidatePath('/sourcing/requisitions');
         return { success: true, data: requisition };

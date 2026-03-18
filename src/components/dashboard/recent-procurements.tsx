@@ -11,7 +11,7 @@ export function RecentProcurements({ orders }: { orders: any[] }) {
                     </Avatar>
                     <div className="ml-4 space-y-1">
                         <p className="text-sm font-medium leading-none">{order.supplier.name}</p>
-                        <p className="text-sm text-muted-foreground">Order ID: {order.id.slice(0, 8)}</p>
+                        <p className="text-sm text-muted-foreground">Order ID: {order.id.replace(/-/g, '').slice(0, 6).toUpperCase()}</p>
                     </div>
                     <div className="ml-auto font-medium">+₹{order.totalAmount}</div>
                 </div>

@@ -107,6 +107,10 @@ const SECTIONS = [
         title: "Procurement Workflows",
         icon: BookOpen,
         content: "Axiom enforces industry-standard procurement cycles to ensure financial discipline and legal compliance.",
+        diagram: {
+            title: "End-to-End Procurement Flow",
+            nodes: ["Material Catalog", "Requisition", "RFQ (Bidding)", "Purchase Order", "Goods Receipt", "Invoice Match", "Payment"],
+        },
         steps: [
             "1. Material Catalog — Defining the 'Digital Twin' of every part with SKU, Category, and Benchmark Pricing.",
             "2. Demand Generation — Needs enter as Requisitions. Managers approve based on live department budget visibility.",
@@ -120,6 +124,10 @@ const SECTIONS = [
         title: "Financial Compliance",
         icon: Scale,
         content: "Closing 'The Loop'. Axiom's matching engine prevents overpayment, fraud, and maverick spend.",
+        diagram: {
+            title: "3-Way Match Verification",
+            nodes: ["Purchase Order", "Goods Receipt", "Supplier Invoice", "Match Engine", "Approved / Disputed"],
+        },
         steps: [
             "The 3-Way Match — The system automatically flags discrepancies between PO Price, GRN Quantity, and Invoice Amount.",
             "Dispute Management — Orders with mismatch (Amber status) are locked from payment until a Buyer resolves the data.",
@@ -236,6 +244,10 @@ const SECTIONS = [
         title: "Sourcing Request Workflow",
         icon: ShoppingCart,
         content: "A Sourcing Request (RFQ) is the formal process of inviting competitive quotes from qualified suppliers before committing to a purchase. Axiom walks you through each step.",
+        diagram: {
+            title: "RFQ to PO Flow",
+            nodes: ["Create RFQ", "Invite Suppliers", "Collect Quotes", "Compare & Rank", "Award Winner", "Generate PO"],
+        },
         steps: [
             "Create New Sourcing Request — Navigate to Sourcing → RFQs → New RFQ. Fill in the Part/SKU, required quantity, target delivery date, and attached specifications.",
             "Supplier Invitation — Add one or more suppliers to the RFQ. Each supplier receives an invitation via their registered email and can respond through the Supplier Portal.",
@@ -250,6 +262,10 @@ const SECTIONS = [
         title: "Internal Requisitions",
         icon: FileText,
         content: "Internal Requisitions allow any authorized user to request materials or services. They go through an approval workflow before becoming a PO.",
+        diagram: {
+            title: "Requisition Approval Flow",
+            nodes: ["Submit Request", "Pending Approval", "Admin Review", "Approved", "Convert to PO", "Supplier Fulfills"],
+        },
         steps: [
             "Submit Requisition — Go to Sourcing → Requisitions → New Requisition. Select the Part/SKU, quantity, urgency, and the department making the request.",
             "Auto-Budget Check — The system validates the request against the department's allocated budget envelope.",
@@ -264,6 +280,10 @@ const SECTIONS = [
         title: "Invoice Management & 3-Way Match",
         icon: Scale,
         content: "Invoice management in Axiom enforces 3-way matching to prevent fraudulent or erroneous payments. Each invoice must align with its PO and Goods Receipt.",
+        diagram: {
+            title: "Invoice Lifecycle",
+            nodes: ["Invoice Received", "Pending Review", "3-Way Match", "Matched ✓", "Payment Released"],
+        },
         steps: [
             "Invoice Receipt — Suppliers submit invoices via the Supplier Portal, or procurement staff manually logs them in Sourcing → Invoice Records.",
             "Currency Integrity — Every invoice preserves its original currency (INR, EUR, USD, etc.). Axiom never auto-converts amounts — what was invoiced is what is shown.",
@@ -433,6 +453,31 @@ export default function DocsPage() {
                                             {section.content}
                                         </p>
                                     </div>
+
+                                    {/* Workflow Diagram (visual) */}
+                                    {(section as any).diagram && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground/60 border-b pb-4">
+                                                <Share2 size={16} />
+                                                {(section as any).diagram.title}
+                                            </div>
+                                            <div className="flex items-center justify-center gap-0 flex-wrap py-6 px-4 bg-gradient-to-r from-primary/5 via-background to-primary/5 rounded-2xl border overflow-x-auto">
+                                                {(section as any).diagram.nodes.map((node: string, i: number) => (
+                                                    <div key={i} className="flex items-center shrink-0">
+                                                        <div className="px-4 py-2.5 rounded-xl bg-background border-2 border-primary/20 shadow-sm text-xs font-bold text-foreground whitespace-nowrap hover:border-primary hover:shadow-md transition-all">
+                                                            {node}
+                                                        </div>
+                                                        {i < (section as any).diagram.nodes.length - 1 && (
+                                                            <div className="flex items-center mx-1">
+                                                                <div className="w-6 h-0.5 bg-primary/40" />
+                                                                <ChevronRight className="h-4 w-4 text-primary/60 -ml-1" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Detailed Guide */}
                                     {section.steps && (
