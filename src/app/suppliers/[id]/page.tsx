@@ -191,6 +191,39 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 </div>
             </div>
 
+            {/* Key Performance Indicators */}
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-10">
+                <Card className="border-l-4 border-l-indigo-500">
+                    <CardContent className="pt-4 pb-3">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Performance Score</p>
+                        <p className="text-2xl font-black text-indigo-600">{supplier.performanceScore ?? 0}%</p>
+                        <Progress value={supplier.performanceScore ?? 0} className="h-1.5 mt-2" />
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-emerald-500">
+                    <CardContent className="pt-4 pb-3">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Financial Health</p>
+                        <p className="text-2xl font-black text-emerald-600">{supplier.financialScore ?? 0}%</p>
+                        <Progress value={supplier.financialScore ?? 0} className="h-1.5 mt-2" />
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-cyan-500">
+                    <CardContent className="pt-4 pb-3">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Total Orders</p>
+                        <p className="text-2xl font-black text-cyan-600">{orders.length}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{orders.filter((o: any) => o.status === 'fulfilled').length} fulfilled</p>
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-amber-500">
+                    <CardContent className="pt-4 pb-3">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Avg Order Value</p>
+                        <p className="text-2xl font-black text-amber-600">
+                            ₹{orders.length > 0 ? (orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0) / orders.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'}
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
             <Card>
                 <CardHeader>
                     <CardTitle>Order History</CardTitle>
@@ -212,7 +245,11 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                 <tbody className="[&_tr:last-child]:border-0">
                                     {orders.map((order: any) => (
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
-                                            <td className="p-4 align-middle font-mono text-xs">{order.id.slice(0, 8)}...</td>
+                                            <td className="p-4 align-middle font-mono text-xs">
+                                                <Link href={`/sourcing/orders/${order.id}`} className="text-primary hover:underline">
+                                                    {order.id.slice(0, 8)}...
+                                                </Link>
+                                            </td>
                                             <td className="p-4 align-middle font-medium">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex flex-col gap-1">

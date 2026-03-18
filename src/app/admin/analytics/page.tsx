@@ -20,6 +20,7 @@ import {
     ArrowUpRight, ArrowDownRight, Layers, Receipt, X, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
+import Link from 'next/link';
 
 /* ─── Color Palettes ─── */
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#a855f7', '#22c55e', '#eab308'];
@@ -110,11 +111,11 @@ function MultiSelect({ label, options, selected, onChange, icon }: {
 }
 
 /* ─── KPI Card ─── */
-function KpiCard({ title, value, subtitle, icon, color, trend }: {
-    title: string; value: string; subtitle?: string; icon: React.ReactNode; color: string; trend?: { value: number; label: string };
+function KpiCard({ title, value, subtitle, icon, color, trend, href }: {
+    title: string; value: string; subtitle?: string; icon: React.ReactNode; color: string; trend?: { value: number; label: string }; href?: string;
 }) {
-    return (
-        <Card className={`border-l-4`} style={{ borderLeftColor: color }}>
+    const card = (
+        <Card className={`border-l-4 ${href ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} style={{ borderLeftColor: color }}>
             <CardHeader className="pb-1 pt-4 px-4">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-xs font-medium text-muted-foreground">{title}</CardTitle>
@@ -139,6 +140,7 @@ function KpiCard({ title, value, subtitle, icon, color, trend }: {
             </CardContent>
         </Card>
     );
+    return href ? <Link href={href}>{card}</Link> : card;
 }
 
 /* ─── Custom Tooltip ─── */
@@ -389,14 +391,14 @@ export default function AnalyticsPage() {
 
             {/* ─── KPI Row ─── */}
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
-                <KpiCard title="Total Spend" value={fmtCompact(kpis?.totalSpend || 0, currency)} icon={<DollarSign className="h-4 w-4" style={{ color: '#3b82f6' }} />} color="#3b82f6" subtitle={`${kpis?.orderCount || 0} orders`} />
-                <KpiCard title="Savings" value={fmtCompact(kpis?.totalSavings || 0, currency)} icon={<TrendingUp className="h-4 w-4" style={{ color: '#10b981' }} />} color="#10b981" trend={{ value: kpis?.savingsRate || 0, label: 'rate' }} />
-                <KpiCard title="Savings Rate" value={`${kpis?.savingsRate || 0}%`} icon={<ArrowUpRight className="h-4 w-4" style={{ color: '#8b5cf6' }} />} color="#8b5cf6" subtitle="of initial quotes" />
-                <KpiCard title="Avg Order" value={fmtCompact(kpis?.avgOrderValue || 0, currency)} icon={<Layers className="h-4 w-4" style={{ color: '#f59e0b' }} />} color="#f59e0b" />
-                <KpiCard title="Suppliers" value={String(kpis?.supplierCount || 0)} icon={<Factory className="h-4 w-4" style={{ color: '#06b6d4' }} />} color="#06b6d4" subtitle="active in period" />
-                <KpiCard title="Orders" value={String(kpis?.orderCount || 0)} icon={<FileText className="h-4 w-4" style={{ color: '#ec4899' }} />} color="#ec4899" />
-                <KpiCard title="Invoices" value={String(kpis?.invoiceCount || 0)} icon={<Receipt className="h-4 w-4" style={{ color: '#f97316' }} />} color="#f97316" subtitle={fmtCompact(kpis?.invoiceTotal || 0, currency)} />
-                <KpiCard title="Categories" value={String(data?.spendByCategory?.length || 0)} icon={<PieChartIcon className="h-4 w-4" style={{ color: '#84cc16' }} />} color="#84cc16" subtitle="tracked" />
+                <KpiCard title="Total Spend" value={fmtCompact(kpis?.totalSpend || 0, currency)} icon={<DollarSign className="h-4 w-4" style={{ color: '#3b82f6' }} />} color="#3b82f6" subtitle={`${kpis?.orderCount || 0} orders`} href="/sourcing/orders" />
+                <KpiCard title="Savings" value={fmtCompact(kpis?.totalSavings || 0, currency)} icon={<TrendingUp className="h-4 w-4" style={{ color: '#10b981' }} />} color="#10b981" trend={{ value: kpis?.savingsRate || 0, label: 'rate' }} href="/savings" />
+                <KpiCard title="Savings Rate" value={`${kpis?.savingsRate || 0}%`} icon={<ArrowUpRight className="h-4 w-4" style={{ color: '#8b5cf6' }} />} color="#8b5cf6" subtitle="of initial quotes" href="/savings" />
+                <KpiCard title="Avg Order" value={fmtCompact(kpis?.avgOrderValue || 0, currency)} icon={<Layers className="h-4 w-4" style={{ color: '#f59e0b' }} />} color="#f59e0b" href="/sourcing/orders" />
+                <KpiCard title="Suppliers" value={String(kpis?.supplierCount || 0)} icon={<Factory className="h-4 w-4" style={{ color: '#06b6d4' }} />} color="#06b6d4" subtitle="active in period" href="/suppliers" />
+                <KpiCard title="Orders" value={String(kpis?.orderCount || 0)} icon={<FileText className="h-4 w-4" style={{ color: '#ec4899' }} />} color="#ec4899" href="/sourcing/orders" />
+                <KpiCard title="Invoices" value={String(kpis?.invoiceCount || 0)} icon={<Receipt className="h-4 w-4" style={{ color: '#f97316' }} />} color="#f97316" subtitle={fmtCompact(kpis?.invoiceTotal || 0, currency)} href="/sourcing/invoices" />
+                <KpiCard title="Categories" value={String(data?.spendByCategory?.length || 0)} icon={<PieChartIcon className="h-4 w-4" style={{ color: '#84cc16' }} />} color="#84cc16" subtitle="tracked" href="/sourcing/parts" />
             </div>
 
             {/* ═══ CHART GRID ═══ */}

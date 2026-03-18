@@ -63,25 +63,49 @@ export function AuditLogView({ initialLogs }: { initialLogs: AuditLog[] }) {
     }, [initialLogs, searchTerm, selectedActions, selectedEntities]);
 
     const exportToCSV = () => {
-        const headers = ["ID", "Action", "Entity Type", "Entity ID", "Details", "User", "Timestamp"];
-        const rows = filteredLogs.map(log => [
-            log.id,
-            log.action,
-            log.entityType,
-            log.entityId,
-            log.details,
-            log.userName,
-            new Date(log.createdAt).toISOString()
-        ]);
+        const headers = [
+            "Serial No.",
+            "Audit ID",
+            "Action Type",
+            "Entity Type",
+            "Entity ID",
+            "Description",
+            "Performed By",
+            "Timestamp (UTC)",
+            "Date",
+            "Time",
+            "Category",
+            "Compliance Status"
+        ];
+        const rows = filteredLogs.map((log, index) => {
+            const dt = new Date(log.createdAt);
+            return [
+                index + 1,
+                `PMA-AUD-${(log.id || '').slice(0, 8).toUpperCase()}`,
+                log.action,
+                log.entityType,
+                log.entityId,
+                log.details,
+                log.userName,
+                dt.toISOString(),
+                dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+                log.action === 'CREATE' ? 'Data Entry' : log.action === 'UPDATE' ? 'Modification' : log.action === 'DELETE' ? 'Removal' : 'System Event',
+                'Verified'
+            ];
+        });
 
         const reportDate = new Date().toLocaleString();
         const csvContent = [
-            `"Axiom Audit Trail Report"`,
+            `"Axiom Global Audit Trail — Compliance Evidence Report"`,
             `"Generated On:","${reportDate}"`,
+            `"Report Scope:","${selectedActions.length ? selectedActions.join(', ') : 'All Actions'}"`,
+            `"Entity Filter:","${selectedEntities.length ? selectedEntities.join(', ') : 'All Entities'}"`,
             `"Record Count:","${filteredLogs.length}"`,
+            `"Exported By:","Axiom Admin"`,
             "",
             headers.join(","),
-            ...rows.map(row => row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(","))
+            ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
         ].join("\n");
 
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });

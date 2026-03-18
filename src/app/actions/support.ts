@@ -2,12 +2,10 @@
 
 import { db } from "@/db";
 import { supportTickets, users } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, gte, lte } from "drizzle-orm";
 import { auth } from "@/auth";
 import { sendEmail, sendSupportTicket } from "@/lib/services/email";
 import { revalidatePath } from "next/cache";
-
-let ticketCounter = Date.now();
 
 export async function submitSupportTicket(data: {
     subject: string;
@@ -18,8 +16,34 @@ export async function submitSupportTicket(data: {
     const session = await auth();
     if (!session?.user?.id) throw new Error("Not authenticated");
 
-    ticketCounter++;
-    const ticketNumber = `TKT-${new Date().getFullYear()}-${String(ticketCounter).slice(-5)}`;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+
+    // Count existing tickets this month to determine serial number
+    // Use a retry loop to handle potential race conditions with concurrent submissions
+    let ticketNumber = '';
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+        const existingTickets = await db.select().from(supportTickets)
+            .where(
+                and(
+                    gte(supportTickets.createdAt, new Date(year, now.getMonth(), 1)),
+                    lte(supportTickets.createdAt, new Date(year, now.getMonth() + 1, 0, 23, 59, 59, 999))
+                )
+            );
+        const serial = String(existingTickets.length + 1 + attempts).padStart(3, '0');
+        ticketNumber = `PMA-${year}-${month}-${serial}`;
+
+        // Check if this ticket number already exists
+        const [dup] = await db.select().from(supportTickets)
+            .where(eq(supportTickets.ticketNumber, ticketNumber))
+            .limit(1);
+        if (!dup) break;
+        attempts++;
+    }
 
     const [ticket] = await db.insert(supportTickets).values({
         ticketNumber,

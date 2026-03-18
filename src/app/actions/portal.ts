@@ -141,7 +141,7 @@ export async function uploadSupplierDocument(formData: FormData) {
             supplierId,
             name,
             type,
-            url: `https://storage.example.com/axiom/${supplierId}/${Date.now()}_${name.replace(/\s+/g, '_')}`,
+            url: undefined,
         });
 
         await logActivity('UPLOAD', 'document', supplierId, `Supplier uploaded a new ${type} document: ${name}`);
