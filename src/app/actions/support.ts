@@ -21,15 +21,29 @@ export async function submitSupportTicket(data: {
     const month = String(now.getMonth() + 1).padStart(2, '0');
 
     // Count existing tickets this month to determine serial number
-    const existingTickets = await db.select().from(supportTickets)
-        .where(
-            and(
-                gte(supportTickets.createdAt, new Date(year, now.getMonth(), 1)),
-                lte(supportTickets.createdAt, new Date(year, now.getMonth() + 1, 0, 23, 59, 59, 999))
-            )
-        );
-    const serial = String(existingTickets.length + 1).padStart(3, '0');
-    const ticketNumber = `PMA-${year}-${month}-${serial}`;
+    // Use a retry loop to handle potential race conditions with concurrent submissions
+    let ticketNumber = '';
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+        const existingTickets = await db.select().from(supportTickets)
+            .where(
+                and(
+                    gte(supportTickets.createdAt, new Date(year, now.getMonth(), 1)),
+                    lte(supportTickets.createdAt, new Date(year, now.getMonth() + 1, 0, 23, 59, 59, 999))
+                )
+            );
+        const serial = String(existingTickets.length + 1 + attempts).padStart(3, '0');
+        ticketNumber = `PMA-${year}-${month}-${serial}`;
+
+        // Check if this ticket number already exists
+        const [dup] = await db.select().from(supportTickets)
+            .where(eq(supportTickets.ticketNumber, ticketNumber))
+            .limit(1);
+        if (!dup) break;
+        attempts++;
+    }
 
     const [ticket] = await db.insert(supportTickets).values({
         ticketNumber,
