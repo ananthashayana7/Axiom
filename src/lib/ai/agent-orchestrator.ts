@@ -52,10 +52,10 @@ function validateAgentInput(agentName: string, input: unknown, schema?: unknown)
 /**
  * Register an agent with the orchestrator
  */
-export function registerAgent(
+export async function registerAgent(
     metadata: AgentMetadata,
     executor: (context: AgentContext, input: unknown) => Promise<AgentResult>
-): void {
+): Promise<void> {
     if (agentRegistry.has(metadata.name)) {
         console.warn(`Agent ${metadata.name} is already registered. Overwriting.`);
     }

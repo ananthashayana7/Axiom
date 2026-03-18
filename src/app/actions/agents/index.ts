@@ -98,7 +98,7 @@ export {
     analyzeSupplierDependency
 };
 
-export { type AgentName, type AgentBundleName, AGENT_REGISTRY, AGENT_BUNDLES };
+export { type AgentName, type AgentBundleName };
 
 /**
  * Centralized dispatcher for running agents from the UI
