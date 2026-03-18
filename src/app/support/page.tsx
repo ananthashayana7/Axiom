@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LifeBuoy, Mail, ChevronDown, ChevronUp, CheckCircle, Clock, AlertTriangle, XCircle, Plus, MessageSquare, BookOpen, Send } from "lucide-react";
+import { LifeBuoy, Mail, ChevronDown, ChevronUp, CheckCircle, Clock, AlertTriangle, XCircle, Plus, MessageSquare, BookOpen, Send, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { submitSupportTicket, getUserTickets } from "@/app/actions/support";
@@ -18,11 +18,17 @@ const CATEGORIES = ['Technical Issue', 'Billing', 'Data Import', 'Access & Permi
 const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 const FAQS = [
     { q: 'How do I reset my password?', a: 'Contact your admin or use the password reset link on the login page. An email will be sent to your registered address from pma.axiom.support@gmail.com.' },
-    { q: 'How do I import SAP data into Axiom?', a: 'Go to Admin → Import Data, upload your SAP-exported CSV file, preview the mapping, and confirm the import.' },
+    { q: 'How do I import SAP data into Axiom?', a: 'Go to Admin → Import Data, upload your SAP-exported CSV file, preview the mapping, and confirm the import. Supported datasets include Suppliers, Parts, and Invoices.' },
     { q: 'How are currencies displayed?', a: 'Axiom automatically detects your country from your browser locale/timezone and displays amounts in your local currency (e.g. ₹ for India, € for Germany, $ for USA). You can also manually switch currencies using the toggle on analytics pages.' },
-    { q: 'How do I add a new supplier?', a: 'Navigate to Suppliers → New Supplier. Fill in business details, currency, region and save. Invite the supplier via Supplier Portal.' },
-    { q: 'Who can access the Analytics dashboard?', a: 'The Analytics section is visible to all users, but certain export and configuration features are restricted to admin roles.' },
+    { q: 'How do I add a new supplier?', a: 'Navigate to Suppliers → New Supplier. Fill in business details, tier level, risk scores, ESG metrics and save. You can then invite the supplier to access the Supplier Portal.' },
+    { q: 'Who can access the Analytics dashboard?', a: 'The Analytics/Intelligence Hub is visible to admin users. Regular users can access spend insights, savings data, and their own order history.' },
     { q: 'What is the support contact email?', a: 'All support emails are handled through pma.axiom.support@gmail.com. Ticket replies will be sent to your registered email.' },
+    { q: 'How does three-way matching work?', a: 'Axiom performs 3-way compliance matching by comparing the Purchase Order (PO), Goods Receipt, and Supplier Invoice. When all three match, the invoice is approved for payment. Discrepancies are flagged for review.' },
+    { q: 'What are AI Agents and how do they work?', a: 'Axiom AI Agents are intelligent automated workflows for tasks like fraud detection, demand forecasting, and payment optimization. They run on scheduled intervals or can be triggered manually from the AI Agents dashboard.' },
+    { q: 'How do I raise an internal requisition?', a: 'Navigate to Sourcing → Requisitions and click "New Request". Fill in the purpose, estimated amount, department, and justification. The request will be routed to the configured approvers.' },
+    { q: 'What ticket ID format does Axiom use?', a: 'Support tickets follow the format PMA-YEAR-MONTH-SERIAL (e.g., PMA-2026-03-001). This ensures traceability and compliance across all documentation.' },
+    { q: 'How do I access the Supplier Portal?', a: 'Suppliers are configured by the admin in User Management with the "supplier" role. Once configured, suppliers log in with their credentials and see only the Supplier Portal — their orders, documents, RFQs, and profile.' },
+    { q: 'Can I export audit trail data?', a: 'Yes. Navigate to Admin → Audit Trail and click "Export Evidence (CSV)". The export includes 12 columns with timestamps, user details, action types, and compliance status for regulatory readiness.' },
 ];
 
 const priorityColor: Record<string, string> = {
@@ -194,6 +200,46 @@ export default function SupportPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Ticket Statistics */}
+            {tickets.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-primary" /> Ticket Overview
+                        </CardTitle>
+                        <CardDescription>Summary of your support activity.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-4 rounded-lg bg-blue-50 border border-blue-100">
+                                <p className="text-2xl font-black text-blue-600">
+                                    {tickets.filter((t: any) => t.status === 'open').length}
+                                </p>
+                                <p className="text-xs font-medium text-blue-500 mt-1">Open</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg bg-amber-50 border border-amber-100">
+                                <p className="text-2xl font-black text-amber-600">
+                                    {tickets.filter((t: any) => t.status === 'in_progress').length}
+                                </p>
+                                <p className="text-xs font-medium text-amber-500 mt-1">In Progress</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg bg-emerald-50 border border-emerald-100">
+                                <p className="text-2xl font-black text-emerald-600">
+                                    {tickets.filter((t: any) => t.status === 'resolved').length}
+                                </p>
+                                <p className="text-xs font-medium text-emerald-500 mt-1">Resolved</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg bg-stone-50 border border-stone-100">
+                                <p className="text-2xl font-black text-stone-500">
+                                    {tickets.filter((t: any) => t.status === 'closed').length}
+                                </p>
+                                <p className="text-xs font-medium text-stone-400 mt-1">Closed</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* FAQ */}
             <Card>
