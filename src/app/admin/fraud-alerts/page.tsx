@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getOpenFraudAlerts } from "@/app/actions/agents/fraud-detection";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,12 @@ const severityColors = {
     high: 'bg-orange-100 text-orange-700 border-orange-300',
     medium: 'bg-amber-100 text-amber-700 border-amber-300',
     low: 'bg-blue-100 text-blue-700 border-blue-300'
+};
+
+const entityRoutes: Record<string, string> = {
+    invoice: '/sourcing/invoices',
+    order: '/sourcing/orders',
+    supplier: '/suppliers',
 };
 
 const alertTypeLabels: Record<string, string> = {
@@ -113,12 +120,20 @@ export default async function FraudAlertsPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <Badge variant="outline" className="text-xs">
-                                        {alert.entityType === 'invoice' && <FileText className="h-3 w-3 mr-1" />}
-                                        {alert.entityType === 'order' && <Banknote className="h-3 w-3 mr-1" />}
-                                        {alert.entityType === 'supplier' && <Building2 className="h-3 w-3 mr-1" />}
-                                        {alert.entityType}
-                                    </Badge>
+                                    {entityRoutes[alert.entityType] ? (
+                                        <Link href={entityRoutes[alert.entityType]}>
+                                            <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent transition-colors">
+                                                {alert.entityType === 'invoice' && <FileText className="h-3 w-3 mr-1" />}
+                                                {alert.entityType === 'order' && <Banknote className="h-3 w-3 mr-1" />}
+                                                {alert.entityType === 'supplier' && <Building2 className="h-3 w-3 mr-1" />}
+                                                {alert.entityType}
+                                            </Badge>
+                                        </Link>
+                                    ) : (
+                                        <Badge variant="outline" className="text-xs">
+                                            {alert.entityType}
+                                        </Badge>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">

@@ -35,7 +35,7 @@ export async function addDocument(data: AddDocumentInput) {
     try {
         const [newDoc] = await db.insert(documents).values({
             ...data,
-            url: data.url || `https://example.com/docs/${Math.random().toString(36).substring(7)}.pdf` // Placeholder
+            url: data.url || undefined
         }).returning();
 
         await logActivity('CREATE', 'document', newDoc.id, `Document '${data.name}' added to ${data.orderId ? 'order' : 'supplier'}`);

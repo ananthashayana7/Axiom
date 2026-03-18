@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Shield, Settings as SettingsIcon, Globe, Loader2, Lock, Unlock, AlertTriangle, Info, KeyRound } from "lucide-react";
+import { Shield, Settings as SettingsIcon, Loader2, Lock, Unlock, AlertTriangle, KeyRound } from "lucide-react";
 import { updateSettings, getSettings, flushAuthCache } from "@/app/actions/settings";
 import { toast } from "sonner";
 import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
@@ -36,7 +36,6 @@ export default function AdminSettingsPage() {
     }, [loadSettings]);
 
     const isDirty = initialSettings && settings && (
-        settings.platformName !== initialSettings.platformName ||
         (settings.geminiApiKey || '') !== (initialSettings.geminiApiKey || '') ||
         isLocked !== (initialSettings.isSettingsLocked === 'yes')
     );
@@ -103,30 +102,10 @@ export default function AdminSettingsPage() {
                             />
                         </div>
                     </CardHeader>
-                    <CardContent className="grid gap-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="siteName">Platform Name</Label>
-                                <Input
-                                    id="siteName"
-                                    name="siteName"
-                                    defaultValue={settings.platformName}
-                                    disabled={isLocked}
-                                    onChange={(e) => setSettings({ ...settings, platformName: e.target.value })}
-                                    className="bg-background disabled:opacity-70"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-1">
-                                    <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                                    Currency
-                                </Label>
-                                <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm text-muted-foreground">
-                                    <Info className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                                    <span>Auto-detected from user&apos;s locale / timezone — no manual override needed.</span>
-                                </div>
-                            </div>
-                        </div>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                            Use the settings lock above to prevent accidental configuration changes. When locked, all configuration fields are read-only.
+                        </p>
                     </CardContent>
                 </Card>
 
