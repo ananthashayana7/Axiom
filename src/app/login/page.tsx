@@ -162,7 +162,7 @@ export default function LoginPage() {
                                 <Input
                                     id="setupCode"
                                     value={setupCode}
-                                    onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
                                     placeholder="000000"
                                     maxLength={6}
                                     required
