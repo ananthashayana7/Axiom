@@ -6,7 +6,7 @@ import { getAiModel } from "@/lib/ai-provider";
 
 // Providers are now managed by getAiModel()
 
-function safeParseJsonMatch(jsonMatch: RegExpMatchArray | null): { success: true; data: unknown } | { success: false; error: string } {
+function safeParseJsonMatch(jsonMatch: RegExpMatchArray | null): { success: true; data: any } | { success: false; error: string } {
     if (!jsonMatch) return { success: false, error: "No JSON found in AI response" };
     try {
         return { success: true, data: JSON.parse(jsonMatch[0]) };

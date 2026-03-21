@@ -70,6 +70,80 @@ export function mappedRowsToCsv(rows: Record<string, string>[]) {
     return lines.join('\n');
 }
 
+/**
+ * Test SAP connectivity by sending a lightweight request to the configured base URL.
+ * Returns connection status and latency.
+ */
+export async function testSapConnection(): Promise<{
+    connected: boolean;
+    latencyMs: number;
+    baseUrl: string | null;
+    authMethod: string;
+    error?: string;
+}> {
+    const baseUrl = process.env.SAP_BASE_URL;
+    if (!baseUrl) {
+        return { connected: false, latencyMs: 0, baseUrl: null, authMethod: 'none', error: 'SAP_BASE_URL is not configured.' };
+    }
+
+    const token = process.env.SAP_API_TOKEN;
+    const username = process.env.SAP_USERNAME;
+    const password = process.env.SAP_PASSWORD;
+
+    const authMethod = token ? 'bearer_token' : (username && password ? 'basic_auth' : 'none');
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    } else if (username && password) {
+        const basic = Buffer.from(`${username}:${password}`).toString('base64');
+        headers.Authorization = `Basic ${basic}`;
+    }
+
+    const start = Date.now();
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(baseUrl, {
+            headers,
+            method: 'GET',
+            cache: 'no-store',
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        const latencyMs = Date.now() - start;
+
+        if (response.ok || response.status === 401 || response.status === 403) {
+            // Even 401/403 means the server is reachable
+            return {
+                connected: response.ok,
+                latencyMs,
+                baseUrl,
+                authMethod,
+                error: response.ok ? undefined : `Server reachable but returned ${response.status} (${response.statusText}). Check credentials.`,
+            };
+        }
+
+        return {
+            connected: false,
+            latencyMs,
+            baseUrl,
+            authMethod,
+            error: `SAP server returned ${response.status}: ${response.statusText}`,
+        };
+    } catch (error) {
+        return {
+            connected: false,
+            latencyMs: Date.now() - start,
+            baseUrl,
+            authMethod,
+            error: error instanceof Error ? error.message : 'Connection failed',
+        };
+    }
+}
+
 export async function fetchSapEntityData(entitySet: string, params?: Record<string, string>) {
     const baseUrl = process.env.SAP_BASE_URL;
     if (!baseUrl) {

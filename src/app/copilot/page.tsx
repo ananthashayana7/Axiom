@@ -49,6 +49,10 @@ export default function CopilotPage() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                toast.error("File too large. Maximum size is 10 MB.");
+                return;
+            }
             if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
                 setSelectedFile(file);
             } else {
@@ -61,12 +65,24 @@ export default function CopilotPage() {
         e.preventDefault();
         if ((!input.trim() && !selectedFile) || isPending) return;
 
-        const userMessage = input.trim() || (selectedFile ? `Analyzing file: ${selectedFile.name}` : "");
+        const userMessage = input.trim() || (selectedFile ? `Analyze this document: ${selectedFile.name}` : "");
 
-        // In a real app, we'd upload the file and get content first
-        // For now, we'll simulate the text extraction or just pass the filename
+        let fileBase64: string | undefined;
+        let fileName: string | undefined;
+
+        if (selectedFile) {
+            try {
+                const buffer = await selectedFile.arrayBuffer();
+                fileBase64 = Buffer.from(buffer).toString('base64');
+                fileName = selectedFile.name;
+            } catch {
+                toast.error("Failed to read file. Please try again.");
+                return;
+            }
+        }
+
         const displayMessage = selectedFile
-            ? `${userMessage}\n\n*Document attached: ${selectedFile.name}*`
+            ? `${userMessage}\n\n*📎 Document attached: ${selectedFile.name}*`
             : userMessage;
 
         setInput("");
@@ -77,7 +93,11 @@ export default function CopilotPage() {
 
         startTransition(async () => {
             try {
-                const response = await processCopilotQuery(displayMessage, updatedHistory);
+                const response = await processCopilotQuery(
+                    userMessage,
+                    updatedHistory,
+                    fileBase64 ? { data: fileBase64, name: fileName! } : undefined
+                );
                 setMessages(prev => [...prev, { role: 'assistant', content: response }]);
             } catch (error) {
                 toast.error(error instanceof Error ? error.message : "Copilot failed to respond. Check your AI configuration.");

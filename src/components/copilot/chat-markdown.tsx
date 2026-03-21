@@ -5,20 +5,31 @@ import remarkGfm from 'remark-gfm'
 import {
     BarChart,
     Bar,
+    LineChart,
+    Line,
+    AreaChart,
+    Area,
+    ScatterChart,
+    Scatter,
+    RadarChart,
+    Radar,
+    PolarGrid,
+    PolarAngleAxis,
+    PolarRadiusAxis,
+    PieChart,
+    Pie,
+    Cell,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
     Legend
 } from 'recharts'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#0088FE', '#00C49F', '#FFBB28'];
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#0088FE', '#00C49F', '#FFBB28', '#FF6B6B', '#4ECDC4'];
 
 interface ChatMarkdownProps {
     content: string
@@ -73,68 +84,175 @@ export function ChatMarkdown({ content }: ChatMarkdownProps) {
     )
 }
 
+const CHART_TYPE_LABELS: Record<string, string> = {
+    bar: 'Bar Chart',
+    pie: 'Pie Chart',
+    line: 'Line Chart',
+    area: 'Area Chart',
+    scatter: 'Scatter Plot',
+    radar: 'Radar Chart',
+}
+
 function ChatChart({ config }: { config: any }) {
     const { chartType, data, keys, xAxisKey } = config
+
+    const commonAxisProps = {
+        fontSize: 10,
+        tickLine: false as const,
+        axisLine: false as const,
+        tick: { fill: '#888' },
+    }
+
+    const tooltipStyle = {
+        contentStyle: { borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
+    }
+
+    const renderChart = () => {
+        switch (chartType) {
+            case 'line':
+                return (
+                    <LineChart data={data}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                        <XAxis dataKey={xAxisKey} {...commonAxisProps} />
+                        <YAxis {...commonAxisProps} />
+                        <Tooltip {...tooltipStyle} />
+                        <Legend verticalAlign="bottom" height={36} />
+                        {keys.map((key: string, idx: number) => (
+                            <Line
+                                key={key}
+                                type="monotone"
+                                dataKey={key}
+                                stroke={COLORS[idx % COLORS.length]}
+                                strokeWidth={2}
+                                dot={{ r: 4, fill: COLORS[idx % COLORS.length] }}
+                                activeDot={{ r: 6 }}
+                            />
+                        ))}
+                    </LineChart>
+                )
+
+            case 'area':
+                return (
+                    <AreaChart data={data}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                        <XAxis dataKey={xAxisKey} {...commonAxisProps} />
+                        <YAxis {...commonAxisProps} />
+                        <Tooltip {...tooltipStyle} />
+                        <Legend verticalAlign="bottom" height={36} />
+                        {keys.map((key: string, idx: number) => (
+                            <Area
+                                key={key}
+                                type="monotone"
+                                dataKey={key}
+                                stroke={COLORS[idx % COLORS.length]}
+                                fill={COLORS[idx % COLORS.length]}
+                                fillOpacity={0.2}
+                                strokeWidth={2}
+                            />
+                        ))}
+                    </AreaChart>
+                )
+
+            case 'scatter':
+                return (
+                    <ScatterChart>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+                        <XAxis dataKey={xAxisKey || keys[0]} name={xAxisKey || keys[0]} {...commonAxisProps} />
+                        <YAxis dataKey={keys[1] || keys[0]} name={keys[1] || keys[0]} {...commonAxisProps} />
+                        <Tooltip {...tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
+                        <Legend verticalAlign="bottom" height={36} />
+                        <Scatter
+                            name={config.title || 'Data'}
+                            data={data}
+                            fill={COLORS[0]}
+                        >
+                            {data.map((_entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                        </Scatter>
+                    </ScatterChart>
+                )
+
+            case 'radar':
+                return (
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+                        <PolarGrid stroke="rgba(0,0,0,0.1)" />
+                        <PolarAngleAxis dataKey={xAxisKey} fontSize={10} tick={{ fill: '#888' }} />
+                        <PolarRadiusAxis fontSize={9} tick={{ fill: '#999' }} />
+                        <Tooltip {...tooltipStyle} />
+                        <Legend verticalAlign="bottom" height={36} />
+                        {keys.map((key: string, idx: number) => (
+                            <Radar
+                                key={key}
+                                name={key}
+                                dataKey={key}
+                                stroke={COLORS[idx % COLORS.length]}
+                                fill={COLORS[idx % COLORS.length]}
+                                fillOpacity={0.25}
+                            />
+                        ))}
+                    </RadarChart>
+                )
+
+            case 'pie':
+                return (
+                    <PieChart>
+                        <Pie
+                            data={data}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey={keys[0]}
+                            nameKey={xAxisKey}
+                        >
+                            {data.map((_entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend verticalAlign="bottom" height={36} />
+                    </PieChart>
+                )
+
+            case 'bar':
+            default:
+                return (
+                    <BarChart data={data}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                        <XAxis dataKey={xAxisKey} {...commonAxisProps} />
+                        <YAxis {...commonAxisProps} tickFormatter={(val) => `₹${val}`} />
+                        <Tooltip
+                            {...tooltipStyle}
+                            cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                        />
+                        {keys.map((key: string, idx: number) => (
+                            <Bar
+                                key={key}
+                                dataKey={key}
+                                fill={COLORS[idx % COLORS.length]}
+                                radius={[4, 4, 0, 0]}
+                                barSize={40}
+                            />
+                        ))}
+                    </BarChart>
+                )
+        }
+    }
 
     return (
         <Card className="my-4 p-4 bg-background/80 dark:bg-black/40 border-border shadow-sm">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-primary" />
                 {config.title || "AI Insight Visualization"}
+                <span className="ml-auto text-[10px] font-medium text-muted-foreground/60 normal-case">
+                    {CHART_TYPE_LABELS[chartType] || 'Chart'}
+                </span>
             </h4>
-            <div className="h-[250px] w-full">
+            <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    {chartType === 'bar' ? (
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                            <XAxis
-                                dataKey={xAxisKey}
-                                fontSize={10}
-                                tickLine={false}
-                                axisLine={false}
-                                tick={{ fill: '#888' }}
-                            />
-                            <YAxis
-                                fontSize={10}
-                                tickLine={false}
-                                axisLine={false}
-                                tick={{ fill: '#888' }}
-                                tickFormatter={(val) => `₹${val}`}
-                            />
-                            <Tooltip
-                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                            />
-                            {keys.map((key: string, idx: number) => (
-                                <Bar
-                                    key={key}
-                                    dataKey={key}
-                                    fill={COLORS[idx % COLORS.length]}
-                                    radius={[4, 4, 0, 0]}
-                                    barSize={40}
-                                />
-                            ))}
-                        </BarChart>
-                    ) : (
-                        <PieChart>
-                            <Pie
-                                data={data}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey={keys[0]}
-                                nameKey={xAxisKey}
-                            >
-                                {data.map((entry: any, index: number) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend verticalAlign="bottom" height={36} fontSize={10} />
-                        </PieChart>
-                    )}
+                    {renderChart()}
                 </ResponsiveContainer>
             </div>
             {config.insight && (

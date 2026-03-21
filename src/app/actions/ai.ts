@@ -206,11 +206,20 @@ export async function getFullAiInsights() {
     }
 }
 
-export async function processCopilotQuery(query: string, history: { role: 'user' | 'assistant', content: string }[] = []) {
+export async function processCopilotQuery(
+    query: string,
+    history: { role: 'user' | 'assistant', content: string }[] = [],
+    attachment?: { data: string; name: string }
+) {
     return await TelemetryService.time("AxiomCopilot", "processQuery", async () => {
         const context = await getDatabaseContext();
         try {
             const normalizedQuery = query.toLowerCase();
+
+            // If a file is attached, process it with the PDF/document parser
+            if (attachment && attachment.data) {
+                return await processDocumentAttachment(query, attachment, context, history);
+            }
 
             // Fast-path operational intents: allow Copilot to run AI agents directly.
             const agentIntentMap: Array<{ keywords: string[]; agentName: import("./agents").AgentName; label: string }> = [
@@ -271,6 +280,9 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
                      "keys": ["value"],
                      "insight": "Short technical insight."
                    }
+                   - Supported chartType values: "bar", "pie", "line", "area", "scatter", "radar"
+                   - Use "bar" for comparing categories, "pie" for proportions, "line" for trends over time, "area" for cumulative trends, "scatter" for correlations, "radar" for multi-metric comparison.
+                   - Choose the most appropriate chart type for the data being visualized.
                 5. FORMATTING: Use the appropriate currency symbol based on the data context. Default to ₹ for Indian Rupee values.
                 6. GROUNDING & RELIABILITY: 
                    - Answer ONLY based on the provided "Database State" or history.
@@ -297,4 +309,123 @@ export async function processCopilotQuery(query: string, history: { role: 'user'
             return `Axiom Copilot is temporarily restricted. Please check your AI API configuration in Admin Settings or contact support if the issue persists.`;
         }
     }, { query_preview: query.substring(0, 30) });
+}
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+async function processDocumentAttachment(
+    query: string,
+    attachment: { data: string; name: string },
+    context: Awaited<ReturnType<typeof getDatabaseContext>>,
+    history: { role: 'user' | 'assistant'; content: string }[]
+): Promise<string> {
+    const fileName = attachment.name;
+    const isPdf = fileName.toLowerCase().endsWith('.pdf');
+    const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+
+    // Validate file size (base64 is ~33% larger than binary)
+    if (attachment.data.length > MAX_FILE_SIZE_BYTES * 1.37) {
+        const response = "⚠️ The uploaded file exceeds the 10 MB limit. Please upload a smaller file.";
+        await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+        await saveChatMessage('assistant', response);
+        return response;
+    }
+
+    try {
+        const model = await getAiModel();
+        if (!model) throw new Error("AI model not available");
+
+        const historyContext = history.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+
+        const prompt = `
+You are Axiom Copilot, an AI-powered procurement document analyst.
+A user has uploaded a document named "${fileName}".
+${query ? `The user's instruction: "${query}"` : "The user wants you to analyze this document."}
+
+Database State (Snapshot):
+${JSON.stringify(context, null, 2)}
+
+Conversation History:
+${historyContext || "No previous messages."}
+
+INSTRUCTIONS:
+1. Identify the document type (invoice, receipt, purchase order, goods receipt, contract, quotation, shipping manifest, or other).
+2. Extract ALL key data points in a structured format using Markdown tables:
+   - For invoices/receipts: vendor name, invoice number, date, line items (description, quantity, unit price, total), subtotal, tax, grand total, payment terms.
+   - For purchase orders: PO number, supplier, items, quantities, delivery date, terms.
+   - For contracts: parties, effective dates, key clauses, renewal terms, value.
+   - For goods logs/receipts: GRN number, items received, quantities, condition, date.
+   - For quotations: supplier, items quoted, validity, pricing, lead times.
+3. After the breakdown, provide a "📋 Suggested Next Steps" section with 3-5 actionable options the user can take within Axiom, such as:
+   - "Create a new purchase order from this invoice"
+   - "Match this invoice against existing PO"
+   - "Flag discrepancies for review"
+   - "Add supplier to Axiom"
+   - "Run cost analysis against historical data"
+   - "Import these items into inventory"
+   - "Compare pricing with existing contracts"
+   - "Schedule payment optimization"
+4. If you detect anomalies (mismatched amounts, unusual pricing, duplicate entries), flag them as "⚠️ Anomalies Detected".
+5. Format currency appropriately based on the document content. Default to ₹ for INR.
+6. Use Markdown formatting for clear readability.
+
+GROUNDING: Extract data ONLY from the uploaded document. Do NOT hallucinate values.`;
+
+        const result = await model.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    data: attachment.data,
+                    mimeType
+                }
+            }
+        ]);
+
+        const response = await result.response;
+        const text = response.text();
+
+        await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+        await saveChatMessage('assistant', text);
+        await TelemetryService.trackEvent("AxiomCopilot", "document_parsed", { fileName, query_length: query.length });
+
+        return text;
+    } catch (error) {
+        console.error("Document processing error, using fallback:", error);
+        await TelemetryService.trackError("AxiomCopilot", "document_parse_failed", error, { fileName });
+
+        // Heuristic fallback: try to decode base64 text and extract basic info
+        let fallbackText: string;
+        try {
+            const decoded = Buffer.from(attachment.data, 'base64').toString('utf-8');
+            const amounts = [...decoded.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d,]+(?:\.\d{2})?)/gi)]
+                .map(m => parseFloat(m[1].replace(/,/g, '')))
+                .filter(n => !Number.isNaN(n) && n > 0);
+            const dateMatches = [...decoded.matchAll(/\b(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})\b/g)].map(m => m[1]);
+            const totalAmount = amounts.length > 0 ? Math.max(...amounts) : null;
+
+            fallbackText = `## 📄 Document Analysis: ${fileName}\n\n` +
+                `> ⚠️ AI model unavailable — showing heuristic extraction.\n\n` +
+                `**Detected Amounts:** ${amounts.length > 0 ? amounts.slice(0, 8).map(a => `₹${a.toLocaleString()}`).join(', ') : 'None found'}\n\n` +
+                `**Estimated Total:** ${totalAmount ? `₹${totalAmount.toLocaleString()}` : 'Could not determine'}\n\n` +
+                `**Dates Found:** ${dateMatches.length > 0 ? dateMatches.slice(0, 5).join(', ') : 'None found'}\n\n` +
+                `---\n\n` +
+                `### 📋 Suggested Next Steps\n\n` +
+                `1. **Re-upload with AI enabled** — Configure your Gemini API key in Admin → Settings for full document intelligence.\n` +
+                `2. **Manual review** — Open the document and cross-reference with existing purchase orders.\n` +
+                `3. **Import data** — Use Admin → Import to manually input the extracted data.\n` +
+                `4. **Run cost analysis** — Compare the detected amounts against historical pricing.\n`;
+        } catch {
+            fallbackText = `## 📄 Document Received: ${fileName}\n\n` +
+                `I received your document but couldn't process it automatically. ` +
+                `Please ensure your AI API key is configured in **Admin → Settings** for full document intelligence.\n\n` +
+                `### 📋 Suggested Next Steps\n\n` +
+                `1. **Configure AI** — Add a Gemini API key in Admin → Settings.\n` +
+                `2. **Try again** — Re-upload the document after configuration.\n` +
+                `3. **Manual entry** — Use Admin → Import to input data manually.\n`;
+        }
+
+        await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+        await saveChatMessage('assistant', fallbackText);
+        return fallbackText;
+    }
 }
