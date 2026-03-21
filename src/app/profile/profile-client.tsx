@@ -49,8 +49,8 @@ export default function ProfileClient({ user }: ProfileClientProps) {
         const confirmPassword = formData.get('confirmPassword') as string;
 
         // Client-side validation
-        if (newPassword.length < 6) {
-            setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters long' });
+        if (newPassword.length < 8) {
+            setPasswordMessage({ type: 'error', text: 'Password must be at least 8 characters long' });
             setTimeout(() => setPasswordMessage(null), 3000);
             return;
         }
@@ -197,7 +197,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                         name="newPassword"
                                         type={showNewPassword ? "text" : "password"}
                                         className="pr-10"
-                                        minLength={6}
+                                        minLength={8}
                                         required
                                     />
                                     <button
@@ -215,7 +215,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                                     id="confirmPassword"
                                     name="confirmPassword"
                                     type="password"
-                                    minLength={6}
+                                    minLength={8}
                                     required
                                 />
                             </div>

@@ -55,23 +55,31 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                     if (passwordsMatch) {
                         // Check for 2FA
-                        if (user.isTwoFactorEnabled) {
+                        if (user.isTwoFactorEnabled && user.twoFactorSecret) {
+                            // 2FA is fully enabled — require a valid code
                             if (!code || code === 'undefined' || code === 'null' || code === '') {
                                 console.log(`[AUTH] 2FA_REQUIRED | user: ${user.email}`);
                                 throw new Error("require-2fa");
                             }
 
-                            const isValidToken = TotpService.verifyToken(user.twoFactorSecret!, code);
+                            const isValidToken = TotpService.verifyToken(user.twoFactorSecret, code);
                             if (!isValidToken) {
-                                console.warn(`[AUTH] 2FA_FAILED | user: ${user.email} | code_received: ${code.length > 0 ? 'yes' : 'no'}`);  
+                                console.warn(`[AUTH] 2FA_FAILED | user: ${user.email}`);
                                 await TelemetryService.trackEvent("Security", "login_failed_invalid_2fa", {
                                     userId: user.id,
                                     identifier
                                 });
                                 return null;
                             }
-                        } else {
+                        } else if (!user.isTwoFactorEnabled) {
+                            // 2FA not yet enabled — user must complete setup before logging in
                             console.log(`[AUTH] 2FA_SETUP_REQUIRED | user: ${user.email}`);
+                            throw new Error("setup-2fa");
+                        } else {
+                            // Edge case: isTwoFactorEnabled=true but secret is missing (corrupt state)
+                            // Reset the flag and require fresh setup
+                            console.warn(`[AUTH] 2FA_CORRUPT_STATE | user: ${user.email} | enabled but no secret`);
+                            await db.update(users).set({ isTwoFactorEnabled: false }).where(ilike(users.email, identifier));
                             throw new Error("setup-2fa");
                         }
 

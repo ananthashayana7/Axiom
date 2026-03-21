@@ -76,7 +76,7 @@ export class TotpService {
 
     /**
      * Verifies if a token is valid for a given secret
-     * Checks current, previous, and next window to allow for clock drift
+     * Checks current and ±1 adjacent window to allow for minor clock drift (±30s)
      */
     static verifyToken(secret: string, token: string): boolean {
         if (!secret || !token) return false;
@@ -88,9 +88,9 @@ export class TotpService {
 
             console.log(`[TOTP] Verifying token: ${token} at server time: ${new Date().toISOString()}`);
 
-            // Check window of -2, -1, 0, +1, +2 (Allowing for 1 minute drift)
+            // Check window of -1, 0, +1 (allowing ±30 seconds for clock drift)
             const validCodes = [];
-            for (let i = -2; i <= 2; i++) {
+            for (let i = -1; i <= 1; i++) {
                 const buf = Buffer.alloc(8);
                 buf.writeBigUInt64BE(BigInt(time + i));
 

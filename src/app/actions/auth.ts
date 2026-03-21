@@ -64,8 +64,8 @@ export async function authenticate(
             const identifier = formData.get('identifier') as string;
             const setupResult = await setupTwoFactorForLogin(identifier);
             if (setupResult.success && setupResult.qrCodeUrl) {
-                // Embed the QR code URL in the return value so the client can display it directly
-                return `setup-2fa:${setupResult.qrCodeUrl}`;
+                // Embed QR code URL and secret (for manual entry fallback) in the return value
+                return `setup-2fa:${setupResult.qrCodeUrl}|${setupResult.secret || ''}`;
             }
             return 'setup-2fa';
         }
@@ -85,27 +85,39 @@ export async function authenticate(
 /**
  * Sets up 2FA for a user identified by email during the login flow,
  * without requiring an active session (password has already been verified by authorize()).
+ * If the user already has a stored secret (from a previous incomplete setup), reuse it
+ * instead of generating a new one — this prevents the "setup shows again" bug.
  */
 async function setupTwoFactorForLogin(identifier: string) {
     try {
         const [user] = await db
-            .select({ id: users.id, email: users.email })
+            .select({ id: users.id, email: users.email, twoFactorSecret: users.twoFactorSecret, isTwoFactorEnabled: users.isTwoFactorEnabled })
             .from(users)
             .where(ilike(users.email, identifier))
             .limit(1);
 
         if (!user) return { success: false as const };
 
-        const secret = TotpService.generateSecret();
+        // If 2FA is already fully enabled, don't overwrite — user should be using require-2fa flow
+        if (user.isTwoFactorEnabled && user.twoFactorSecret) {
+            return { success: false as const };
+        }
+
+        // Reuse existing secret from a previous incomplete setup, or generate a new one
+        const secret = user.twoFactorSecret || TotpService.generateSecret();
         const otpauthUrl = TotpService.getOtpAuthUrl(secret, user.email);
 
-        await db.update(users)
-            .set({ twoFactorSecret: secret, isTwoFactorEnabled: false })
-            .where(eq(users.id, user.id));
+        // Only write to DB if we generated a new secret
+        if (!user.twoFactorSecret) {
+            await db.update(users)
+                .set({ twoFactorSecret: secret })
+                .where(eq(users.id, user.id));
+        }
 
         return {
             success: true as const,
-            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`
+            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`,
+            secret,
         };
     } catch (error) {
         console.error("Failed to set up 2FA during login:", error);
@@ -120,14 +132,27 @@ export async function setupTwoFactor() {
     }
 
     try {
-        const secret = TotpService.generateSecret();
+        // Guard: don't overwrite an already-enabled 2FA setup
+        const [existingUser] = await db.select({
+            isTwoFactorEnabled: users.isTwoFactorEnabled,
+            twoFactorSecret: users.twoFactorSecret,
+        }).from(users).where(eq(users.id, session.user.id));
+
+        if (existingUser?.isTwoFactorEnabled && existingUser?.twoFactorSecret) {
+            return { success: false, error: "2FA is already enabled. Disable it first to reconfigure." };
+        }
+
+        // Reuse existing secret from incomplete setup, or generate fresh one
+        const secret = existingUser?.twoFactorSecret || TotpService.generateSecret();
         const email = session.user.email || 'user';
         const otpauthUrl = TotpService.getOtpAuthUrl(secret, email);
 
-        // Temporarily store the secret until verified
-        await db.update(users)
-            .set({ twoFactorSecret: secret, isTwoFactorEnabled: false })
-            .where(eq(users.id, session.user.id));
+        // Only write to DB if we generated a new secret
+        if (!existingUser?.twoFactorSecret) {
+            await db.update(users)
+                .set({ twoFactorSecret: secret })
+                .where(eq(users.id, session.user.id));
+        }
 
         return {
             success: true,
@@ -204,6 +229,11 @@ export async function changePassword(currentPassword: string, newPassword: strin
     const session = await auth();
     if (!session?.user?.id) {
         return { success: false, error: "Not authenticated" };
+    }
+
+    // Server-side password validation
+    if (!newPassword || newPassword.length < 8) {
+        return { success: false, error: "Password must be at least 8 characters long" };
     }
 
     try {
