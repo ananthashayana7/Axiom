@@ -338,7 +338,7 @@ function calculateEcosystemHealth(
     if (nodes.length === 0) return 50;
 
     // Base score from average performance
-    const avgPerformance = nodes.reduce((sum, n) => sum + n.performanceScore, 0) / nodes.length;
+    const avgPerformance = nodes.reduce((sum, n) => sum + (Number(n.performanceScore) || 70), 0) / nodes.length;
 
     // Penalty for risk hotspots
     const criticalHotspots = hotspots.filter(h => h.impactSeverity === 'critical').length;

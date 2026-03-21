@@ -245,6 +245,15 @@ async function generateForecastWithAI(
 
     // Fallback: Simple statistical forecast if AI fails
     const quantities = history.map(h => h.totalQuantity);
+    if (quantities.length === 0) {
+        return {
+            predictedQuantity: 0,
+            confidenceLower: 0,
+            confidenceUpper: 0,
+            trend: 'stable' as const,
+            factors: ["Insufficient historical data for forecast"]
+        };
+    }
     const avgMonthly = quantities.reduce((a, b) => a + b, 0) / quantities.length;
     const dailyRate = avgMonthly / 30;
     const predicted = Math.round(dailyRate * forecastDays);
@@ -283,7 +292,9 @@ function calculateOverallConfidence(forecasts: DemandForecast[]): number {
         return Math.max(0, Math.min(100, 100 - (relativeRange * 50)));
     });
 
-    return Math.round(confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length);
+    return confidenceScores.length > 0
+        ? Math.round(confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length)
+        : 50;
 }
 
 /**

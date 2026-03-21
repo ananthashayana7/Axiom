@@ -18,6 +18,8 @@ type SettingsUpdateInput = {
     isSettingsLocked: string;
     updatedAt: Date;
     geminiApiKey?: string;
+    geminiApiKeyFallback1?: string;
+    geminiApiKeyFallback2?: string;
 };
 
 export async function getSettings() {
@@ -94,6 +96,8 @@ export async function updateSettings(formData: FormData) {
         const platformName = formData.get("siteName") as string;
         // Currency is now auto-detected from user locale — no manual override from form
         const geminiApiKey = formData.get("geminiApiKey") as string;
+        const geminiApiKeyFallback1 = formData.get("geminiApiKeyFallback1") as string;
+        const geminiApiKeyFallback2 = formData.get("geminiApiKeyFallback2") as string;
         const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';
 
         const currentSettings = await getSettings();
@@ -116,6 +120,12 @@ export async function updateSettings(formData: FormData) {
         if (geminiApiKey !== undefined && geminiApiKey !== null) {
             updateData.geminiApiKey = geminiApiKey;
         }
+        if (geminiApiKeyFallback1 !== undefined && geminiApiKeyFallback1 !== null) {
+            updateData.geminiApiKeyFallback1 = geminiApiKeyFallback1;
+        }
+        if (geminiApiKeyFallback2 !== undefined && geminiApiKeyFallback2 !== null) {
+            updateData.geminiApiKeyFallback2 = geminiApiKeyFallback2;
+        }
 
         const [existing] = await db.select().from(platformSettings).limit(1);
         if (!existing) {
@@ -124,6 +134,12 @@ export async function updateSettings(formData: FormData) {
             // Keep existing key when field is blank to avoid accidental key deletion.
             if ((geminiApiKey ?? '').trim().length === 0) {
                 delete updateData.geminiApiKey;
+            }
+            if ((geminiApiKeyFallback1 ?? '').trim().length === 0) {
+                delete updateData.geminiApiKeyFallback1;
+            }
+            if ((geminiApiKeyFallback2 ?? '').trim().length === 0) {
+                delete updateData.geminiApiKeyFallback2;
             }
             await db.update(platformSettings).set(updateData);
         }

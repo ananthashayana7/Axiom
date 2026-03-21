@@ -69,34 +69,42 @@ export async function runFraudDetectionAgent(
 
         // Store alerts in database and notify admins for critical ones
         for (const alert of alerts) {
-            await db.insert(fraudAlerts).values({
-                entityType: alert.entityType,
-                entityId: alert.entityId,
-                alertType: alert.alertType,
-                severity: alert.severity,
-                description: alert.description,
-                indicators: JSON.stringify(alert.indicators),
-                suggestedAction: alert.suggestedAction,
-                falsePositiveProbability: alert.falsePositiveProbability.toString()
-            });
+            try {
+                await db.insert(fraudAlerts).values({
+                    entityType: alert.entityType,
+                    entityId: alert.entityId,
+                    alertType: alert.alertType,
+                    severity: alert.severity,
+                    description: alert.description,
+                    indicators: JSON.stringify(alert.indicators),
+                    suggestedAction: alert.suggestedAction,
+                    falsePositiveProbability: alert.falsePositiveProbability.toString()
+                });
 
-            // Notify admins for high/critical alerts
-            if (alert.severity === 'high' || alert.severity === 'critical') {
-                const adminUsers = await db
-                    .select({ id: users.id })
-                    .from(users)
-                    .where(eq(users.role, 'admin'))
-                    .limit(5);
+                // Notify admins for high/critical alerts
+                if (alert.severity === 'high' || alert.severity === 'critical') {
+                    const adminUsers = await db
+                        .select({ id: users.id })
+                        .from(users)
+                        .where(eq(users.role, 'admin'))
+                        .limit(5);
 
-                for (const admin of adminUsers) {
-                    await createNotification({
-                        userId: admin.id,
-                        title: `🚨 ${alert.severity.toUpperCase()} Fraud Alert`,
-                        message: alert.description,
-                        type: alert.severity === 'critical' ? 'error' : 'warning',
-                        link: `/admin/fraud-alerts`
-                    });
+                    for (const admin of adminUsers) {
+                        try {
+                            await createNotification({
+                                userId: admin.id,
+                                title: `🚨 ${alert.severity.toUpperCase()} Fraud Alert`,
+                                message: alert.description,
+                                type: alert.severity === 'critical' ? 'error' : 'warning',
+                                link: `/admin/fraud-alerts`
+                            });
+                        } catch (notifError) {
+                            console.error(`Failed to notify admin ${admin.id} for fraud alert:`, notifError);
+                        }
+                    }
                 }
+            } catch (alertError) {
+                console.error(`Failed to store fraud alert (${alert.alertType}):`, alertError);
             }
         }
 

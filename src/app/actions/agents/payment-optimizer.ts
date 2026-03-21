@@ -164,7 +164,8 @@ async function analyzePaymentOpportunity(invoice: {
                 if (sla.paymentTerms) {
                     paymentTerms = parsePaymentTerms(sla.paymentTerms);
                 }
-            } catch {
+            } catch (e) {
+                console.warn(`Failed to parse SLA KPIs for contract ${invoice.contractId}:`, e);
                 // Use defaults
             }
         }
