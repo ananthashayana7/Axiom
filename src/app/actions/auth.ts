@@ -248,7 +248,7 @@ export async function getUserProfile() {
             email: users.email,
             employeeId: users.employeeId,
             role: users.role,
-            twoFactorEnabled: users.twoFactorEnabled,
+            twoFactorEnabled: users.isTwoFactorEnabled,
             createdAt: users.createdAt,
         }).from(users).where(eq(users.id, session.user.id));
 
