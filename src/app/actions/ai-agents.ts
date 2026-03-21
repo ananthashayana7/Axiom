@@ -6,6 +6,15 @@ import { getAiModel } from "@/lib/ai-provider";
 
 // Providers are now managed by getAiModel()
 
+function safeParseJsonMatch(jsonMatch: RegExpMatchArray | null): { success: true; data: unknown } | { success: false; error: string } {
+    if (!jsonMatch) return { success: false, error: "No JSON found in AI response" };
+    try {
+        return { success: true, data: JSON.parse(jsonMatch[0]) };
+    } catch {
+        return { success: false, error: "AI returned invalid JSON" };
+    }
+}
+
 function decodeTextFromBase64(data: string) {
     try {
         return Buffer.from(data, "base64").toString("utf-8");
@@ -99,7 +108,8 @@ export async function parseOffer(fileData: string, fileName: string) {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse JSON from AI response" };
@@ -166,7 +176,8 @@ export async function analyzeCompliance(documents: { name: string, content: stri
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse compliance data" };
@@ -245,7 +256,8 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse cost analysis" };
@@ -337,7 +349,8 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse risk analysis" };
@@ -412,7 +425,8 @@ export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse spend analysis" };
@@ -486,7 +500,8 @@ export async function parseContractDocument(fileData: string, fileName: string) 
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            return { success: true, data: JSON.parse(jsonMatch[0]) };
+            const parsed = safeParseJsonMatch(jsonMatch);
+            if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse legal data from AI response" };

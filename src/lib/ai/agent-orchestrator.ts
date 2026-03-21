@@ -276,6 +276,7 @@ export async function executeAgentChain<T = unknown>(
                 } as AgentResult<T>;
             } else if (step.onFailure === 'continue') {
                 console.warn(`Agent ${step.agentName} failed but continuing chain`);
+                continue;
             } else if (step.onFailure) {
                 // Execute fallback agent
                 const fallbackResult = await executeAgent(step.onFailure, currentInput);

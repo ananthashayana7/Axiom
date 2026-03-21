@@ -76,8 +76,13 @@ export default function CopilotPage() {
         setMessages(updatedHistory);
 
         startTransition(async () => {
-            const response = await processCopilotQuery(displayMessage, updatedHistory);
-            setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+            try {
+                const response = await processCopilotQuery(displayMessage, updatedHistory);
+                setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Copilot failed to respond. Check your AI configuration.");
+                setMessages(prev => [...prev, { role: 'assistant', content: "⚠️ I encountered an error processing your request. Please try again or check Admin → Settings for API configuration." }]);
+            }
         });
     };
 

@@ -69,6 +69,9 @@ export async function POST(req: Request) {
             if (!entitySet) {
                 return NextResponse.json({ error: 'entitySet is required when source=sap' }, { status: 400 });
             }
+            if (!/^[\w\-./]+$/.test(entitySet)) {
+                return NextResponse.json({ error: 'Invalid entitySet format' }, { status: 400 });
+            }
             const sapRows = await fetchSapEntityData(entitySet, body.params || {});
             const mappedRows = sapRows.map((row: Record<string, unknown>) => mapSapRecordToAxiom(entityType, row));
             csvText = mappedRowsToCsv(mappedRows);

@@ -60,7 +60,9 @@ export function mappedRowsToCsv(rows: Record<string, string>[]) {
             .map((header) => {
                 const raw = (row[header] ?? '').toString();
                 const escaped = raw.replace(/"/g, '""');
-                return `"${escaped}"`;
+                // Prevent CSV formula injection: prefix with single quote if starts with =, +, -, or @
+                const safe = /^[=+\-@]/.test(escaped) ? `'${escaped}` : escaped;
+                return `"${safe}"`;
             })
             .join(',');
         lines.push(line);

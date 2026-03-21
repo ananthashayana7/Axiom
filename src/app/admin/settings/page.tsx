@@ -37,6 +37,8 @@ export default function AdminSettingsPage() {
 
     const isDirty = initialSettings && settings && (
         (settings.geminiApiKey || '') !== (initialSettings.geminiApiKey || '') ||
+        (settings.geminiApiKeyFallback1 || '') !== (initialSettings.geminiApiKeyFallback1 || '') ||
+        (settings.geminiApiKeyFallback2 || '') !== (initialSettings.geminiApiKeyFallback2 || '') ||
         isLocked !== (initialSettings.isSettingsLocked === 'yes')
     );
 
@@ -170,7 +172,7 @@ export default function AdminSettingsPage() {
                     <CardContent className="grid gap-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="grid gap-2">
-                                <Label htmlFor="geminiApiKey">Gemini API Key</Label>
+                                <Label htmlFor="geminiApiKey">Gemini API Key (Primary)</Label>
                                 <Input
                                     id="geminiApiKey"
                                     name="geminiApiKey"
@@ -183,7 +185,38 @@ export default function AdminSettingsPage() {
                                     autoComplete="new-password"
                                 />
                             </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="geminiApiKeyFallback1">Fallback Key 1</Label>
+                                <Input
+                                    id="geminiApiKeyFallback1"
+                                    name="geminiApiKeyFallback1"
+                                    type="password"
+                                    value={settings.geminiApiKeyFallback1 || ''}
+                                    onChange={(e) => setSettings({ ...settings, geminiApiKeyFallback1: e.target.value })}
+                                    placeholder="AIza... (optional)"
+                                    className="bg-background"
+                                    disabled={isLocked}
+                                    autoComplete="new-password"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="geminiApiKeyFallback2">Fallback Key 2</Label>
+                                <Input
+                                    id="geminiApiKeyFallback2"
+                                    name="geminiApiKeyFallback2"
+                                    type="password"
+                                    value={settings.geminiApiKeyFallback2 || ''}
+                                    onChange={(e) => setSettings({ ...settings, geminiApiKeyFallback2: e.target.value })}
+                                    placeholder="AIza... (optional)"
+                                    className="bg-background"
+                                    disabled={isLocked}
+                                    autoComplete="new-password"
+                                />
+                            </div>
                         </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                            Configure up to 3 API keys. The platform will automatically fall back to the next key if the primary key fails or exceeds its quota.
+                        </p>
                     </CardContent>
                 </Card>
 

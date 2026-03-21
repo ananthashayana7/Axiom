@@ -275,6 +275,8 @@ export const platformSettings = pgTable('platform_settings', {
     defaultCurrency: text('default_currency').notNull().default('INR'),
     isSettingsLocked: text('is_settings_locked').notNull().default('no'),
     geminiApiKey: text('gemini_api_key'),
+    geminiApiKeyFallback1: text('gemini_api_key_fallback_1'),
+    geminiApiKeyFallback2: text('gemini_api_key_fallback_2'),
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
