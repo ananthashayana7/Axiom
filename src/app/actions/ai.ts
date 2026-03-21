@@ -323,7 +323,7 @@ async function processDocumentAttachment(
     const isPdf = fileName.toLowerCase().endsWith('.pdf');
     const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
 
-    // Validate file size (base64 is ~33% larger than binary)
+    // Validate file size — base64 encoding increases size by ~33% (1/0.75 ≈ 1.37)
     if (attachment.data.length > MAX_FILE_SIZE_BYTES * 1.37) {
         const response = "⚠️ The uploaded file exceeds the 10 MB limit. Please upload a smaller file.";
         await saveChatMessage('user', `[Document: ${fileName}] ${query}`);

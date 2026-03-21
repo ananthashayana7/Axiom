@@ -61,7 +61,7 @@ export async function getAiModel(modelName: string = "gemini-2.5-flash") {
             // are handled by the caller's retry / fallback logic.
             return model;
         } catch (error) {
-            const masked = apiKey.slice(0, 6) + "…" + apiKey.slice(-4);
+            const masked = apiKey.length > 10 ? apiKey.slice(0, 6) + "…" + apiKey.slice(-4) : "***";
             console.warn(`AI Provider: Key ${masked} failed for model ${modelName}, trying next key…`, error);
         }
     }
