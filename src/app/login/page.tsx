@@ -1,12 +1,11 @@
 'use client'
 
 import { useActionState, useState, useEffect } from 'react';
-import { authenticate, setupTwoFactor, verifyAndEnableTwoFactor } from '@/app/actions/auth';
+import { authenticate, verifyAndEnableTwoFactor } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { toast } from "sonner";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 
@@ -19,9 +18,9 @@ export default function LoginPage() {
     const [show2FA, setShow2FA] = useState(false);
     const [showSetup2FA, setShowSetup2FA] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState('');
+    const [setupSecret, setSetupSecret] = useState('');
     const [setupCode, setSetupCode] = useState('');
     const [isVerifyingSetup, setIsVerifyingSetup] = useState(false);
-    const [setupSuccess, setSetupSuccess] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [displayErrorMessage, setDisplayErrorMessage] = useState('');
@@ -35,15 +34,16 @@ export default function LoginPage() {
                 setShowSetup2FA(false);
                 processedError = ''; // Don't display this as a user-facing error
             } else if (errorMessage.startsWith('setup-2fa:')) {
-                // QR code URL is embedded in the message — no extra server call needed
-                const qrCodeUrl = errorMessage.slice('setup-2fa:'.length);
-                setQrCodeUrl(qrCodeUrl);
+                // QR code URL and optional secret are embedded in the message
+                const payload = errorMessage.slice('setup-2fa:'.length);
+                const [qrUrl, secret] = payload.split('|');
+                setQrCodeUrl(qrUrl);
+                if (secret) setSetupSecret(secret);
                 setShowSetup2FA(true);
                 processedError = '';
             } else if (errorMessage === 'setup-2fa') {
-                // Fallback: try the legacy client-side setup (may fail without a session)
-                handleStart2FASetup();
-                processedError = ''; // Don't display this as a user-facing error
+                // Server couldn't generate QR code during login — show error
+                processedError = 'Failed to initialize 2FA setup. Please try again or contact admin.';
             } else {
                 processedError = errorMessage;
             }
@@ -54,16 +54,6 @@ export default function LoginPage() {
         }
     }, [errorMessage]);
 
-    const handleStart2FASetup = async () => {
-        const result = await setupTwoFactor();
-        if (result.success && result.qrCodeUrl) {
-            setQrCodeUrl(result.qrCodeUrl);
-            setShowSetup2FA(true);
-        } else {
-            toast.error("Failed to initialize 2FA setup. Please contact admin.");
-        }
-    };
-
     const handleVerifySetup = async () => {
         if (setupCode.length !== 6) return;
         setIsVerifyingSetup(true);
@@ -71,14 +61,11 @@ export default function LoginPage() {
             // Pass identifier so the server action can locate the user without a session
             const result = await verifyAndEnableTwoFactor(setupCode, identifier);
             if (result.success) {
-                setSetupSuccess(true);
-                toast.success("2FA enabled successfully!");
-                // After small delay, we'll try to login again automatically
-                setTimeout(() => {
-                    // We can't easily "formAction" here without ref, 
-                    // but we can just ask the user to click login again
-                    // OR better: we tell them it's ready and show a button to complete
-                }, 1000);
+                toast.success("2FA enabled! Enter a fresh code from your authenticator to log in.");
+                // Transition directly to 2FA code entry instead of "Finalize Login"
+                setShowSetup2FA(false);
+                setSetupCode('');
+                setShow2FA(true);
             } else {
                 toast.error(result.error || "Invalid code");
             }
@@ -155,50 +142,41 @@ export default function LoginPage() {
                         </>
                     ) : showSetup2FA ? (
                         <div className="space-y-4">
-                            {!setupSuccess ? (
-                                <>
-                                    <div className="flex flex-col items-center justify-center space-y-4">
-                                        <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
-                                        <div className="bg-white p-2 rounded-lg shadow-inner">
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="setupCode">Verification Code</Label>
-                                        <Input
-                                            id="setupCode"
-                                            value={setupCode}
-                                            onChange={(e) => setSetupCode(e.target.value)}
-                                            placeholder="000000"
-                                            maxLength={6}
-                                            required
-                                            className="text-center text-2xl tracking-[0.3em] font-bold"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        className="w-full bg-green-600 hover:bg-green-700"
-                                        onClick={handleVerifySetup}
-                                        disabled={isVerifyingSetup || setupCode.length !== 6}
-                                    >
-                                        {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
-                                    </Button>
-                                </>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-6 space-y-4 text-center">
-                                    <CheckCircle2 className="h-12 w-12 text-green-500" />
-                                    <div className="space-y-1">
-                                        <h3 className="font-bold text-lg">2FA Setup Complete</h3>
-                                        <p className="text-sm text-muted-foreground">Your account is now secure. Please click below to finish logging in.</p>
-                                    </div>
-                                    <Button type="submit" className="w-full">
-                                        Finalize Login
-                                    </Button>
-                                    <input type="hidden" name="identifier" value={identifier} />
-                                    <input type="hidden" name="password" value={password} />
+                            <div className="flex flex-col items-center justify-center space-y-4">
+                                <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
+                                <div className="bg-white p-2 rounded-lg shadow-inner">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
                                 </div>
-                            )}
+                                {setupSecret && (
+                                    <div className="w-full">
+                                        <p className="text-[10px] text-center text-muted-foreground mb-1">Or enter this key manually:</p>
+                                        <code className="block w-full p-2 bg-muted border rounded text-center font-mono text-xs break-all select-all">
+                                            {setupSecret}
+                                        </code>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="setupCode">Verification Code</Label>
+                                <Input
+                                    id="setupCode"
+                                    value={setupCode}
+                                    onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="000000"
+                                    maxLength={6}
+                                    required
+                                    className="text-center text-2xl tracking-[0.3em] font-bold"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                className="w-full bg-green-600 hover:bg-green-700"
+                                onClick={handleVerifySetup}
+                                disabled={isVerifyingSetup || setupCode.length !== 6}
+                            >
+                                {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
+                            </Button>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -208,10 +186,13 @@ export default function LoginPage() {
                                     id="code"
                                     name="code"
                                     type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]{6}"
                                     placeholder="000000"
                                     autoFocus
                                     required
                                     maxLength={6}
+                                    autoComplete="one-time-code"
                                     className="text-center text-2xl tracking-[0.3em] font-bold"
                                 />
                                 <p className="text-[10px] text-center text-muted-foreground">Open your Authenticator app to get the code.</p>
@@ -228,19 +209,23 @@ export default function LoginPage() {
                         </Button>
                     )}
 
-                    <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => {
-                            setShow2FA(false);
-                            setShowSetup2FA(false);
-                            setSetupCode('');
-                            window.location.reload(); // Hard reset to clear action state safely
-                        }}
-                        className="w-full text-xs text-muted-foreground hover:underline mt-4"
-                    >
-                        Cancel and back to login
-                    </button>
+                    {(show2FA || showSetup2FA) && (
+                        <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => {
+                                setShow2FA(false);
+                                setShowSetup2FA(false);
+                                setSetupCode('');
+                                setSetupSecret('');
+                                setQrCodeUrl('');
+                                setDisplayErrorMessage('');
+                            }}
+                            className="w-full text-xs text-muted-foreground hover:underline mt-4"
+                        >
+                            Cancel and back to login
+                        </button>
+                    )}
                     <div
                         className="flex h-8 items-end space-x-1"
                         aria-live="polite"
