@@ -10,8 +10,6 @@ import {
     FileText,
     Settings,
     History,
-    Bot,
-    Sparkles,
     BookOpen,
     CreditCard,
     Truck,
@@ -142,17 +140,17 @@ export async function Sidebar({ className }: { className?: string }) {
                 )}
 
                 {/* ── Resources ── */}
-                {role !== 'supplier' && (
-                    <div className="px-3 mt-3 border-t border-border/50 pt-2">
-                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Resources
-                        </h2>
-                        <div className="space-y-0.5">
+                <div className="px-3 mt-3 border-t border-border/50 pt-2">
+                    <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                        Resources
+                    </h2>
+                    <div className="space-y-0.5">
+                        {role !== 'supplier' && (
                             <NavLink href="/docs" className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</NavLink>
-                            <NavLink href="/support" className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</NavLink>
-                        </div>
+                        )}
+                        <NavLink href="/support" className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</NavLink>
                     </div>
-                )}
+                </div>
 
                 {/* ── Admin / Intelligence ── */}
                 {(role === 'admin' || role === 'user') && (
