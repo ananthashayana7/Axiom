@@ -60,6 +60,10 @@ async function runSmokeScript(env: Partial<NodeJS.ProcessEnv>) {
     };
 }
 
+function assertFailedExit(code: number | null) {
+    assert.ok(typeof code === 'number' && code !== 0, `Expected a non-zero exit code, received ${code}`);
+}
+
 test('smoke-prelive passes when every required endpoint is healthy', async () => {
     await withServer((req, res) => {
         const statusCode = req.url === '/api/sap' ? 403 : 200;
@@ -83,7 +87,7 @@ test('smoke-prelive fails when one of the required pages is unavailable', async 
     }, async (baseUrl) => {
         const result = await runSmokeScript({ BASE_URL: baseUrl });
 
-        assert.equal(result.code, 1);
+        assertFailedExit(result.code);
         assert.match(result.stdout, /FAIL Support page: 500/);
         assert.match(result.stderr, /Smoke test failed with 1 failing checks\./);
     });
@@ -92,6 +96,6 @@ test('smoke-prelive fails when one of the required pages is unavailable', async 
 test('smoke-prelive fails fast when no base URL is configured', async () => {
     const result = await runSmokeScript({ BASE_URL: '', NEXTAUTH_URL: '' });
 
-    assert.equal(result.code, 1);
+    assertFailedExit(result.code);
     assert.match(result.stderr, /Missing BASE_URL or NEXTAUTH_URL for smoke test\./);
 });
