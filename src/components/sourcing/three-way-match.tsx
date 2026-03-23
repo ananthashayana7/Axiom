@@ -41,7 +41,9 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
     const poAmountFormatted = formatCurrencyByCode(poAmount, invoiceCurrency);
     const totalInvoicedFormatted = formatCurrencyByCode(totalInvoiced, invoiceCurrency);
     const reason = details?.reason;
-    const reasonLabel = getThreeWayMatchReasonLabel(reason || 'MISSING_RECEIPT');
+    const reasonLabel = reason
+        ? getThreeWayMatchReasonLabel(reason)
+        : 'Verification is pending while Axiom checks the receipt, QC, and invoice records.';
     const successCriteria = getThreeWayMatchSuccessCriteria();
 
     return (
@@ -160,7 +162,7 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                     </div>
                 </div>
 
-                <div className={`p-4 border-t ${isFullyMatched ? 'bg-green-50/60' : 'bg-amber-50/50'}`}>
+                <div className={`p-4 border-t ${isFullyMatched ? 'bg-green-50/50' : 'bg-amber-50/50'}`}>
                     <div className="flex gap-3">
                         {isFullyMatched ? (
                             <CheckCircle2 size={16} className="text-green-600 shrink-0 mt-0.5" />
@@ -175,10 +177,7 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                             <p className="mt-2">{successCriteria}</p>
                             {!isFullyMatched && (
                                 <>
-                                    {!hasReceipt && <p className="mt-2">• Physical goods receipt has not been logged in Axiom.</p>}
-                                    {hasReceipt && !details?.qcPassed && <p>• Receipt inspection is still pending or has failed quality checks.</p>}
-                                    {!hasInvoice && <p>• Financial invoice from supplier is missing.</p>}
-                                    {hasInvoice && !isPriceMatched && <p>• Invoiced amount ({totalInvoicedFormatted}) does not match PO ({poAmountFormatted}).</p>}
+                                    {reason === 'PRICE_MISMATCH' && <p className="mt-2">• Invoiced amount ({totalInvoicedFormatted}) does not match PO ({poAmountFormatted}).</p>}
                                     <div className="mt-3 flex gap-2">
                                         {!hasReceipt && <RecordReceiptDialog orderId={orderId} />}
                                         {!hasInvoice && <AddInvoiceDialog orderId={orderId} supplierId={supplierId} poAmount={poAmount} />}
