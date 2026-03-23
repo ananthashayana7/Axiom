@@ -9,6 +9,7 @@ import { RecordReceiptDialog } from "./record-receipt-dialog";
 import { AddInvoiceDialog } from "./add-invoice-dialog";
 import { Button } from "@/components/ui/button";
 import { formatCurrencyByCode } from "@/lib/utils/currency";
+import { getThreeWayMatchReasonLabel, getThreeWayMatchSuccessCriteria } from "@/lib/utils/three-way-match";
 
 interface ThreeWayMatchProps {
     orderId: string;
@@ -40,6 +41,10 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
     const poAmountFormatted = formatCurrencyByCode(poAmount, invoiceCurrency);
     const totalInvoicedFormatted = formatCurrencyByCode(totalInvoiced, invoiceCurrency);
     const reason = details?.reason;
+    const reasonLabel = reason
+        ? getThreeWayMatchReasonLabel(reason)
+        : 'Verification is pending while Axiom checks the receipt, QC, and invoice records.';
+    const successCriteria = getThreeWayMatchSuccessCriteria();
 
     return (
         <Card className="border-accent/40 shadow-sm overflow-hidden">
@@ -157,29 +162,36 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                     </div>
                 </div>
 
-                {!isFullyMatched && (
-                    <div className="p-4 bg-amber-50/50 border-t">
-                        <div className="flex gap-3">
+                <div className={`p-4 border-t ${isFullyMatched ? 'bg-green-50/50' : 'bg-amber-50/50'}`}>
+                    <div className="flex gap-3">
+                        {isFullyMatched ? (
+                            <CheckCircle2 size={16} className="text-green-600 shrink-0 mt-0.5" />
+                        ) : (
                             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                            <div className="text-xs leading-relaxed text-amber-800">
-                                <p className="font-bold mb-1 underline decoration-amber-300">Compliance Warning</p>
-                                {!hasReceipt && <p>• Physical goods receipt has not been logged in Axiom.</p>}
-                                {hasReceipt && !details?.qcPassed && <p>• Receipt inspection is still pending or has failed quality checks.</p>}
-                                {!hasInvoice && <p>• Financial invoice from supplier is missing.</p>}
-                                {hasInvoice && !isPriceMatched && <p>• Invoiced amount ({totalInvoicedFormatted}) does not match PO ({poAmountFormatted}).</p>}
-                                <div className="mt-3 flex gap-2">
-                                    {!hasReceipt && <RecordReceiptDialog orderId={orderId} />}
-                                    {!hasInvoice && <AddInvoiceDialog orderId={orderId} supplierId={supplierId} poAmount={poAmount} />}
-                                </div>
-                                <p className="mt-2 text-[10px] opacity-80">
-                                    {reason === 'QC_PENDING_OR_FAILED'
-                                        ? 'Complete the goods receipt inspection with a passing result to unlock matching.'
-                                        : 'SOX compliance requires the PO, receipt/QC, and invoice to match before payment release.'}
-                                </p>
-                            </div>
+                        )}
+                        <div className={`text-xs leading-relaxed ${isFullyMatched ? 'text-green-900' : 'text-amber-800'}`}>
+                            <p className={`font-bold mb-1 ${isFullyMatched ? '' : 'underline decoration-amber-300'}`}>
+                                {isFullyMatched ? 'Verification Summary' : 'Compliance Warning'}
+                            </p>
+                            <p>{reasonLabel}</p>
+                            <p className="mt-2">{successCriteria}</p>
+                            {!isFullyMatched && (
+                                <>
+                                    {reason === 'PRICE_MISMATCH' && <p className="mt-2">• Invoiced amount ({totalInvoicedFormatted}) does not match PO ({poAmountFormatted}).</p>}
+                                    <div className="mt-3 flex gap-2">
+                                        {!hasReceipt && <RecordReceiptDialog orderId={orderId} />}
+                                        {!hasInvoice && <AddInvoiceDialog orderId={orderId} supplierId={supplierId} poAmount={poAmount} />}
+                                    </div>
+                                    <p className="mt-2 text-[10px] opacity-80">
+                                        {reason === 'QC_PENDING_OR_FAILED'
+                                            ? 'Complete the goods receipt inspection with a passing result to unlock matching.'
+                                            : 'SOX compliance requires the PO, receipt/QC, and invoice to match before payment release.'}
+                                    </p>
+                                </>
+                            )}
                         </div>
                     </div>
-                )}
+                </div>
             </CardContent>
         </Card>
     );
