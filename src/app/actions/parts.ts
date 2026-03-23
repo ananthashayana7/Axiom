@@ -7,13 +7,25 @@ import { eq, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 
-export async function getParts(): Promise<Part[]> {
+export async function getParts(options?: { limit?: number; offset?: number }): Promise<Part[]> {
     try {
-        const allParts = await db.select().from(parts).orderBy(parts.createdAt).limit(50);
+        const limit = options?.limit ?? 100;
+        const offset = options?.offset ?? 0;
+        const allParts = await db.select().from(parts).orderBy(parts.createdAt).limit(limit).offset(offset);
         return allParts;
     } catch (error) {
         console.error("Failed to fetch parts:", error);
         return [];
+    }
+}
+
+export async function getPartsCount(): Promise<number> {
+    try {
+        const [result] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(parts);
+        return result.count;
+    } catch (error) {
+        console.error("Failed to fetch parts count:", error);
+        return 0;
     }
 }
 
