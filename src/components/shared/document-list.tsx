@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileText, Trash2, Plus, ExternalLink, FileDown, Eye } from "lucide-react";
+import { FileText, Trash2, Plus, Upload, Eye } from "lucide-react";
 import { addDocument, deleteDocument } from "@/app/actions/documents";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,25 +23,54 @@ interface DocumentListProps {
     isAdmin: boolean;
 }
 
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
 export function DocumentList({ supplierId, orderId, documents: initialDocs, isAdmin }: DocumentListProps) {
     const [isPending, startTransition] = useTransition();
+    const [pendingType, setPendingType] = useState<Document["type"]>('contract');
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const handleMockUpload = (type: any) => {
-        const name = `${type.charAt(0).toUpperCase() + type.slice(1)}_${Math.random().toString(36).substring(7)}.pdf`;
+    const triggerUpload = (type: Document["type"]) => {
+        setPendingType(type);
+        fileInputRef.current?.click();
+    };
 
-        startTransition(async () => {
-            const result = await addDocument({
-                supplierId,
-                orderId,
-                name,
-                type,
-            });
-            if (result.success) {
-                toast.success(`Mock document '${name}' added.`);
-            } else {
-                toast.error("Failed to add document");
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+            toast.error("File size too large. Max 10MB allowed.");
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result;
+            if (typeof dataUrl !== 'string') {
+                toast.error("Failed to read selected file");
+                return;
             }
-        });
+
+            startTransition(async () => {
+                const result = await addDocument({
+                    supplierId,
+                    orderId,
+                    name: file.name,
+                    type: pendingType,
+                    url: dataUrl,
+                });
+
+                if (result.success) {
+                    toast.success(`Uploaded '${file.name}'`);
+                } else {
+                    toast.error(result.error || "Failed to upload document");
+                }
+            });
+        };
+        reader.onerror = () => toast.error("Failed to read selected file");
+        reader.readAsDataURL(file);
+        event.target.value = '';
     };
 
     const handleDelete = (docId: string) => {
@@ -67,9 +96,20 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                 </div>
                 {isAdmin && (
                     <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleMockUpload('contract')} disabled={isPending}>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.xlsx,.xls"
+                            onChange={handleFileUpload}
+                        />
+                        <Button size="sm" variant="outline" onClick={() => triggerUpload(orderId ? 'invoice' : 'contract')} disabled={isPending}>
+                            <Upload className="h-3 w-3 mr-1" />
+                            Upload {orderId ? 'Invoice' : 'Contract'}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => triggerUpload('other')} disabled={isPending}>
                             <Plus className="h-3 w-3 mr-1" />
-                            Contract
+                            Supporting Doc
                         </Button>
                     </div>
                 )}
@@ -103,8 +143,8 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                                         if (doc.url) {
                                             window.open(doc.url, '_blank');
                                         } else {
-                                            toast.info("Mock Document View", {
-                                                description: `This is a mock view for '${doc.name}'. Real document viewing will be available after cloud storage integration.`
+                                            toast.info("Preview unavailable", {
+                                                description: `The file '${doc.name}' does not have a stored preview URL yet.`,
                                             });
                                         }
                                     }}
@@ -130,7 +170,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                             <FileText className="h-8 w-8 text-muted-foreground/30 mb-2" />
                             <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
                             {isAdmin && (
-                                <p className="text-[10px] text-muted-foreground mt-1 underline cursor-pointer" onClick={() => handleMockUpload('other')}>
+                                <p className="text-[10px] text-muted-foreground mt-1 underline cursor-pointer" onClick={() => triggerUpload('other')}>
                                     Upload your first document
                                 </p>
                             )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { updateOrderStatus } from "@/app/actions/orders";
 import { Check, Send, Package, XCircle, Loader } from "lucide-react";
@@ -15,14 +15,17 @@ interface OrderStatusStepperProps {
     isAdmin: boolean;
 }
 
-const steps: { status: OrderStatus; label: string; icon: any }[] = [
-    { status: 'draft', label: 'Draft', icon: Loader },
-    { status: 'sent', label: 'Sent', icon: Send },
-    { status: 'fulfilled', label: 'Fulfilled', icon: Check },
-];
-
 export function OrderStatusStepper({ orderId, currentStatus, isAdmin }: OrderStatusStepperProps) {
     const [isPending, startTransition] = useTransition();
+    const nextStepGuidance: Record<OrderStatus, string> = {
+        draft: "Review line items and submit the order for approval when the commercial terms are ready.",
+        pending_approval: isAdmin ? "Approve or reject the order after validating price, supplier, and compliance checks." : "Waiting for an admin approver to validate the order.",
+        approved: "The order is approved. Send it to the supplier to start fulfilment tracking.",
+        rejected: "Address the rejection feedback, then reopen the order as a draft to resubmit it.",
+        sent: "Track logistics, record the goods receipt, and add the supplier invoice to complete the workflow.",
+        fulfilled: "Receipt and fulfilment are complete. Only invoice payment and audit follow-up remain.",
+        cancelled: "This workflow is closed.",
+    };
 
     const handleStatusUpdate = (newStatus: OrderStatus) => {
         // if (!isAdmin) return; // Removed this check as users can submit for approval
@@ -114,6 +117,10 @@ export function OrderStatusStepper({ orderId, currentStatus, isAdmin }: OrderSta
                         </div>
                     );
                 })}
+            </div>
+
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Next step:</span> {nextStepGuidance[currentStatus]}
             </div>
 
             <div className="flex gap-2 justify-end mt-4 pt-4 border-t">

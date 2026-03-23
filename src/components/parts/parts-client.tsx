@@ -286,10 +286,11 @@ function DeleteAllDialog({ open, onOpenChange }: { open: boolean, onOpenChange: 
         try {
             const result = await deleteAllParts();
             if (result.success) {
-                toast.success("All parts deleted successfully");
+                const removedParts = 'partCount' in result ? result.partCount ?? 0 : 0;
+                toast.success(`Removed ${removedParts} parts and cleared linked inventory records.`);
                 onOpenChange(false);
             } else {
-                toast.error("Failed to delete parts");
+                toast.error(result.error || "Failed to delete parts");
             }
         } catch (error) {
             toast.error("An error occurred");

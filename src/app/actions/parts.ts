@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { parts, orderItems, rfqItems, requisitions, invoices, type Part } from "@/db/schema";
+import { parts, orderItems, rfqItems, requisitions, invoices, demandForecasts, type Part } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
@@ -153,10 +153,39 @@ export async function deletePart(id: string) {
 
 export async function deleteAllParts() {
     try {
-        await db.delete(parts);
-        await logActivity('DELETE', 'part', 'all', 'Cleared entire parts inventory');
+        const result = await db.transaction(async (tx) => {
+            const [{ count: orderItemCount }] = await tx.select({
+                count: sql<number>`count(*)`.mapWith(Number),
+            }).from(orderItems);
+            const [{ count: rfqItemCount }] = await tx.select({
+                count: sql<number>`count(*)`.mapWith(Number),
+            }).from(rfqItems);
+            const [{ count: forecastCount }] = await tx.select({
+                count: sql<number>`count(*)`.mapWith(Number),
+            }).from(demandForecasts);
+            const [{ count: partCount }] = await tx.select({
+                count: sql<number>`count(*)`.mapWith(Number),
+            }).from(parts);
+
+            // Delete dependent records before parts so foreign key constraints do not block the purge.
+            await tx.delete(orderItems);
+            await tx.delete(rfqItems);
+            await tx.delete(demandForecasts);
+            await tx.delete(parts);
+
+            return { orderItemCount, rfqItemCount, forecastCount, partCount };
+        });
+
+        await logActivity(
+            'DELETE',
+            'part',
+            'all',
+            `Cleared ${result.partCount} parts with ${result.orderItemCount} order lines, ${result.rfqItemCount} RFQ lines, and ${result.forecastCount} forecasts.`,
+        );
         revalidatePath("/sourcing/parts");
-        return { success: true };
+        revalidatePath("/sourcing/orders");
+        revalidatePath("/sourcing/rfqs");
+        return { success: true, ...result };
     } catch (error) {
         console.error("Failed to clear inventory:", error);
         return { success: false, error: "Failed to clear inventory" };

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
+    Line, PieChart, Pie, Cell, Area,
     ScatterChart, Scatter, ZAxis, ComposedChart, Legend, RadarChart,
     Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
@@ -19,7 +19,6 @@ import {
     DollarSign, FileText, Globe, PieChart as PieChartIcon, Activity,
     ArrowUpRight, ArrowDownRight, Layers, Receipt, X, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
-import { useCurrency } from '@/components/currency-provider';
 import Link from 'next/link';
 
 /* ─── Color Palettes ─── */
@@ -164,13 +163,12 @@ function ChartTooltip({ active, payload, label, currency }: any) {
    MAIN PAGE
    ═══════════════════════════════════════════════════════════════ */
 export default function AnalyticsPage() {
-    const { geoLocale } = useCurrency();
     const [data, setData] = useState<Awaited<ReturnType<typeof getIntelligenceData>> | null>(null);
     const [filterOptions, setFilterOptions] = useState<{ regions: string[]; suppliers: { id: string; name: string }[]; categories: string[]; countries: string[] }>({ regions: [], suppliers: [], categories: [], countries: [] });
     const [loading, setLoading] = useState(true);
-    const [currency, setCurrency] = useState<string>(geoLocale.currencyCode);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [trendView, setTrendView] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
+    const currency = 'INR';
 
     // Filter state
     const [dateFrom, setDateFrom] = useState('');
@@ -316,20 +314,9 @@ export default function AnalyticsPage() {
                     <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
                         <Activity className="h-6 w-6 text-primary" /> Intelligence Hub
                     </h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">Enterprise procurement analytics with multi-dimensional filtering</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Enterprise procurement analytics with recorded-value reporting and multi-dimensional filtering</p>
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
-                    {/* Currency — auto-detected, with common alternatives */}
-                    <div className="flex items-center gap-0.5 rounded-lg border bg-card p-0.5">
-                        {[
-                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
-                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
-                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
-                        ].map(opt => (
-                            <button key={opt.code} onClick={() => setCurrency(opt.code)}
-                                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${currency === opt.code ? 'bg-primary text-white shadow' : 'hover:bg-muted'}`}>{opt.sym} {opt.code}</button>
-                        ))}
-                    </div>
                     {/* Trend Toggle */}
                     <div className="flex items-center gap-0.5 rounded-lg border bg-card p-0.5">
                         {(['monthly', 'quarterly', 'yearly'] as const).map(v => (

@@ -8,8 +8,7 @@ import { getOrderFinanceDetails } from "@/app/actions/orders";
 import { RecordReceiptDialog } from "./record-receipt-dialog";
 import { AddInvoiceDialog } from "./add-invoice-dialog";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { formatCurrencyByCode } from "@/lib/utils/currency";
 
 interface ThreeWayMatchProps {
     orderId: string;
@@ -34,9 +33,13 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
 
     const hasReceipt = details?.receipts?.length > 0;
     const hasInvoice = details?.invoices?.length > 0;
-    const totalInvoiced = details?.invoices?.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount), 0) || 0;
-    const isPriceMatched = Math.abs(totalInvoiced - poAmount) < 0.01;
+    const totalInvoiced = details?.totalInvoiced || 0;
+    const isPriceMatched = details?.isPriceMatched || false;
     const isFullyMatched = details?.isMatched;
+    const invoiceCurrency = details?.invoices?.[0]?.currency || 'INR';
+    const poAmountFormatted = formatCurrencyByCode(poAmount, invoiceCurrency);
+    const totalInvoicedFormatted = formatCurrencyByCode(totalInvoiced, invoiceCurrency);
+    const reason = details?.reason;
 
     return (
         <Card className="border-accent/40 shadow-sm overflow-hidden">
@@ -70,7 +73,7 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                         </div>
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-2xl font-black">₹{poAmount.toLocaleString()}</p>
+                                <p className="text-2xl font-black">{poAmountFormatted}</p>
                                 <p className="text-[10px] text-muted-foreground">Original Authorized Amount</p>
                             </div>
                             <CheckCircle2 size={16} className="text-green-500 mb-1" />
@@ -122,11 +125,11 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                             <div>
                                 {hasInvoice ? (
                                     <>
-                                        <p className={`text-lg font-bold ${isPriceMatched ? 'text-foreground' : 'text-red-600'}`}>
-                                            ₹{totalInvoiced.toLocaleString()}
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground">
-                                            {isPriceMatched ? 'Price Match Verified' : 'Price Discrepancy Detected'}
+                                            <p className={`text-lg font-bold ${isPriceMatched ? 'text-foreground' : 'text-red-600'}`}>
+                                                {totalInvoicedFormatted}
+                                            </p>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                {isPriceMatched ? 'Price Match Verified' : 'Price Discrepancy Detected'}
                                         </p>
                                     </>
                                 ) : (
@@ -161,13 +164,18 @@ export function ThreeWayMatch({ orderId, poAmount, supplierId }: ThreeWayMatchPr
                             <div className="text-xs leading-relaxed text-amber-800">
                                 <p className="font-bold mb-1 underline decoration-amber-300">Compliance Warning</p>
                                 {!hasReceipt && <p>• Physical goods receipt has not been logged in Axiom.</p>}
+                                {hasReceipt && !details?.qcPassed && <p>• Receipt inspection is still pending or has failed quality checks.</p>}
                                 {!hasInvoice && <p>• Financial invoice from supplier is missing.</p>}
-                                {hasInvoice && !isPriceMatched && <p>• Invoiced amount (₹{totalInvoiced.toLocaleString()}) does not match PO (₹{poAmount.toLocaleString()}).</p>}
+                                {hasInvoice && !isPriceMatched && <p>• Invoiced amount ({totalInvoicedFormatted}) does not match PO ({poAmountFormatted}).</p>}
                                 <div className="mt-3 flex gap-2">
                                     {!hasReceipt && <RecordReceiptDialog orderId={orderId} />}
                                     {!hasInvoice && <AddInvoiceDialog orderId={orderId} supplierId={supplierId} poAmount={poAmount} />}
                                 </div>
-                                <p className="mt-2 text-[10px] opacity-80">SOX compliance requires all three nodes to match before payment release.</p>
+                                <p className="mt-2 text-[10px] opacity-80">
+                                    {reason === 'QC_PENDING_OR_FAILED'
+                                        ? 'Complete the goods receipt inspection with a passing result to unlock matching.'
+                                        : 'SOX compliance requires the PO, receipt/QC, and invoice to match before payment release.'}
+                                </p>
                             </div>
                         </div>
                     </div>

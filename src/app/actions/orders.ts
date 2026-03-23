@@ -2,11 +2,12 @@
 
 import { db } from "@/db";
 import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections } from "@/db/schema";
-import { eq, and, sql, lte, gte } from "drizzle-orm";
+import { eq, and, sql, lte, gte, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
+import { calculateThreeWayMatchStatus } from "@/lib/utils/three-way-match";
 
 export async function getOrders() {
     const session = await auth();
@@ -351,18 +352,21 @@ export async function validateThreeWayMatch(orderId: string) {
             if (hasReceipt) {
                 const inspections = await db.select()
                     .from(qcInspections)
-                    .where(eq(qcInspections.receiptId, receipts[0].id));
+                    .where(inArray(qcInspections.receiptId, receipts.map((receipt) => receipt.id)));
                 qcPassed = inspections.some(ins => ins.status === 'passed');
             }
 
             // 3. Check for Invoices
             const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
-            const totalInvoiceAmount = orderInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
-
             const poAmount = parseFloat(po.totalAmount || "0");
-            const isPriceMatched = Math.abs(totalInvoiceAmount - poAmount) < 0.01;
+            const matchStatus = calculateThreeWayMatchStatus({
+                poAmount,
+                invoiceAmounts: orderInvoices.map((invoice) => parseFloat(invoice.amount)),
+                hasReceipt,
+                qcPassed,
+            });
 
-            if (hasReceipt && qcPassed && isPriceMatched) {
+            if (matchStatus.isMatched) {
                 await db.update(invoices)
                     .set({ status: 'matched', matchedAt: new Date() })
                     .where(eq(invoices.orderId, orderId));
@@ -375,14 +379,26 @@ export async function validateThreeWayMatch(orderId: string) {
                 return { success: true, status: 'MATCHED' };
             }
 
+            await db.update(invoices)
+                .set({
+                    status: matchStatus.status,
+                    matchedAt: null,
+                })
+                .where(eq(invoices.orderId, orderId));
+
+            if (matchStatus.status === 'disputed') {
+                await logActivity('UPDATE', 'order', orderId, `Three-way match disputed due to invoice variance of ${(matchStatus.totalInvoiced - poAmount).toFixed(2)}`);
+            }
+
             await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_pending", {
                 orderId,
                 hasReceipt,
                 qcPassed,
-                isPriceMatched,
-                variance: totalInvoiceAmount - poAmount
+                isPriceMatched: matchStatus.isPriceMatched,
+                variance: matchStatus.totalInvoiced - poAmount,
+                reason: matchStatus.reason,
             });
-            return { success: true, status: 'PENDING_MATCH', reason: !qcPassed ? "QC_PENDING_OR_FAILED" : "PRICE_MISMATCH" };
+            return { success: true, status: 'PENDING_MATCH', reason: matchStatus.reason };
         });
     } catch (error) {
         await TelemetryService.trackError("FinancialCompliance", "match_validation_error", error, { orderId });
@@ -398,11 +414,31 @@ export async function getOrderFinanceDetails(orderId: string) {
     try {
         const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
         const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+        const [order] = await db.select({
+            totalAmount: procurementOrders.totalAmount,
+        }).from(procurementOrders).where(eq(procurementOrders.id, orderId)).limit(1);
+
+        const receiptIds = receipts.map((receipt) => receipt.id);
+        const inspections = receiptIds.length > 0
+            ? await db.select().from(qcInspections).where(inArray(qcInspections.receiptId, receiptIds))
+            : [];
+        const qcPassed = inspections.some((inspection) => inspection.status === 'passed');
+        const matchStatus = calculateThreeWayMatchStatus({
+            poAmount: parseFloat(order?.totalAmount || "0"),
+            invoiceAmounts: orderInvoices.map((invoice) => parseFloat(invoice.amount)),
+            hasReceipt: receipts.length > 0,
+            qcPassed,
+        });
 
         return {
             receipts,
             invoices: orderInvoices,
-            isMatched: orderInvoices.some(inv => inv.status === 'matched')
+            inspections,
+            qcPassed,
+            totalInvoiced: matchStatus.totalInvoiced,
+            isPriceMatched: matchStatus.isPriceMatched,
+            isMatched: matchStatus.isMatched,
+            reason: matchStatus.reason,
         };
     } catch (error) {
         console.error("Failed to fetch order finance details:", error);

@@ -14,7 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
 import { toast } from "sonner";
-import { useCurrency } from '@/components/currency-provider';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, LineChart, Line, Legend,
@@ -35,10 +34,8 @@ function formatAmount(amount: number, currencyCode: string): string {
 }
 
 export default function InvoicesPage() {
-    const { geoLocale } = useCurrency();
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [displayCurrency, setDisplayCurrency] = useState<string>(geoLocale.currencyCode);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({
         invoiceNumber: '', status: 'all', country: '', continent: 'all',
@@ -79,7 +76,7 @@ export default function InvoicesPage() {
             inv.invoiceNumber, inv.supplierName || 'N/A', inv.status,
             new Date(inv.createdAt).toLocaleDateString(),
             Number(inv.amount).toFixed(2),
-            inv.currency || displayCurrency, inv.country || inv.supplierCountry || 'N/A',
+            inv.currency || 'INR', inv.country || inv.supplierCountry || 'N/A',
             inv.region || 'N/A', inv.continent || 'N/A', (inv.orderId || '').slice(0, 8),
         ]);
         const csv = [headers, ...rows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
@@ -105,7 +102,7 @@ export default function InvoicesPage() {
                 .replace(/'/g, '&#x27;');
 
         const rows = invoicesList.map(inv => {
-            const currency = inv.currency || displayCurrency;
+            const currency = inv.currency || 'INR';
             return `<tr><td>${escapeHtml(inv.invoiceNumber)}</td><td>${escapeHtml(inv.supplierName || 'N/A')}</td><td>${escapeHtml((inv.status || '').toUpperCase())}</td><td>${escapeHtml(new Date(inv.createdAt).toLocaleDateString())}</td><td>${escapeHtml(formatAmount(Number(inv.amount) || 0, currency))} ${escapeHtml(currency)}</td><td>${escapeHtml(inv.country || inv.supplierCountry || 'N/A')}</td><td>${escapeHtml(inv.region || 'N/A')}</td><td>${escapeHtml(inv.continent || 'N/A')}</td></tr>`;
         }).join('');
         const html = `<!DOCTYPE html><html><head><title>Axiom — Invoice Report</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:22px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#f3f4f6;padding:8px 12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;text-transform:uppercase;font-size:10px}td{padding:8px 12px;border:1px solid #e5e7eb}tr:nth-child(even){background:#f9fafb}</style></head><body><h1>Axiom — Invoice Ledger</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${invoicesList.length} | Amounts in original invoice currencies</p><table><thead><tr><th>Invoice #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Amount</th><th>Country</th><th>Region</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
@@ -116,7 +113,7 @@ export default function InvoicesPage() {
 
     // Group totals by currency to show multi-currency summary
     const currencyTotals = invoicesList.reduce((acc: Record<string, number>, inv) => {
-        const c = inv.currency || displayCurrency;
+        const c = inv.currency || 'INR';
         acc[c] = (acc[c] || 0) + (Number(inv.amount) || 0);
         return acc;
     }, {});
@@ -278,13 +275,14 @@ export default function InvoicesPage() {
                     }, {})
                 ).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value, fill: STATUS_COLORS[name] || '#94a3b8' }));
 
+                // This chart uses invoice counts rather than summed values so mixed currencies are never combined.
                 const continentData = Object.entries(
                     invoicesList.reduce((acc: Record<string, number>, inv) => {
                         const c = inv.continent || inv.supplierContinent || 'Unknown';
-                        acc[c] = (acc[c] || 0) + (Number(inv.amount) || 0);
+                        acc[c] = (acc[c] || 0) + 1;
                         return acc;
                     }, {})
-                ).map(([name, value]) => ({ name, amount: value })).sort((a, b) => b.amount - a.amount);
+                ).map(([name, value]) => ({ name, count: value })).sort((a, b) => b.count - a.count);
 
                 // Monthly trend from invoice dates
                 const monthlyMap: Record<string, number> = {};
@@ -327,10 +325,10 @@ export default function InvoicesPage() {
                                 <ResponsiveContainer width="100%" height={220}>
                                     <BarChart data={continentData} layout="vertical" margin={{ left: 0, right: 16 }}>
                                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                        <XAxis type="number" tickFormatter={(v) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v)} tick={{ fontSize: 10 }} />
+                                        <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                                         <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
-                                        <Tooltip formatter={(v: any) => formatAmount(Number(v), displayCurrency)} />
-                                        <Bar dataKey="amount" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                                        <Tooltip formatter={(v: any) => `${Number(v)} invoices`} />
+                                        <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </CardContent>
@@ -408,7 +406,7 @@ export default function InvoicesPage() {
                                                 <td className="p-4 align-middle text-sm text-muted-foreground">{invoice.continent || '—'}</td>
                                                 <td className="p-4 align-middle text-muted-foreground text-sm">{new Date(invoice.createdAt).toLocaleDateString()}</td>
                                                 <td className="p-4 align-middle font-black tabular-nums">
-                                                    {formatAmount(Number(invoice.amount) || 0, invoice.currency || displayCurrency)}
+                                                    {formatAmount(Number(invoice.amount) || 0, invoice.currency || 'INR')}
                                                     {invoice.currency && <span className="text-[10px] text-muted-foreground ml-1 font-normal">{invoice.currency}</span>}
                                                 </td>
                                                 <td className="p-4 align-middle text-right">

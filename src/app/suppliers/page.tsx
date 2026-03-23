@@ -38,6 +38,10 @@ export default function SuppliersPage() {
                 const data = {
                     name: formData.get("name") as string,
                     contactEmail: formData.get("email") as string,
+                    countryCode: formData.get("countryCode") as string,
+                    city: formData.get("city") as string,
+                    latitude: parseFloat(formData.get("latitude") as string),
+                    longitude: parseFloat(formData.get("longitude") as string),
                     riskScore: parseInt(formData.get("risk") as string) || 0,
                     performanceScore: parseInt(formData.get("performance") as string) || 0,
                     esgScore: parseInt(formData.get("esg") as string) || 0,
@@ -127,6 +131,26 @@ export default function SuppliersPage() {
                                 <div className="grid gap-2">
                                     <Label htmlFor="email">Contact Email</Label>
                                     <Input id="email" name="email" type="email" placeholder="contact@acme.com" defaultValue={selectedSupplier?.contactEmail} required />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="countryCode">Country Code</Label>
+                                    <Input id="countryCode" name="countryCode" placeholder="IN / DE / US" defaultValue={selectedSupplier?.countryCode || ''} maxLength={2} pattern="[A-Z]{2}" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="city">City</Label>
+                                    <Input id="city" name="city" placeholder="Bengaluru" defaultValue={selectedSupplier?.city || ''} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="latitude">Latitude</Label>
+                                    <Input id="latitude" name="latitude" type="number" step="0.0000001" min="-90" max="90" placeholder="12.9715987" defaultValue={selectedSupplier?.latitude || ''} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="longitude">Longitude</Label>
+                                    <Input id="longitude" name="longitude" type="number" step="0.0000001" min="-180" max="180" placeholder="77.5945627" defaultValue={selectedSupplier?.longitude || ''} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
