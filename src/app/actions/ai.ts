@@ -354,13 +354,13 @@ function normalizeAttachmentMimeType(attachment: { name: string; mimeType?: stri
 
 function decodeXmlEntities(value: string) {
     return value
-        .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&#10;/g, '\n')
-        .replace(/&#13;/g, '\r');
+        .replace(/&#13;/g, '\r')
+        .replace(/&amp;/g, '&');
 }
 
 function sanitizeCell(value: string) {
