@@ -15,6 +15,21 @@ interface Message {
     content: string;
 }
 
+const SUPPORTED_FILE_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls']);
+
+function isSupportedCopilotFile(file: File) {
+    const extension = file.name.toLowerCase().split('.').pop() ?? '';
+    return file.type === 'application/pdf'
+        || file.type.startsWith('image/')
+        || file.type === 'text/csv'
+        || file.type === 'text/tab-separated-values'
+        || file.type === 'text/plain'
+        || file.type === 'application/json'
+        || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || file.type === 'application/vnd.ms-excel'
+        || SUPPORTED_FILE_EXTENSIONS.has(extension);
+}
+
 export default function CopilotPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -32,7 +47,7 @@ export default function CopilotPage() {
                 setMessages(history);
             } else {
                 setMessages([
-                    { role: 'assistant', content: "Hello! I'm your Axiom Copilot. How can I help you with your procurement data today?" }
+                    { role: 'assistant', content: "Hello! I can help with Axiom workflows, AI agents, procurement data, and uploaded PDF, CSV, or Excel files." }
                 ]);
             }
             setLoadingHistory(false);
@@ -53,10 +68,10 @@ export default function CopilotPage() {
                 toast.error("File too large. Maximum size is 10 MB.");
                 return;
             }
-            if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+            if (isSupportedCopilotFile(file)) {
                 setSelectedFile(file);
             } else {
-                toast.error("Unsupported file type. Please upload a PDF or an image.");
+                toast.error("Unsupported file type. Upload PDF, image, CSV, TSV, TXT, JSON, XLSX, or XLS files.");
             }
         }
     };
@@ -69,12 +84,14 @@ export default function CopilotPage() {
 
         let fileBase64: string | undefined;
         let fileName: string | undefined;
+        let fileMimeType: string | undefined;
 
         if (selectedFile) {
             try {
                 const buffer = await selectedFile.arrayBuffer();
                 fileBase64 = Buffer.from(buffer).toString('base64');
                 fileName = selectedFile.name;
+                fileMimeType = selectedFile.type;
             } catch {
                 toast.error("Failed to read file. Please try again.");
                 return;
@@ -96,7 +113,7 @@ export default function CopilotPage() {
                 const response = await processCopilotQuery(
                     userMessage,
                     updatedHistory,
-                    fileBase64 ? { data: fileBase64, name: fileName! } : undefined
+                    fileBase64 ? { data: fileBase64, name: fileName!, mimeType: fileMimeType } : undefined
                 );
                 setMessages(prev => [...prev, { role: 'assistant', content: response }]);
             } catch (error) {
@@ -114,15 +131,15 @@ export default function CopilotPage() {
                         <AxiomLogo className="h-8 w-8 text-primary animate-pulse" />
                         Axiom Copilot
                     </h1>
-                    <p className="text-muted-foreground mt-1 text-sm">AI-powered procurement insights and multi-format document analysis.</p>
+                    <p className="text-muted-foreground mt-1 text-sm">Reason over Axiom workflows, agents, and uploaded PDF, image, CSV, or Excel files.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={async () => {
-                        await clearChatHistory();
-                        setMessages([{ role: 'assistant', content: "Hello! How can I help you today?" }]);
-                    }}>
-                        Clear Session
-                    </Button>
+                     <Button variant="outline" size="sm" onClick={async () => {
+                         await clearChatHistory();
+                         setMessages([{ role: 'assistant', content: "Hello! Ask about Axiom workflows, live procurement context, or upload a file to analyze." }]);
+                     }}>
+                         Clear Session
+                     </Button>
                 </div>
             </div>
 
@@ -198,7 +215,7 @@ export default function CopilotPage() {
                                 ref={fileInputRef}
                                 onChange={handleFileChange}
                                 className="hidden"
-                                accept="application/pdf,image/*"
+                                accept="application/pdf,image/*,.csv,.tsv,.txt,.json,.xlsx,.xls"
                             />
                             <Button
                                 type="button"
@@ -211,7 +228,7 @@ export default function CopilotPage() {
                                 <Paperclip className="h-5 w-5 text-muted-foreground" />
                             </Button>
                             <Input
-                                placeholder="Ask Axiom Copilot anything..."
+                                placeholder="Ask about Axiom workflows, live data, or upload a file to analyze..."
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 className="flex-1 h-10 rounded-full pl-4 border-accent focus-visible:ring-primary shadow-inner"
