@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { calculateThreeWayMatchStatus } from '../../src/lib/utils/three-way-match';
+import {
+    calculateThreeWayMatchStatus,
+    getThreeWayMatchReasonLabel,
+    getThreeWayMatchSuccessCriteria,
+} from '../../src/lib/utils/three-way-match';
 import { formatCurrencyByCode } from '../../src/lib/utils/currency';
 
 test('calculateThreeWayMatchStatus returns matched only when receipt, qc, and price match are all satisfied', () => {
@@ -40,6 +44,21 @@ test('calculateThreeWayMatchStatus explains missing receipt and qc prerequisites
 
     assert.equal(result.status, 'pending');
     assert.equal(result.reason, 'MISSING_RECEIPT');
+});
+
+test('three-way match guidance explains the blocking reason and success criteria', () => {
+    assert.equal(
+        getThreeWayMatchReasonLabel('PRICE_MISMATCH'),
+        'Verification is pending because the recorded invoice total does not match the PO amount.',
+    );
+    assert.equal(
+        getThreeWayMatchReasonLabel('MATCHED'),
+        'Verification is successful because the PO, receipt/QC, and supplier invoice all align.',
+    );
+    assert.match(
+        getThreeWayMatchSuccessCriteria(),
+        /goods receipt is logged.*QC inspection passes.*invoice total matches the PO amount/i,
+    );
 });
 
 test('formatCurrencyByCode preserves the requested currency code', () => {

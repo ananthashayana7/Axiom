@@ -14,6 +14,25 @@ export interface ThreeWayMatchStatus {
     reason: 'MISSING_RECEIPT' | 'QC_PENDING_OR_FAILED' | 'MISSING_INVOICE' | 'PRICE_MISMATCH' | 'MATCHED';
 }
 
+export function getThreeWayMatchReasonLabel(reason: ThreeWayMatchStatus['reason']): string {
+    switch (reason) {
+        case 'MISSING_RECEIPT':
+            return 'Verification is pending because no goods receipt has been logged yet.';
+        case 'QC_PENDING_OR_FAILED':
+            return 'Verification is pending because the receipt inspection is still pending or has failed quality checks.';
+        case 'MISSING_INVOICE':
+            return 'Verification is pending because no supplier invoice has been recorded yet.';
+        case 'PRICE_MISMATCH':
+            return 'Verification is pending because the recorded invoice total does not match the PO amount.';
+        case 'MATCHED':
+            return 'Verification is successful because the PO, receipt/QC, and supplier invoice all align.';
+    }
+}
+
+export function getThreeWayMatchSuccessCriteria(): string {
+    return 'Verification becomes successful only after a goods receipt is logged, the QC inspection passes, and the supplier invoice total matches the PO amount.';
+}
+
 export function calculateThreeWayMatchStatus({
     poAmount,
     invoiceAmounts,
