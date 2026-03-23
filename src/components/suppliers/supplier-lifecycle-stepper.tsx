@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { updateSupplier } from "@/app/actions/suppliers";
 import { Check, ClipboardList, UserPlus, AlertTriangle, XOctagon } from "lucide-react";
@@ -23,6 +23,13 @@ const steps: { status: LifecycleStatus; label: string; icon: any }[] = [
 
 export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }: SupplierLifecycleStepperProps) {
     const [isPending, startTransition] = useTransition();
+    const nextStepGuidance: Record<LifecycleStatus, string> = {
+        prospect: "Capture contact, compliance, and location details before moving the supplier into onboarding.",
+        onboarding: "Validate certifications, performance baselines, and supporting documents before approval.",
+        active: "Monitor performance and compliance regularly; suspend only if risk or performance deteriorates.",
+        suspended: "Resolve the compliance or performance issue, then reactivate the supplier when controls pass.",
+        terminated: "Relationship closed. Create a new supplier record if the vendor is re-engaged in the future.",
+    };
 
     const handleStatusUpdate = (newStatus: LifecycleStatus) => {
         if (!isAdmin) return;
@@ -76,7 +83,6 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
 
                 {steps.map((step, idx) => {
                     const isCompleted = steps.findIndex(s => s.status === currentStatus) >= idx;
-                    const isActive = step.status === currentStatus;
                     const Icon = step.icon;
 
                     return (
@@ -100,6 +106,10 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
                         </div>
                     );
                 })}
+            </div>
+
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Next step:</span> {nextStepGuidance[currentStatus]}
             </div>
 
             {isAdmin && currentStatus !== 'active' && (

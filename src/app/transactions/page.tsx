@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Download, Filter, RefreshCcw, ArrowRightLeft, ShoppingCart, Truck, FileText, Handshake } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useCurrency } from '@/components/currency-provider';
 import { getOrders } from "@/app/actions/orders";
 import { getInvoices } from "@/app/actions/invoices";
 import { getGoodsReceipts } from "@/app/actions/goods-receipts";
 import { getContracts } from "@/app/actions/contracts";
+import { formatCurrencyByCode } from "@/lib/utils/currency";
 
 type TxType = 'all' | 'orders' | 'goods_receipts' | 'invoices' | 'quantity_contracts';
 
@@ -26,20 +26,14 @@ const TX_TYPES = [
 ];
 
 export default function TransactionsPage() {
-    const { geoLocale, formatCurrency: formatCurrencyGeo } = useCurrency();
     const [txType, setTxType] = useState<TxType>('all');
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [rows, setRows] = useState<any[]>([]);
-    const [currency, setCurrency] = useState<string>(geoLocale.currencyCode);
 
-    const fmt = (val: number) => {
-        const locale = currency === 'EUR' ? 'de-DE' : currency === 'USD' ? 'en-US' : geoLocale.locale;
-        try { return new Intl.NumberFormat(locale, { style: 'currency', currency: currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val); }
-        catch { return `${geoLocale.currencySymbol}${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`; }
-    };
+    const fmt = (val: number, currencyCode = 'INR') => formatCurrencyByCode(val, currencyCode);
 
     useEffect(() => {
         const cancelled = false;
@@ -51,10 +45,10 @@ export default function TransactionsPage() {
         ]).then(([orders, invoices, receipts, contracts]) => {
             if (cancelled) return;
             const combined = [
-                ...(orders as any[]).map(o => ({ ...o, _type: 'Order', _ref: o.id?.slice(0, 8), _amount: o.totalAmount, _status: o.status, _date: o.createdAt })),
-                ...(invoices as any[]).map(i => ({ ...i, _type: 'Invoice', _ref: i.invoiceNumber, _amount: i.amount, _status: i.status, _date: i.createdAt })),
-                ...(receipts as any[]).map(r => ({ ...r, _type: 'Goods Receipt', _ref: r.id?.slice(0, 8), _amount: null, _status: r.inspectionStatus, _date: r.receivedAt })),
-                ...(contracts as any[]).map(c => ({ ...c, _type: 'Quantity Contract', _ref: c.title, _amount: c.value, _status: c.status, _date: c.createdAt })),
+                ...(orders as any[]).map(o => ({ ...o, _type: 'Order', _ref: o.id?.slice(0, 8), _amount: o.totalAmount, _currency: 'INR', _status: o.status, _date: o.createdAt })),
+                ...(invoices as any[]).map(i => ({ ...i, _type: 'Invoice', _ref: i.invoiceNumber, _amount: i.amount, _currency: i.currency || 'INR', _status: i.status, _date: i.createdAt })),
+                ...(receipts as any[]).map(r => ({ ...r, _type: 'Goods Receipt', _ref: r.id?.slice(0, 8), _amount: null, _currency: 'INR', _status: r.inspectionStatus, _date: r.receivedAt })),
+                ...(contracts as any[]).map(c => ({ ...c, _type: 'Quantity Contract', _ref: c.title, _amount: c.value, _currency: 'INR', _status: c.status, _date: c.createdAt })),
             ].sort((a, b) => new Date(b._date || 0).getTime() - new Date(a._date || 0).getTime());
             setRows(combined);
             setLoading(false);
@@ -70,7 +64,7 @@ export default function TransactionsPage() {
 
     const exportCSV = () => {
         const headers = ['Type', 'Reference', 'Status', 'Amount', 'Date'];
-        const csvRows = filtered.map(r => [r._type, r._ref || 'N/A', r._status || 'N/A', r._amount ? fmt(parseFloat(r._amount)) : 'N/A', r._date ? new Date(r._date).toLocaleDateString() : 'N/A']);
+        const csvRows = filtered.map(r => [r._type, r._ref || 'N/A', r._status || 'N/A', r._amount ? fmt(parseFloat(r._amount), r._currency) : 'N/A', r._date ? new Date(r._date).toLocaleDateString() : 'N/A']);
         const csv = [headers, ...csvRows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -94,18 +88,9 @@ export default function TransactionsPage() {
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
                         <ArrowRightLeft className="h-8 w-8 text-primary" /> Transactions
                     </h1>
-                    <p className="text-muted-foreground mt-1 font-medium">Unified view of Orders, Goods Receipts, Invoices, and Contracts.</p>
+                    <p className="text-muted-foreground mt-1 font-medium">Unified view of Orders, Goods Receipts, Invoices, and Contracts in their recorded currency.</p>
                 </div>
                 <div className="flex gap-2 items-center">
-                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        {[
-                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
-                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
-                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
-                        ].map(opt => (
-                            <button key={opt.code} onClick={() => setCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
-                        ))}
-                    </div>
                     <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> CSV</Button>
                 </div>
             </div>
@@ -172,7 +157,7 @@ export default function TransactionsPage() {
                                                 <span className="text-xs font-medium uppercase text-muted-foreground">{row._status || '—'}</span>
                                             </td>
                                             <td className="p-4 align-middle font-black tabular-nums">
-                                                {row._amount ? fmt(parseFloat(row._amount)) : '—'}
+                                                {row._amount ? fmt(parseFloat(row._amount), row._currency) : '—'}
                                             </td>
                                             <td className="p-4 align-middle text-muted-foreground text-sm">
                                                 {row._date ? new Date(row._date).toLocaleDateString() : '—'}

@@ -103,6 +103,10 @@ export async function getSupplierOrders(supplierId: string) {
 interface UpdateSupplierData {
     name?: string;
     contactEmail?: string;
+    countryCode?: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
     riskScore?: number;
     performanceScore?: number;
     esgScore?: number;
@@ -128,12 +132,22 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
     if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
+        const latitude = typeof data.latitude === 'number' && Number.isFinite(data.latitude)
+            ? data.latitude.toString()
+            : undefined;
+        const longitude = typeof data.longitude === 'number' && Number.isFinite(data.longitude)
+            ? data.longitude.toString()
+            : undefined;
+
         await db.update(suppliers)
             .set({
                 ...data,
+                countryCode: data.countryCode?.toUpperCase(),
                 carbonFootprintScope1: data.carbonFootprintScope1?.toString(),
                 carbonFootprintScope2: data.carbonFootprintScope2?.toString(),
                 carbonFootprintScope3: data.carbonFootprintScope3?.toString(),
+                latitude,
+                longitude,
                 lastAuditDate: data.performanceScore !== undefined ? new Date() : (data as any).lastAuditDate
             })
             .where(eq(suppliers.id, id));
@@ -167,10 +181,16 @@ export async function addSupplier(formData: FormData) {
         const esgScore = parseInt(formData.get("esg") as string) || 0;
         const financialScore = parseInt(formData.get("financial") as string) || 0;
         const performanceScore = parseInt(formData.get("performance") as string) || 80;
+        const countryCode = (formData.get("countryCode") as string || '').toUpperCase();
+        const city = formData.get("city") as string;
+        const latitude = parseFloat(formData.get("latitude") as string);
+        const longitude = parseFloat(formData.get("longitude") as string);
 
         const [newSupplier] = await db.insert(suppliers).values({
             name,
             contactEmail,
+            countryCode: countryCode || null,
+            city: city || null,
             riskScore,
             esgScore,
             financialScore,
@@ -185,6 +205,8 @@ export async function addSupplier(formData: FormData) {
             esgSocialScore: parseInt(formData.get("esg_soc") as string) || 0,
             esgGovernanceScore: parseInt(formData.get("esg_gov") as string) || 0,
             modernSlaveryStatement: formData.get("modern_slavery") === "on" ? "yes" : "no",
+            latitude: Number.isFinite(latitude) ? latitude.toString() : null,
+            longitude: Number.isFinite(longitude) ? longitude.toString() : null,
         }).returning();
 
         await logActivity('CREATE', 'supplier', newSupplier.id, `New supplier onboarded: ${name}`);

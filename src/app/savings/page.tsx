@@ -11,27 +11,19 @@ import {
 import { TrendingDown, DollarSign, Target, Award, Download, PiggyBank, ArrowDownRight } from "lucide-react";
 import { getSavingsData } from "@/app/actions/savings";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { useCurrency } from '@/components/currency-provider';
+import { formatCurrencyByCode } from "@/lib/utils/currency";
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function SavingsPage() {
-    const { geoLocale, formatCurrency: formatCurrencyGeo } = useCurrency();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [currency, setCurrency] = useState<string>(geoLocale.currencyCode);
 
     useEffect(() => {
         getSavingsData().then(d => { setData(d); setLoading(false); });
     }, []);
 
-    const fmt = (val: number) => {
-        const LOCALE: Record<string, string> = { INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB' };
-        const locale = LOCALE[currency] || geoLocale.locale;
-        try { return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(val); }
-        catch { return `${geoLocale.currencySymbol}${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}`; }
-    };
+    const fmt = (val: number) => formatCurrencyByCode(val, 'INR');
 
     const exportCSV = () => {
         if (!data) return;
@@ -67,19 +59,10 @@ export default function SavingsPage() {
                         <PiggyBank className="h-8 w-8 text-emerald-600" /> Savings Intelligence
                     </h1>
                     <p className="text-muted-foreground mt-1 font-medium">
-                        Track negotiated savings, cost avoidance, and procurement efficiency.
+                        Track negotiated savings, cost avoidance, and procurement efficiency without live FX conversion.
                     </p>
                 </div>
                 <div className="flex gap-2 items-center">
-                    <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                        {[
-                            { code: geoLocale.currencyCode, sym: geoLocale.currencySymbol },
-                            ...(geoLocale.currencyCode !== 'USD' ? [{ code: 'USD', sym: '$' }] : []),
-                            ...(geoLocale.currencyCode !== 'EUR' ? [{ code: 'EUR', sym: '€' }] : []),
-                        ].map(opt => (
-                            <button key={opt.code} onClick={() => setCurrency(opt.code)} className={cn("px-3 py-1.5 rounded-md text-xs font-bold transition-all", currency === opt.code ? "bg-primary text-white shadow" : "hover:bg-muted")}>{opt.sym} {opt.code}</button>
-                        ))}
-                    </div>
                     <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> Export</Button>
                 </div>
             </div>
@@ -140,7 +123,7 @@ export default function SavingsPage() {
                             <BarChart data={data.savingsBySupplier?.slice(0, 10) || []} margin={{ top: 5, right: 20, bottom: 60, left: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                                 <XAxis dataKey="supplierName" angle={-35} textAnchor="end" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
+                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCurrencyByCode(v, 'INR')} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} name="Savings" />
@@ -173,7 +156,7 @@ export default function SavingsPage() {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                                 <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => { try { return new Intl.NumberFormat(geoLocale.locale, { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 0 }).format(v); } catch { return String(v); } }} />
+                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCurrencyByCode(v, 'INR')} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#savingsGrad)" strokeWidth={2.5} name="Savings" dot={{ r: 3, fill: '#10b981' }} />
