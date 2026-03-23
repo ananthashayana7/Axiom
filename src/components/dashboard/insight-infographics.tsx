@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import {
     Bar,
@@ -27,8 +27,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils/currency";
-import { formatLocalCurrencyCompact } from "@/lib/utils/geo-currency";
+import { formatLocalCurrency, formatLocalCurrencyCompact, getGeoLocale } from "@/lib/utils/geo-currency";
 import {
     buildCategoryMix,
     getInfographicHighlights,
@@ -39,6 +38,7 @@ import {
 } from "@/lib/dashboard-infographic";
 
 const CHART_COLORS = ["#2563eb", "#a855f7", "#14b8a6", "#f59e0b", "#94a3b8"];
+const subscribe = () => () => {};
 
 interface InsightInfographicsProps {
     monthlyData: InfographicMonthlyDatum[];
@@ -55,10 +55,12 @@ function ChartTooltip({
     active,
     payload,
     label,
+    formatValue,
 }: {
     active?: boolean;
     payload?: Array<{ name?: string; value?: number; color?: string }>;
     label?: string;
+    formatValue: (value: number) => string;
 }) {
     if (!active || !payload?.length) return null;
 
@@ -70,7 +72,7 @@ function ChartTooltip({
                     <div key={`${entry.name}-${index}`} className="flex items-center gap-2 text-sm">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
                         <span className="text-muted-foreground">{entry.name}</span>
-                        <span className="font-bold text-foreground">{formatCurrency(entry.value ?? 0)}</span>
+                        <span className="font-bold text-foreground">{formatValue(entry.value ?? 0)}</span>
                     </div>
                 ))}
             </div>
@@ -127,6 +129,13 @@ export function InsightInfographics({
     riskySuppliers,
     stats,
 }: InsightInfographicsProps) {
+    const hasMounted = useSyncExternalStore(subscribe, () => true, () => false);
+
+    const geoLocale = useMemo(
+        () => hasMounted ? getGeoLocale() : getGeoLocale("IN"),
+        [hasMounted],
+    );
+
     const categoryMix = useMemo(() => buildCategoryMix(categoryData), [categoryData]);
     const highlights = useMemo(() => getInfographicHighlights({
         monthlyData,
@@ -141,6 +150,9 @@ export function InsightInfographics({
         () => [...supplierData].sort((a, b) => b.spend - a.spend).slice(0, 4),
         [supplierData],
     );
+
+    const formatCompactValue = (value: number) => formatLocalCurrencyCompact(value, geoLocale);
+    const formatValue = (value: number) => formatLocalCurrency(value, geoLocale);
 
     return (
         <section className="space-y-4">
@@ -159,7 +171,7 @@ export function InsightInfographics({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <HighlightCard
                     title="Spend under watch"
-                    value={formatLocalCurrencyCompact(highlights.totalSpend)}
+                    value={formatCompactValue(highlights.totalSpend)}
                     subtitle="Total enterprise spend tracked"
                     icon={<Landmark className="h-5 w-5" />}
                     tone="border-blue-200 bg-blue-50 text-blue-700"
@@ -168,7 +180,7 @@ export function InsightInfographics({
                 <HighlightCard
                     title="Peak month"
                     value={highlights.peakMonth ? `${highlights.peakMonth.name}` : "No data"}
-                    subtitle={highlights.peakMonth ? formatCurrency(highlights.peakMonth.total) : "Waiting for order history"}
+                    subtitle={highlights.peakMonth ? formatValue(highlights.peakMonth.total) : "Waiting for order history"}
                     icon={<TrendingUp className="h-5 w-5" />}
                     tone="border-emerald-200 bg-emerald-50 text-emerald-700"
                 />
@@ -208,10 +220,10 @@ export function InsightInfographics({
                                             tickLine={false}
                                             axisLine={false}
                                             fontSize={12}
-                                            tickFormatter={(value) => formatLocalCurrencyCompact(value)}
+                                            tickFormatter={(value) => formatCompactValue(value)}
                                             width={70}
                                         />
-                                        <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37, 99, 235, 0.08)" }} />
+                                        <Tooltip content={<ChartTooltip formatValue={formatValue} />} cursor={{ fill: "rgba(37, 99, 235, 0.08)" }} />
                                         <Bar dataKey="total" name="Spend" radius={[10, 10, 0, 0]}>
                                             {monthlyData.map((entry, index) => (
                                                 <Cell
@@ -257,7 +269,7 @@ export function InsightInfographics({
                                                     <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            <Tooltip content={<ChartTooltip />} />
+                                            <Tooltip content={<ChartTooltip formatValue={formatValue} />} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -271,7 +283,7 @@ export function InsightInfographics({
                                                 />
                                                 <span className="font-medium text-foreground">{entry.name}</span>
                                             </div>
-                                            <span className="text-muted-foreground">{formatLocalCurrencyCompact(entry.value)}</span>
+                                            <span className="text-muted-foreground">{formatCompactValue(entry.value)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -304,7 +316,7 @@ export function InsightInfographics({
                                                     {supplier.orders} orders · {supplier.reliability}% reliability
                                                 </p>
                                             </div>
-                                            <p className="text-sm font-black text-foreground">{formatLocalCurrencyCompact(supplier.spend)}</p>
+                                            <p className="text-sm font-black text-foreground">{formatCompactValue(supplier.spend)}</p>
                                         </div>
                                         <div className="mt-3 h-2 rounded-full bg-amber-100">
                                             <div
