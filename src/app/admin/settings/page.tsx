@@ -32,7 +32,9 @@ export default function AdminSettingsPage() {
     }, []);
 
     useEffect(() => {
-        loadSettings();
+        queueMicrotask(() => {
+            void loadSettings();
+        });
     }, [loadSettings]);
 
     const isDirty = initialSettings && settings && (
