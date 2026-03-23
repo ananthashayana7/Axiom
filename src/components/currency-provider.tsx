@@ -23,9 +23,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
     // Detect on mount (client-side only)
     useEffect(() => {
-        const detected = detectUserCountry();
-        setCountryState(detected);
-        setReady(true);
+        queueMicrotask(() => {
+            const detected = detectUserCountry();
+            setCountryState(detected);
+            setReady(true);
+        });
     }, []);
 
     const geoLocale = useMemo(() => getGeoLocale(country), [country]);
