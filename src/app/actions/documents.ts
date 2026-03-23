@@ -40,6 +40,7 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 function isAllowedDocumentUrl(url?: string) {
     if (!url) return true;
@@ -53,6 +54,9 @@ export async function addDocument(data: AddDocumentInput) {
     try {
         if (!isAllowedDocumentUrl(data.url)) {
             return { success: false, error: "Unsupported document format" };
+        }
+        if (data.url?.startsWith('data:') && data.url.length > MAX_DOCUMENT_SIZE_BYTES * 1.37) {
+            return { success: false, error: "Document exceeds the 10MB upload limit" };
         }
 
         const [newDoc] = await db.insert(documents).values({
