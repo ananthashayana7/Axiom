@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/currency";
 import { DataExplorer } from "@/components/dashboard/data-explorer";
+import { InsightInfographics } from "@/components/dashboard/insight-infographics";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
 import { getSuppliers } from "@/app/actions/suppliers";
@@ -207,6 +208,14 @@ export default async function Home() {
           </CardContent>
         </Card>
       </div>
+
+      <InsightInfographics
+        monthlyData={monthlySpend}
+        categoryData={categorySpend}
+        supplierData={supplierAnalytics}
+        riskySuppliers={riskySuppliers}
+        stats={stats}
+      />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
