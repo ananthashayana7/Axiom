@@ -7,6 +7,8 @@ import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 
 import { getAiModel } from "@/lib/ai-provider";
+import { getCopilotKnowledgeContext } from "@/lib/copilot-knowledge";
+import JSZip from "jszip";
 import { triggerAgentDispatch } from "./agents";
 
 // Remove hardcoded key, using provider
@@ -209,10 +211,11 @@ export async function getFullAiInsights() {
 export async function processCopilotQuery(
     query: string,
     history: { role: 'user' | 'assistant', content: string }[] = [],
-    attachment?: { data: string; name: string }
+    attachment?: { data: string; name: string; mimeType?: string }
 ) {
     return await TelemetryService.time("AxiomCopilot", "processQuery", async () => {
         const context = await getDatabaseContext();
+        const productKnowledge = getCopilotKnowledgeContext();
         try {
             const normalizedQuery = query.toLowerCase();
 
@@ -247,14 +250,17 @@ export async function processCopilotQuery(
 
             const model = await getAiModel();
         if (!model) throw new Error("AI model not available");
-            const historyContext = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+            const historyContext = history.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
                 You are Axiom Copilot, an analytical and efficient procurement AI. 
-                Your role is to help users manage their supply chain, analyze spend, and mitigate risk using the provided data.
-                
+                Your role is to help users manage their supply chain, analyze spend, mitigate risk, understand how the Axiom app works, and reason over uploaded business files.
+                 
                 Database State (Snapshot):
                 ${JSON.stringify(context, null, 2)}
-                
+
+                Product Knowledge:
+                ${JSON.stringify(productKnowledge, null, 2)}
+                 
                 Conversation History:
                 ${historyContext || "No previous messages."}
                 
@@ -266,9 +272,9 @@ export async function processCopilotQuery(
                    - DO NOT say "I am Axiom Copilot" if there is existing history.
                    - DO NOT use time-of-day greetings (Good morning/afternoon/evening).
                    - If history exists, do NOT say "Hello" or use any greeting—directly answer the query.
-                3. CONTEXT: Maintain awareness of previous messages for follow-up questions.
-                4. VISUALIZATION: 
-                   - Use Markdown Tables (GFM) for comparisons or long lists. 
+                 3. CONTEXT: Maintain awareness of previous messages for follow-up questions.
+                 4. VISUALIZATION: 
+                    - Use Markdown Tables (GFM) for comparisons or long lists. 
                    - **IMPORTANT**: DO NOT wrap Markdown Tables in triple backticks. Use raw Markdown pipes (|).
                    - When the user asks for a "graph", "chart", or "visual", output a JSON code block with language 'json' in this EXACT format:
                    {
@@ -283,13 +289,15 @@ export async function processCopilotQuery(
                    - Supported chartType values: "bar", "pie", "line", "area", "scatter", "radar"
                    - Use "bar" for comparing categories, "pie" for proportions, "line" for trends over time, "area" for cumulative trends, "scatter" for correlations, "radar" for multi-metric comparison.
                    - Choose the most appropriate chart type for the data being visualized.
-                5. FORMATTING: Use the appropriate currency symbol based on the data context. Default to ₹ for Indian Rupee values.
-                6. GROUNDING & RELIABILITY: 
-                   - Answer ONLY based on the provided "Database State" or history.
-                   - If a user asks for information not present in the data, state: "I do not have access to that specific data in my current enterprise snapshot."
-                   - DO NOT hallucinate names, numbers, or dates.
-                   - Cite your sources. Example: "(Source: Database Stats)" or "(Source: Recent Orders)".
-            `;
+                 5. FORMATTING: Use the appropriate currency symbol based on the data context. Default to ₹ for Indian Rupee values.
+                 6. GROUNDING & RELIABILITY: 
+                    - Answer using the provided "Database State", "Product Knowledge", uploaded file content (if any), and conversation history.
+                    - If a user asks about Axiom features, workflows, modules, support processes, or AI agents, answer from "Product Knowledge" even if the exact live database record is unavailable.
+                    - If a user asks for an exact live record that is not present in the current data, say that the exact record is not visible in the current snapshot, then give the most relevant workflow, module, agent, or next step instead of stopping there.
+                    - DO NOT hallucinate names, numbers, or dates.
+                    - When the request is specific or multi-step, reason carefully and provide a concise, actionable answer with bullets or a table.
+                    - Cite your sources. Example: "(Source: Database Stats)", "(Source: Product Knowledge → Requisitions)", or "(Source: Uploaded CSV Preview)".
+             `;
 
             const result = await model.generateContent(prompt);
             const response = await result.response;
@@ -313,15 +321,278 @@ export async function processCopilotQuery(
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
+const TEXT_ATTACHMENT_EXTENSIONS = new Set(['csv', 'tsv', 'txt', 'json', 'md', 'log']);
+const XLSX_MIME_TYPES = new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel.sheet.macroenabled.12',
+]);
+
+function getHistoryContext(history: { role: 'user' | 'assistant'; content: string }[], limit = 8) {
+    return history.slice(-limit).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+}
+
+function getFileExtension(fileName: string) {
+    const parts = fileName.toLowerCase().split('.');
+    return parts.length > 1 ? parts.pop() ?? '' : '';
+}
+
+function normalizeAttachmentMimeType(attachment: { name: string; mimeType?: string }) {
+    const mimeType = attachment.mimeType?.toLowerCase();
+    if (mimeType) return mimeType;
+
+    const extension = getFileExtension(attachment.name);
+    if (extension === 'pdf') return 'application/pdf';
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(extension)) return `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+    if (extension === 'csv') return 'text/csv';
+    if (extension === 'tsv') return 'text/tab-separated-values';
+    if (extension === 'txt' || extension === 'log' || extension === 'md') return 'text/plain';
+    if (extension === 'json') return 'application/json';
+    if (extension === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (extension === 'xls') return 'application/vnd.ms-excel';
+    return 'application/octet-stream';
+}
+
+function decodeXmlEntities(value: string) {
+    return value
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#10;/g, '\n')
+        .replace(/&#13;/g, '\r')
+        .replace(/&amp;/g, '&');
+}
+
+function sanitizeCell(value: string) {
+    return value.replace(/\s+/g, ' ').trim();
+}
+
+function parseDelimitedLine(line: string, delimiter: string) {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            const next = line[i + 1];
+            if (inQuotes && next === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+
+        if (ch === delimiter && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+            continue;
+        }
+
+        current += ch;
+    }
+
+    values.push(current.trim());
+    return values;
+}
+
+function formatTablePreview(rows: string[][], title: string) {
+    if (rows.length === 0) {
+        return `### ${title}\nNo rows could be extracted.`;
+    }
+
+    const limitedRows = rows.slice(0, 8).map((row) => row.slice(0, 6).map((cell) => sanitizeCell(cell || '')));
+    const headerRow = limitedRows[0].map((cell, index) => cell || `Column ${index + 1}`);
+    const bodyRows = limitedRows.slice(1);
+
+    const header = `| ${headerRow.join(' | ')} |`;
+    const divider = `| ${headerRow.map(() => '---').join(' | ')} |`;
+    const body = bodyRows.length > 0
+        ? bodyRows.map((row) => `| ${headerRow.map((_, index) => row[index] || '').join(' | ')} |`).join('\n')
+        : `| ${headerRow.map(() => '').join(' | ')} |`;
+
+    return `### ${title}\n${header}\n${divider}\n${body}`;
+}
+
+function buildDelimitedPreview(text: string, fileName: string, delimiter: string) {
+    const rows = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .slice(0, 10)
+        .map((line) => parseDelimitedLine(line, delimiter));
+
+    return formatTablePreview(rows, `${fileName} Preview`);
+}
+
+function columnReferenceToIndex(reference: string) {
+    const letters = reference.replace(/[^A-Z]/gi, '').toUpperCase();
+    let result = 0;
+    for (const letter of letters) {
+        result = result * 26 + (letter.charCodeAt(0) - 64);
+    }
+    return Math.max(result - 1, 0);
+}
+
+function extractSharedStrings(xml: string) {
+    const matches = [...xml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)];
+    return matches.map((match) => decodeXmlEntities(match[1]));
+}
+
+function parseWorksheetRows(xml: string, sharedStrings: string[]) {
+    const rows: string[][] = [];
+
+    for (const rowMatch of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+        const rowXml = rowMatch[1];
+        const row: string[] = [];
+
+        for (const cellMatch of rowXml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+            const attributes = cellMatch[1];
+            const cellXml = cellMatch[2];
+            const refMatch = attributes.match(/\br="([A-Z]+[0-9]+)"/i);
+            const typeMatch = attributes.match(/\bt="([^"]+)"/i);
+            const columnIndex = refMatch ? columnReferenceToIndex(refMatch[1]) : row.length;
+            const valueMatch = cellXml.match(/<v[^>]*>([\s\S]*?)<\/v>/i);
+            const inlineMatch = cellXml.match(/<t[^>]*>([\s\S]*?)<\/t>/i);
+
+            let value = '';
+            if (typeMatch?.[1] === 's' && valueMatch) {
+                value = sharedStrings[Number(valueMatch[1])] ?? '';
+            } else if (inlineMatch) {
+                value = decodeXmlEntities(inlineMatch[1]);
+            } else if (valueMatch) {
+                value = decodeXmlEntities(valueMatch[1]);
+            }
+
+            row[columnIndex] = sanitizeCell(value);
+        }
+
+        if (row.some((cell) => cell && cell.length > 0)) {
+            rows.push(row);
+        }
+
+        if (rows.length >= 10) {
+            break;
+        }
+    }
+
+    return rows;
+}
+
+async function extractSpreadsheetPreview(base64Data: string, fileName: string) {
+    const zip = await JSZip.loadAsync(Buffer.from(base64Data, 'base64'));
+    const sharedStringsFile = zip.file('xl/sharedStrings.xml');
+    const workbookFile = zip.file('xl/workbook.xml');
+    const sharedStringsXml = sharedStringsFile ? await sharedStringsFile.async('string') : undefined;
+    const workbookXml = workbookFile ? await workbookFile.async('string') : undefined;
+    const sharedStrings = sharedStringsXml ? extractSharedStrings(sharedStringsXml) : [];
+
+    const sheetNameMatches = workbookXml
+        ? [...workbookXml.matchAll(/<sheet[^>]*name="([^"]+)"/g)].map((match) => decodeXmlEntities(match[1]))
+        : [];
+
+    const worksheetFiles = Object.keys(zip.files)
+        .filter((path) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path))
+        .sort()
+        .slice(0, 3);
+
+    if (worksheetFiles.length === 0) {
+        return `### ${fileName}\nNo worksheet data could be extracted from this workbook.`;
+    }
+
+    const previews: string[] = [];
+    for (const [index, worksheetPath] of worksheetFiles.entries()) {
+        const worksheetFile = zip.file(worksheetPath);
+        if (!worksheetFile) continue;
+
+        const worksheetXml = await worksheetFile.async('string');
+
+        const rows = parseWorksheetRows(worksheetXml, sharedStrings);
+        previews.push(formatTablePreview(rows, `${sheetNameMatches[index] || `Sheet ${index + 1}`}`));
+    }
+
+    return `## Workbook Preview: ${fileName}\n\n${previews.join('\n\n')}`;
+}
+
+async function buildAttachmentPreview(attachment: { data: string; name: string; mimeType?: string }) {
+    const fileName = attachment.name;
+    const mimeType = normalizeAttachmentMimeType(attachment);
+    const extension = getFileExtension(fileName);
+
+    if (mimeType === 'application/pdf' || mimeType.startsWith('image/')) {
+        return {
+            mode: 'inline' as const,
+            mimeType,
+            contentLabel: fileName,
+            extractedText: undefined,
+        };
+    }
+
+    if (extension === 'xlsx' || XLSX_MIME_TYPES.has(mimeType)) {
+        return {
+            mode: 'text' as const,
+            mimeType,
+            contentLabel: 'Uploaded XLSX workbook preview',
+            extractedText: await extractSpreadsheetPreview(attachment.data, fileName),
+        };
+    }
+
+    if (extension === 'xls' || mimeType === 'application/vnd.ms-excel') {
+        return {
+            mode: 'text' as const,
+            mimeType,
+            contentLabel: 'Legacy Excel workbook notice',
+            extractedText: `The user uploaded a legacy Excel workbook named "${fileName}". Automatic parsing for binary .xls workbooks is limited in this environment, so explain what can be inferred from the filename/context and advise the user to re-upload as .xlsx or .csv for row-level analysis.`,
+        };
+    }
+
+    const decodedText = Buffer.from(attachment.data, 'base64').toString('utf-8');
+
+    if (extension === 'csv') {
+        return {
+            mode: 'text' as const,
+            mimeType,
+            contentLabel: 'Uploaded CSV preview',
+            extractedText: buildDelimitedPreview(decodedText, fileName, ','),
+        };
+    }
+
+    if (extension === 'tsv') {
+        return {
+            mode: 'text' as const,
+            mimeType,
+            contentLabel: 'Uploaded TSV preview',
+            extractedText: buildDelimitedPreview(decodedText, fileName, '\t'),
+        };
+    }
+
+    if (TEXT_ATTACHMENT_EXTENSIONS.has(extension)) {
+        return {
+            mode: 'text' as const,
+            mimeType,
+            contentLabel: `Uploaded ${extension.toUpperCase()} content`,
+            extractedText: `## ${fileName}\n\n${decodedText.slice(0, 8000)}`,
+        };
+    }
+
+    return {
+        mode: 'text' as const,
+        mimeType,
+        contentLabel: 'Uploaded file excerpt',
+        extractedText: `## ${fileName}\n\n${decodedText.slice(0, 8000)}`,
+    };
+}
+
 async function processDocumentAttachment(
     query: string,
-    attachment: { data: string; name: string },
+    attachment: { data: string; name: string; mimeType?: string },
     context: Awaited<ReturnType<typeof getDatabaseContext>>,
     history: { role: 'user' | 'assistant'; content: string }[]
 ): Promise<string> {
     const fileName = attachment.name;
-    const isPdf = fileName.toLowerCase().endsWith('.pdf');
-    const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+    const productKnowledge = getCopilotKnowledgeContext();
 
     // Validate file size — base64 encoding increases size by ~33% (1/0.75 ≈ 1.37)
     if (attachment.data.length > MAX_FILE_SIZE_BYTES * 1.37) {
@@ -335,7 +606,8 @@ async function processDocumentAttachment(
         const model = await getAiModel();
         if (!model) throw new Error("AI model not available");
 
-        const historyContext = history.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+        const historyContext = getHistoryContext(history, 8);
+        const attachmentPreview = await buildAttachmentPreview(attachment);
 
         const prompt = `
 You are Axiom Copilot, an AI-powered procurement document analyst.
@@ -345,17 +617,21 @@ ${query ? `The user's instruction: "${query}"` : "The user wants you to analyze 
 Database State (Snapshot):
 ${JSON.stringify(context, null, 2)}
 
+Product Knowledge:
+${JSON.stringify(productKnowledge, null, 2)}
+
 Conversation History:
 ${historyContext || "No previous messages."}
 
 INSTRUCTIONS:
-1. Identify the document type (invoice, receipt, purchase order, goods receipt, contract, quotation, shipping manifest, or other).
-2. Extract ALL key data points in a structured format using Markdown tables:
+1. Identify the document type (invoice, receipt, purchase order, goods receipt, contract, quotation, shipping manifest, spreadsheet, CSV, log, or other).
+2. Extract ALL key data points in a structured format using Markdown tables whenever the file is tabular:
    - For invoices/receipts: vendor name, invoice number, date, line items (description, quantity, unit price, total), subtotal, tax, grand total, payment terms.
    - For purchase orders: PO number, supplier, items, quantities, delivery date, terms.
    - For contracts: parties, effective dates, key clauses, renewal terms, value.
    - For goods logs/receipts: GRN number, items received, quantities, condition, date.
    - For quotations: supplier, items quoted, validity, pricing, lead times.
+   - For CSV/TSV/XLSX/tabular files: explain the columns, summarize notable rows or totals, flag suspicious blanks/outliers, and suggest how to import or reconcile the data in Axiom.
 3. After the breakdown, provide a "📋 Suggested Next Steps" section with 3-5 actionable options the user can take within Axiom, such as:
    - "Create a new purchase order from this invoice"
    - "Match this invoice against existing PO"
@@ -368,18 +644,25 @@ INSTRUCTIONS:
 4. If you detect anomalies (mismatched amounts, unusual pricing, duplicate entries), flag them as "⚠️ Anomalies Detected".
 5. Format currency appropriately based on the document content. Default to ₹ for INR.
 6. Use Markdown formatting for clear readability.
+7. If some fields are missing or partially unreadable, say what is missing and continue with the usable evidence instead of failing.
+8. When helpful, connect the analysis to relevant Axiom modules, routes, or AI agents from Product Knowledge.
+ 
+GROUNDING: Extract data ONLY from the uploaded document, document preview, Database State, Product Knowledge, and conversation history. Do NOT hallucinate values.`;
 
-GROUNDING: Extract data ONLY from the uploaded document. Do NOT hallucinate values.`;
-
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: attachment.data,
-                    mimeType
+        const result = attachmentPreview.mode === 'inline'
+            ? await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: attachment.data,
+                        mimeType: attachmentPreview.mimeType
+                    }
                 }
-            }
-        ]);
+            ])
+            : await model.generateContent(`${prompt}
+
+${attachmentPreview.contentLabel}:
+${attachmentPreview.extractedText}`);
 
         const response = await result.response;
         const text = response.text();
@@ -396,7 +679,8 @@ GROUNDING: Extract data ONLY from the uploaded document. Do NOT hallucinate valu
         // Heuristic fallback: try to decode base64 text and extract basic info
         let fallbackText: string;
         try {
-            const decoded = Buffer.from(attachment.data, 'base64').toString('utf-8');
+            const attachmentPreview = await buildAttachmentPreview(attachment);
+            const decoded = attachmentPreview.extractedText ?? Buffer.from(attachment.data, 'base64').toString('utf-8');
             const amounts = [...decoded.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d,]+(?:\.\d{2})?)/gi)]
                 .map(m => parseFloat(m[1].replace(/,/g, '')))
                 .filter(n => !Number.isNaN(n) && n > 0);
@@ -411,9 +695,10 @@ GROUNDING: Extract data ONLY from the uploaded document. Do NOT hallucinate valu
                 `---\n\n` +
                 `### 📋 Suggested Next Steps\n\n` +
                 `1. **Re-upload with AI enabled** — Configure your Gemini API key in Admin → Settings for full document intelligence.\n` +
-                `2. **Manual review** — Open the document and cross-reference with existing purchase orders.\n` +
-                `3. **Import data** — Use Admin → Import to manually input the extracted data.\n` +
-                `4. **Run cost analysis** — Compare the detected amounts against historical pricing.\n`;
+                `2. **Manual review** — Open the document and cross-reference with existing purchase orders or invoices.\n` +
+                `3. **Import data** — Use Admin → Import to upload structured CSV data into Axiom.\n` +
+                `4. **Run cost analysis** — Compare the detected amounts against historical pricing or Savings intelligence.\n` +
+                `5. **Convert legacy spreadsheets** — If this was an .xls workbook, re-save it as .xlsx or .csv for richer extraction.\n`;
         } catch {
             fallbackText = `## 📄 Document Received: ${fileName}\n\n` +
                 `I received your document but couldn't process it automatically. ` +
