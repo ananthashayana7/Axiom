@@ -483,8 +483,10 @@ function parseWorksheetRows(xml: string, sharedStrings: string[]) {
 
 async function extractSpreadsheetPreview(base64Data: string, fileName: string) {
     const zip = await JSZip.loadAsync(Buffer.from(base64Data, 'base64'));
-    const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string');
-    const workbookXml = await zip.file('xl/workbook.xml')?.async('string');
+    const sharedStringsFile = zip.file('xl/sharedStrings.xml');
+    const workbookFile = zip.file('xl/workbook.xml');
+    const sharedStringsXml = sharedStringsFile ? await sharedStringsFile.async('string') : undefined;
+    const workbookXml = workbookFile ? await workbookFile.async('string') : undefined;
     const sharedStrings = sharedStringsXml ? extractSharedStrings(sharedStringsXml) : [];
 
     const sheetNameMatches = workbookXml
@@ -502,8 +504,10 @@ async function extractSpreadsheetPreview(base64Data: string, fileName: string) {
 
     const previews: string[] = [];
     for (const [index, worksheetPath] of worksheetFiles.entries()) {
-        const worksheetXml = await zip.file(worksheetPath)?.async('string');
-        if (!worksheetXml) continue;
+        const worksheetFile = zip.file(worksheetPath);
+        if (!worksheetFile) continue;
+
+        const worksheetXml = await worksheetFile.async('string');
 
         const rows = parseWorksheetRows(worksheetXml, sharedStrings);
         previews.push(formatTablePreview(rows, `${sheetNameMatches[index] || `Sheet ${index + 1}`}`));
