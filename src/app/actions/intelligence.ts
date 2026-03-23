@@ -31,8 +31,8 @@ export async function getDashboardStats() {
             .from(suppliers)
             .where(eq(suppliers.status, 'active'));
 
-        // Critical RFQs (status = 'open' — actively awaiting responses)
-        const criticalRfqResult = await db.select({ count: count() })
+        // Open RFQs (status = 'open' — actively awaiting responses, considered critical)
+        const openRfqResult = await db.select({ count: count() })
             .from(rfqs)
             .where(eq(rfqs.status, 'open'));
 
@@ -49,7 +49,7 @@ export async function getDashboardStats() {
         return {
             totalSpend: Number(spendResult?.total || 0),
             activeSuppliers: activeSupplierResult?.count || 0,
-            criticalRFQs: criticalRfqResult[0]?.count || 0,
+            criticalRFQs: openRfqResult[0]?.count || 0,
             complianceRate
         };
     } catch (error) {
