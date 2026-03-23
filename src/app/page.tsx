@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/currency";
 import { DataExplorer } from "@/components/dashboard/data-explorer";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
+import { SectionFlowBoard } from "@/components/dashboard/section-flow-board";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
@@ -53,14 +54,6 @@ export default async function Home() {
   ]);
 
   const leads = departmentLeads.filter((lead) => lead.id !== currentUser?.id);
-
-  const allData = {
-    stats,
-    recentOrders,
-    monthlySpend,
-    categorySpend,
-    supplierAnalytics
-  };
 
   const roleBadgeClass = isAdmin
     ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -215,6 +208,8 @@ export default async function Home() {
           </CardContent>
         </Card>
       </div>
+
+      <SectionFlowBoard />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
