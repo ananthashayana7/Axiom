@@ -1,16 +1,19 @@
 export interface InfographicMonthlyDatum {
+    [key: string]: string | number | undefined;
     name: string;
     total: number;
     orders?: number;
 }
 
 export interface InfographicCategoryDatum {
+    [key: string]: string | number | undefined;
     name: string;
     value: number;
     count?: number;
 }
 
 export interface InfographicSupplierDatum {
+    [key: string]: string | number | undefined;
     name: string;
     spend: number;
     orders: number;
