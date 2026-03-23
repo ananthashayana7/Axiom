@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { requisitions, auditLogs, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function getRequisitions() {
@@ -42,11 +42,28 @@ export async function createRequisition(data: { title: string, description?: str
             details: `Requisition created for ${data.title} - Est. Amount: ${data.estimatedAmount}`
         });
 
-        // Notify all admin users that a new requisition requires review
+        // Threshold-based approval routing:
+        // - Low amount (≤ 10,000): notify admins in the same department (department leads)
+        // - High amount (> 10,000): notify all admins (finance-level review)
         try {
-            const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, 'admin'));
+            const APPROVAL_THRESHOLD = 10000;
+            let approvers;
+
+            if (data.estimatedAmount <= APPROVAL_THRESHOLD && data.department) {
+                // Route to department leads first
+                approvers = await db.select({ id: users.id }).from(users)
+                    .where(and(eq(users.role, 'admin'), eq(users.department, data.department)));
+                // Fall back to all admins if no department-specific admin exists
+                if (approvers.length === 0) {
+                    approvers = await db.select({ id: users.id }).from(users).where(eq(users.role, 'admin'));
+                }
+            } else {
+                // High-value: all admins for finance-level review
+                approvers = await db.select({ id: users.id }).from(users).where(eq(users.role, 'admin'));
+            }
+
             await Promise.allSettled(
-                adminUsers.map(admin =>
+                approvers.map(admin =>
                     createNotification({
                         userId: admin.id,
                         title: 'New Requisition Pending Approval',

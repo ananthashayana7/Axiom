@@ -10,9 +10,20 @@ export async function getSuggestedReplenishments() {
         // 1. Find parts where stockLevel < minStockLevel (or just low)
         const allParts = await db.select().from(parts);
 
-        // 2. Aggregate demand from last 30 days
+        // 2. Aggregate demand from last 30 days using real order data
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const recentDemand = await db.select({
+            partId: orderItems.partId,
+            totalQuantity: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`.mapWith(Number),
+        })
+            .from(orderItems)
+            .innerJoin(procurementOrders, eq(orderItems.orderId, procurementOrders.id))
+            .where(sql`${procurementOrders.createdAt} >= ${thirtyDaysAgo}`)
+            .groupBy(orderItems.partId);
+
+        const demandMap = new Map(recentDemand.map(row => [row.partId, row.totalQuantity]));
 
         const suggestions = [];
 
@@ -21,15 +32,17 @@ export async function getSuggestedReplenishments() {
             const minStock = part.minStockLevel || 10;
 
             if (stock <= minStock) {
-                // Fetch recent demand for this part
-                // (In a real system, we'd join with procurementOrderItems)
+                const recentQty = demandMap.get(part.id) || 0;
+                // Use real monthly demand if available, otherwise fall back to minStock as baseline
+                const avgMonthlyDemand = recentQty > 0 ? recentQty : minStock;
+
                 suggestions.push({
                     partId: part.id,
                     partName: part.name,
                     sku: part.sku,
                     currentStock: stock,
                     minStock: minStock,
-                    avgMonthlyDemand: Math.round(minStock * 1.5), // Simulated demand
+                    avgMonthlyDemand: Math.round(avgMonthlyDemand),
                     urgency: stock === 0 ? 'critical' : (stock < minStock * 0.5 ? 'high' : 'medium')
                 });
             }

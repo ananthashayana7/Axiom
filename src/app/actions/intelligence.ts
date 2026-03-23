@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqs } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { rfqs, suppliers, procurementOrders, contracts } from "@/db/schema";
+import { count, desc, eq, sum } from "drizzle-orm";
 
 import { getAiModel } from "@/lib/ai-provider";
 
@@ -20,13 +20,47 @@ export async function getMarketTrend(partName: string, category: string) {
 }
 
 export async function getDashboardStats() {
-    // Simulated live metrics for Axiom Ultra
-    return {
-        totalSpend: 14500000,
-        activeSuppliers: 124,
-        criticalRFQs: 9,
-        complianceRate: 94
-    };
+    try {
+        // Total spend from procurement orders
+        const [spendResult] = await db.select({
+            total: sum(procurementOrders.totalAmount)
+        }).from(procurementOrders);
+
+        // Active suppliers (status = 'active')
+        const [activeSupplierResult] = await db.select({ count: count() })
+            .from(suppliers)
+            .where(eq(suppliers.status, 'active'));
+
+        // Critical RFQs (status = 'open' — actively awaiting responses)
+        const criticalRfqResult = await db.select({ count: count() })
+            .from(rfqs)
+            .where(eq(rfqs.status, 'open'));
+
+        // Compliance rate: percentage of contracts that are 'active' out of total contracts
+        const [totalContracts] = await db.select({ count: count() }).from(contracts);
+        const [activeContracts] = await db.select({ count: count() })
+            .from(contracts)
+            .where(eq(contracts.status, 'active'));
+
+        const complianceRate = totalContracts.count > 0
+            ? Math.round((activeContracts.count / totalContracts.count) * 100)
+            : 0;
+
+        return {
+            totalSpend: Number(spendResult?.total || 0),
+            activeSuppliers: activeSupplierResult?.count || 0,
+            criticalRFQs: criticalRfqResult[0]?.count || 0,
+            complianceRate
+        };
+    } catch (error) {
+        console.error("Failed to fetch intelligence dashboard stats:", error);
+        return {
+            totalSpend: 0,
+            activeSuppliers: 0,
+            criticalRFQs: 0,
+            complianceRate: 0
+        };
+    }
 }
 
 export async function getRecentRFQs() {
