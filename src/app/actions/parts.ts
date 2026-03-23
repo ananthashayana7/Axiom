@@ -167,6 +167,7 @@ export async function deleteAllParts() {
                 count: sql<number>`count(*)`.mapWith(Number),
             }).from(parts);
 
+            // Delete dependent records before parts so foreign key constraints do not block the purge.
             await tx.delete(orderItems);
             await tx.delete(rfqItems);
             await tx.delete(demandForecasts);

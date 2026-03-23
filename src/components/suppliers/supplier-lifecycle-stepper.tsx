@@ -83,7 +83,7 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
 
                 {steps.map((step, idx) => {
                     const isCompleted = steps.findIndex(s => s.status === currentStatus) >= idx;
-                    const Icon = step.icon;
+                    const StepIcon = step.icon;
 
                     return (
                         <div key={step.status} className="flex flex-col items-center gap-2">
@@ -95,7 +95,7 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
                                 )}
                                 onClick={() => isAdmin && !isCompleted && handleStatusUpdate(step.status)}
                             >
-                                <Icon size={18} />
+                                <StepIcon size={18} />
                             </div>
                             <span className={cn(
                                 "text-xs font-semibold uppercase tracking-wider",

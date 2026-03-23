@@ -65,7 +65,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
                 name: `${lead.name} (${normalizedDepartment})`,
                 email: lead.email,
                 description: `Lead escalation inbox for ${normalizedDepartment}`,
-                initials: lead.name.split(' ').map((n: string) => n[0]).join('').toUpperCase(),
+                initials: lead.name.split(' ').map((n: string) => n[0] || '').join('').toUpperCase(),
                 icon: existingIndex === -1 ? Users : departments[Math.max(existingIndex, 0)].icon,
                 color: existingIndex === -1 ? "text-blue-500" : departments[Math.max(existingIndex, 0)].color,
             };
@@ -89,12 +89,8 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
         }
 
         startTransition(async () => {
-            if (!dept.id) {
-                toast.error("Lead mapping is incomplete for this department.");
-                return;
-            }
             const result = await sendEscalationPing({
-                leadId: dept.id,
+                leadId: dept.id!,
                 leadName: dept.name,
                 leadEmail: dept.email,
                 department: dept.department || dept.name,

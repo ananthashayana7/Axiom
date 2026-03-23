@@ -275,6 +275,7 @@ export default function InvoicesPage() {
                     }, {})
                 ).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value, fill: STATUS_COLORS[name] || '#94a3b8' }));
 
+                // This chart uses invoice counts rather than summed values so mixed currencies are never combined.
                 const continentData = Object.entries(
                     invoicesList.reduce((acc: Record<string, number>, inv) => {
                         const c = inv.continent || inv.supplierContinent || 'Unknown';

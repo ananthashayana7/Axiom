@@ -31,8 +31,30 @@ interface AddDocumentInput {
     url?: string;
 }
 
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'text/plain',
+    'text/csv',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+function isAllowedDocumentUrl(url?: string) {
+    if (!url) return true;
+    if (url.startsWith('http://') || url.startsWith('https://')) return true;
+    const match = url.match(/^data:([^;]+);base64,/);
+    if (!match) return false;
+    return ALLOWED_DOCUMENT_MIME_TYPES.has(match[1]);
+}
+
 export async function addDocument(data: AddDocumentInput) {
     try {
+        if (!isAllowedDocumentUrl(data.url)) {
+            return { success: false, error: "Unsupported document format" };
+        }
+
         const [newDoc] = await db.insert(documents).values({
             ...data,
             url: data.url || undefined

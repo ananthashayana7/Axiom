@@ -136,7 +136,7 @@ export default function SuppliersPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="countryCode">Country Code</Label>
-                                    <Input id="countryCode" name="countryCode" placeholder="IN / DE / US" defaultValue={selectedSupplier?.countryCode || ''} maxLength={2} />
+                                    <Input id="countryCode" name="countryCode" placeholder="IN / DE / US" defaultValue={selectedSupplier?.countryCode || ''} maxLength={2} pattern="[A-Z]{2}" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="city">City</Label>

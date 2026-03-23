@@ -23,6 +23,8 @@ interface DocumentListProps {
     isAdmin: boolean;
 }
 
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
 export function DocumentList({ supplierId, orderId, documents: initialDocs, isAdmin }: DocumentListProps) {
     const [isPending, startTransition] = useTransition();
     const [pendingType, setPendingType] = useState<Document["type"]>('contract');
@@ -36,7 +38,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        if (file.size > 10 * 1024 * 1024) {
+        if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
             toast.error("File size too large. Max 10MB allowed.");
             event.target.value = '';
             return;

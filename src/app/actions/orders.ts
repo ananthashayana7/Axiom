@@ -386,6 +386,10 @@ export async function validateThreeWayMatch(orderId: string) {
                 })
                 .where(eq(invoices.orderId, orderId));
 
+            if (matchStatus.status === 'disputed') {
+                await logActivity('UPDATE', 'order', orderId, `Three-way match disputed due to invoice variance of ${(matchStatus.totalInvoiced - poAmount).toFixed(2)}`);
+            }
+
             await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_pending", {
                 orderId,
                 hasReceipt,
