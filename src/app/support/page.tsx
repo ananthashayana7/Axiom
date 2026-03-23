@@ -1,91 +1,17 @@
 'use client'
 
-import { useState, useEffect } from "react";
-import type { ReactNode } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { LifeBuoy, Mail, ChevronDown, ChevronUp, CheckCircle, Clock, AlertTriangle, XCircle, Plus, MessageSquare, BookOpen, Send, BarChart3 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { submitSupportTicket, getUserTickets } from "@/app/actions/support";
+import Link from "next/link";
+import { LifeBuoy, Mail, ChevronDown, ChevronUp, ShieldCheck, BookOpen } from "lucide-react";
 import { useSession } from "next-auth/react";
-import {
-    PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer,
-} from 'recharts';
-
-const CATEGORIES = ['Technical Issue', 'Billing', 'Data Import', 'Access & Permissions', 'Feature Request', 'General Enquiry'];
-const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
-const FAQS = [
-    { q: 'How do I reset my password?', a: 'Contact your admin or use the password reset link on the login page. An email will be sent to your registered address from pma.axiom.support@gmail.com.' },
-    { q: 'How do I import SAP data into Axiom?', a: 'Go to Admin → Import Data, upload your SAP-exported CSV file, preview the mapping, and confirm the import. Supported datasets include Suppliers, Parts, and Invoices.' },
-    { q: 'How are currencies displayed?', a: 'Axiom automatically detects your country from your browser locale/timezone and displays amounts in your local currency (e.g. ₹ for India, € for Germany, $ for USA). You can also manually switch currencies using the toggle on analytics pages.' },
-    { q: 'How do I add a new supplier?', a: 'Navigate to Suppliers → New Supplier. Fill in business details, tier level, risk scores, ESG metrics and save. You can then invite the supplier to access the Supplier Portal.' },
-    { q: 'Who can access the Analytics dashboard?', a: 'The Analytics/Intelligence Hub is visible to admin users. Regular users can access spend insights, savings data, and their own order history.' },
-    { q: 'What is the support contact email?', a: 'All support emails are handled through pma.axiom.support@gmail.com. Ticket replies will be sent to your registered email.' },
-    { q: 'How does three-way matching work?', a: 'Axiom performs 3-way compliance matching by comparing the Purchase Order (PO), Goods Receipt, and Supplier Invoice. When all three match, the invoice is approved for payment. Discrepancies are flagged for review.' },
-    { q: 'What are AI Agents and how do they work?', a: 'Axiom AI Agents are intelligent automated workflows for tasks like fraud detection, demand forecasting, and payment optimization. They run on scheduled intervals or can be triggered manually from the AI Agents dashboard.' },
-    { q: 'How do I raise an internal requisition?', a: 'Navigate to Sourcing → Requisitions and click "New Request". Fill in the purpose, estimated amount, department, and justification. The request will be routed to the configured approvers.' },
-    { q: 'What ticket ID format does Axiom use?', a: 'Support tickets follow the format PMA-YEAR-MONTH-SERIAL (e.g., PMA-2026-03-001). This ensures traceability and compliance across all documentation.' },
-    { q: 'How do I access the Supplier Portal?', a: 'Suppliers are configured by the admin in User Management with the "supplier" role. Once configured, suppliers log in with their credentials and see only the Supplier Portal — their orders, documents, RFQs, and profile.' },
-    { q: 'Can I export audit trail data?', a: 'Yes. Navigate to Admin → Audit Trail and click "Export Evidence (CSV)". The export includes 12 columns with timestamps, user details, action types, and compliance status for regulatory readiness.' },
-];
-
-const priorityColor: Record<string, string> = {
-    low: 'bg-slate-100 text-slate-600 border-slate-200',
-    medium: 'bg-amber-100 text-amber-700 border-amber-200',
-    high: 'bg-orange-100 text-orange-700 border-orange-200',
-    critical: 'bg-red-100 text-red-700 border-red-200',
-};
-const statusColor: Record<string, string> = {
-    open: 'bg-blue-100 text-blue-700 border-blue-200',
-    in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
-    resolved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    closed: 'bg-stone-100 text-stone-600 border-stone-200',
-};
-const statusIcon: Record<string, ReactNode> = {
-    open: <Clock className="h-3.5 w-3.5" />,
-    in_progress: <AlertTriangle className="h-3.5 w-3.5" />,
-    resolved: <CheckCircle className="h-3.5 w-3.5" />,
-    closed: <XCircle className="h-3.5 w-3.5" />,
-};
+import { canManageSupportTickets, SUPPORT_FAQS } from "@/lib/support";
 
 export default function SupportPage() {
     const { data: session } = useSession();
-    const [showForm, setShowForm] = useState(false);
-    const [tickets, setTickets] = useState<any[]>([]);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [form, setForm] = useState({ subject: '', category: '', priority: 'medium' as typeof PRIORITIES[number], description: '' });
-
-    useEffect(() => {
-        getUserTickets().then(setTickets).catch(() => {});
-    }, []);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!form.subject || !form.description || !form.category) { toast.error("Please fill all required fields"); return; }
-        setSubmitting(true);
-        try {
-            const result = await submitSupportTicket({ subject: form.subject, category: form.category, priority: form.priority, description: form.description });
-            if (result.emailSent) {
-                toast.success("Ticket submitted and support email sent.");
-            } else {
-                toast.warning("Ticket submitted, but support email was not sent. Please check SMTP configuration.");
-            }
-            setForm({ subject: '', category: '', priority: 'medium', description: '' });
-            setShowForm(false);
-            getUserTickets().then(setTickets);
-        } catch {
-            toast.error("Failed to submit ticket. Please try again.");
-        } finally {
-            setSubmitting(false);
-        }
-    };
+    const canManageTickets = canManageSupportTickets((session?.user as { role?: string | null } | undefined)?.role);
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6 max-w-5xl mx-auto">
@@ -94,215 +20,45 @@ export default function SupportPage() {
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
                         <LifeBuoy className="h-8 w-8 text-primary" /> Help & Support
                     </h1>
-                    <p className="text-muted-foreground mt-1 font-medium">Get help, submit tickets, or browse common questions.</p>
+                    <p className="text-muted-foreground mt-1 font-medium">Browse common guidance and support contacts in one shared help center.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <a href="mailto:pma.axiom.support@gmail.com" className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-card hover:bg-muted text-sm font-semibold transition">
                         <Mail className="h-4 w-4 text-primary" /> pma.axiom.support@gmail.com
                     </a>
-                    <Button onClick={() => setShowForm(v => !v)} className="gap-2">
-                        <Plus className="h-4 w-4" /> New Ticket
-                    </Button>
+                    {canManageTickets && (
+                        <Button asChild className="gap-2">
+                            <Link href="/admin/support">
+                                <ShieldCheck className="h-4 w-4" /> Support Ticket Console
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </div>
 
-            {/* Submit Ticket Form */}
-            {showForm && (
-                <Card className="border-primary/30 shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary" /> Submit a Support Ticket</CardTitle>
-                        <CardDescription>We&apos;ll respond to your registered email from <strong>pma.axiom.support@gmail.com</strong>.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="subject">Subject <span className="text-red-500">*</span></Label>
-                                    <Input id="subject" value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} placeholder="Brief description of issue" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="category">Category <span className="text-red-500">*</span></Label>
-                                    <select id="category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring">
-                                        <option value="">Select category</option>
-                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label>Priority</Label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {PRIORITIES.map(p => (
-                                            <button type="button" key={p} onClick={() => setForm(prev => ({ ...prev, priority: p }))}
-                                                className={cn("px-3 py-1.5 rounded-md border text-xs font-bold capitalize transition-all", form.priority === p ? "ring-2 ring-primary " + priorityColor[p] : "bg-card hover:bg-muted border-border")}>
-                                                {p}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
-                                <Textarea id="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe your issue in detail (steps to reproduce, screenshots if relevant)..." rows={5} />
-                            </div>
-                            <div className="flex gap-3 justify-end">
-                                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                                <Button type="submit" disabled={submitting} className="gap-2">
-                                    <Send className="h-4 w-4" /> {submitting ? 'Submitting...' : 'Submit Ticket'}
-                                </Button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* My Tickets */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-primary" /> My Tickets</CardTitle>
-                    <CardDescription>Track the status of your support requests. Closed tickets are archived and hidden from this view.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> Support Guide</CardTitle>
+                    <CardDescription>
+                        Frequently asked questions stay available to everyone, while ticket management is restricted to admins.
+                    </CardDescription>
                 </CardHeader>
-                <CardContent className="p-0">
-                    {tickets.filter((t: any) => t.status !== 'closed').length === 0 ? (
-                        <div className="py-12 text-center text-muted-foreground italic">No active tickets. Submit a ticket above when you need help.</div>
-                    ) : (
-                        <div className="rounded-md overflow-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b bg-muted/50">
-                                        {['Ticket #', 'Subject', 'Category', 'Priority', 'Status', 'Submitted'].map(h => (
-                                            <th key={h} className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase">{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {tickets.filter((t: any) => t.status !== 'closed').map((t: any) => (
-                                        <tr key={t.id} className="border-b hover:bg-muted/50 transition-colors">
-                                            <td className="p-4 align-middle font-mono text-xs font-bold text-primary">{t.ticketNumber}</td>
-                                            <td className="p-4 align-middle font-medium max-w-xs truncate">{t.subject}</td>
-                                            <td className="p-4 align-middle text-muted-foreground text-xs">{t.category}</td>
-                                            <td className="p-4 align-middle">
-                                                <Badge className={cn("text-[10px] font-bold border capitalize", priorityColor[t.priority] || '')}>{t.priority}</Badge>
-                                            </td>
-                                            <td className="p-4 align-middle">
-                                                <Badge className={cn("text-[10px] font-bold border flex items-center gap-1 w-fit", statusColor[t.status] || '')}>
-                                                    {statusIcon[t.status]} {t.status?.replace('_', ' ')}
-                                                </Badge>
-                                            </td>
-                                            <td className="p-4 align-middle text-muted-foreground text-xs">
-                                                {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                    {tickets.filter((t: any) => t.status === 'closed').length > 0 && (
-                        <div className="px-4 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
-                            {tickets.filter((t: any) => t.status === 'closed').length} closed ticket(s) archived — contact support to reopen.
-                        </div>
-                    )}
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border bg-card p-4">
+                        <h2 className="font-semibold text-sm">Need additional help?</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Use this page to find product guidance first. If your question is still open, contact your administrator or email the support inbox for follow-up.
+                        </p>
+                    </div>
+                    <div className="rounded-lg border bg-card p-4">
+                        <h2 className="font-semibold text-sm">Ticket access</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Support tickets and ticket overview data are only visible in the admin support console.
+                            {canManageTickets ? " You can open it directly from the button above." : " Non-admin users can continue using this page as the shared knowledge guide."}
+                        </p>
+                    </div>
                 </CardContent>
             </Card>
-
-            {/* Ticket Statistics */}
-            {tickets.length > 0 && (() => {
-                const STATUS_COLORS: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280' };
-                const statusData = Object.entries(
-                    tickets.reduce((acc: Record<string, number>, t: any) => {
-                        const s = t.status || 'open';
-                        acc[s] = (acc[s] || 0) + 1;
-                        return acc;
-                    }, {})
-                ).map(([name, value]) => ({
-                    name: name.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-                    value,
-                    fill: STATUS_COLORS[name] || '#94a3b8',
-                }));
-
-                const categoryData = Object.entries(
-                    tickets.reduce((acc: Record<string, number>, t: any) => {
-                        const c = t.category || 'General';
-                        acc[c] = (acc[c] || 0) + 1;
-                        return acc;
-                    }, {})
-                ).map(([name, value]) => ({ name, count: value })).sort((a, b) => b.count - a.count);
-
-                const CAT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-                return (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <BarChart3 className="h-5 w-5 text-primary" /> Ticket Overview
-                            </CardTitle>
-                            <CardDescription>Visual summary of your support activity.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {/* KPI Row */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="text-center p-4 rounded-lg bg-blue-50 border border-blue-100">
-                                    <p className="text-2xl font-black text-blue-600">
-                                        {tickets.filter((t: any) => t.status === 'open').length}
-                                    </p>
-                                    <p className="text-xs font-medium text-blue-500 mt-1">Open</p>
-                                </div>
-                                <div className="text-center p-4 rounded-lg bg-amber-50 border border-amber-100">
-                                    <p className="text-2xl font-black text-amber-600">
-                                        {tickets.filter((t: any) => t.status === 'in_progress').length}
-                                    </p>
-                                    <p className="text-xs font-medium text-amber-500 mt-1">In Progress</p>
-                                </div>
-                                <div className="text-center p-4 rounded-lg bg-emerald-50 border border-emerald-100">
-                                    <p className="text-2xl font-black text-emerald-600">
-                                        {tickets.filter((t: any) => t.status === 'resolved').length}
-                                    </p>
-                                    <p className="text-xs font-medium text-emerald-500 mt-1">Resolved</p>
-                                </div>
-                                <div className="text-center p-4 rounded-lg bg-stone-50 border border-stone-100">
-                                    <p className="text-2xl font-black text-stone-500">
-                                        {tickets.filter((t: any) => t.status === 'closed').length}
-                                    </p>
-                                    <p className="text-xs font-medium text-stone-400 mt-1">Closed</p>
-                                </div>
-                            </div>
-
-                            {/* Charts Row */}
-                            <div className="grid md:grid-cols-2 gap-6">
-                                {/* Status Distribution Pie */}
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Status Distribution</p>
-                                    <ResponsiveContainer width="100%" height={200}>
-                                        <PieChart>
-                                            <Pie data={statusData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3}
-                                                label={({ name, value }) => `${name} (${value})`}>
-                                                {statusData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
-                                            </Pie>
-                                            <Tooltip />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-
-                                {/* Category Bar Chart */}
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Tickets by Category</p>
-                                    <ResponsiveContainer width="100%" height={200}>
-                                        <BarChart data={categoryData} layout="vertical" margin={{ left: 0, right: 16 }}>
-                                            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                            <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
-                                            <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
-                                            <Tooltip />
-                                            <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Tickets">
-                                                {categoryData.map((_, idx) => <Cell key={idx} fill={CAT_COLORS[idx % CAT_COLORS.length]} />)}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                );
-            })()}
 
             {/* FAQ */}
             <Card>
@@ -311,7 +67,7 @@ export default function SupportPage() {
                     <CardDescription>Quick answers to the most common questions.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    {FAQS.map((faq, i) => (
+                    {SUPPORT_FAQS.map((faq, i) => (
                         <div key={i} className="border rounded-lg overflow-hidden">
                             <button onClick={() => setOpenFaq(openFaq === i ? null : i)}
                                 className="flex items-center justify-between w-full p-4 text-left font-semibold text-sm hover:bg-muted/50 transition-colors">
