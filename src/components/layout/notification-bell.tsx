@@ -33,8 +33,40 @@ export function NotificationBell() {
         void (async () => {
             await fetchNotifications();
         })();
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
+
+        // Use SSE for real-time notifications, fall back to polling if SSE fails
+        let eventSource: EventSource | null = null;
+        let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+        try {
+            eventSource = new EventSource('/api/notifications/stream');
+            eventSource.onmessage = (event) => {
+                try {
+                    const newNotif = JSON.parse(event.data);
+                    setNotifications(prev => {
+                        // Avoid duplicates
+                        if (prev.some(n => n.id === newNotif.id)) return prev;
+                        return [newNotif, ...prev];
+                    });
+                } catch { /* ignore parse errors */ }
+            };
+            eventSource.onerror = () => {
+                // SSE failed, fall back to polling
+                eventSource?.close();
+                eventSource = null;
+                if (!fallbackInterval) {
+                    fallbackInterval = setInterval(fetchNotifications, 30000);
+                }
+            };
+        } catch {
+            // SSE not supported, use polling
+            fallbackInterval = setInterval(fetchNotifications, 30000);
+        }
+
+        return () => {
+            eventSource?.close();
+            if (fallbackInterval) clearInterval(fallbackInterval);
+        };
     }, []);
 
     const handleMarkRead = async (id: string, e: React.MouseEvent) => {

@@ -12,10 +12,14 @@ export const authConfig = {
 
             const isLoggedIn = !!auth?.user;
             const isOnLoginPage = nextUrl.pathname.startsWith('/login');
+            const isOnRegisterPage = nextUrl.pathname === '/portal/register';
             const isOnAdminPage = nextUrl.pathname.startsWith('/admin');
             const isOnPortalPage = nextUrl.pathname.startsWith('/portal');
             const isOnSuppliersPage = nextUrl.pathname.startsWith('/suppliers');
             const isOnSourcingPage = nextUrl.pathname.startsWith('/sourcing');
+
+            // Allow public access to supplier registration
+            if (isOnRegisterPage) return true;
 
             if (isOnLoginPage) {
                 if (isLoggedIn) {

@@ -1,10 +1,12 @@
 import NextAuth from "next-auth"
 import { authConfig } from "./auth.config"
 import Credentials from "next-auth/providers/credentials"
+import Google from "next-auth/providers/google"
+import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
 import { z } from "zod"
 import { db } from "@/db"
 import { users } from "@/db/schema"
-import { ilike, or } from "drizzle-orm"
+import { ilike, or, eq } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
 import { TotpService } from "@/lib/totp";
@@ -112,5 +114,43 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 }
             },
         }),
+        // ─── SSO / OAuth Providers (conditionally loaded) ─────────────────────
+        ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+            ? [Google({
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            })]
+            : []),
+        ...(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET && process.env.AZURE_AD_TENANT_ID
+            ? [MicrosoftEntraId({
+                clientId: process.env.AZURE_AD_CLIENT_ID,
+                clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
+                issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/v2.0`,
+            })]
+            : []),
     ],
+    callbacks: {
+        ...authConfig.callbacks,
+        async signIn({ user, account }) {
+            // For OAuth providers, map to existing Axiom user by email
+            if (account?.provider !== 'credentials' && user?.email) {
+                const [existingUser] = await db.select()
+                    .from(users)
+                    .where(ilike(users.email, user.email))
+                    .limit(1);
+
+                if (!existingUser) {
+                    // Deny sign-in for OAuth users not pre-registered in Axiom
+                    console.warn(`[AUTH] OAuth user ${user.email} not found in Axiom DB`);
+                    return false;
+                }
+
+                // Map the Axiom user data onto the session
+                user.id = existingUser.id;
+                user.name = existingUser.name;
+                (user as any).role = existingUser.role;
+            }
+            return true;
+        },
+    },
 })

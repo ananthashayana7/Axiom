@@ -277,6 +277,7 @@ export const platformSettings = pgTable('platform_settings', {
     geminiApiKey: text('gemini_api_key'),
     geminiApiKeyFallback1: text('gemini_api_key_fallback_1'),
     geminiApiKeyFallback2: text('gemini_api_key_fallback_2'),
+    exchangeRates: text('exchange_rates'), // JSON: {base, date, rates: {USD: 1.2, ...}}
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
@@ -298,6 +299,7 @@ export const requisitions = pgTable('requisitions', {
     status: requisitionStatusEnum('status').default('draft'),
     estimatedAmount: decimal('estimated_amount', { precision: 12, scale: 2 }).default('0'),
     department: text('department'),
+    budgetId: uuid('budget_id'), // References budgets table for budget tracking
     purchaseOrderId: uuid('purchase_order_id').references(() => procurementOrders.id),
     createdAt: timestamp('created_at').defaultNow(),
 });
@@ -705,3 +707,85 @@ export type DemandForecast = typeof demandForecasts.$inferSelect;
 export type MarketPriceIndex = typeof marketPriceIndex.$inferSelect;
 export type FraudAlert = typeof fraudAlerts.$inferSelect;
 export type PaymentOptimization = typeof paymentOptimizations.$inferSelect;
+
+// ============================================================================
+// BUDGET & COST CENTER TABLES
+// ============================================================================
+
+export const budgets = pgTable('budgets', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    costCenter: text('cost_center'),
+    totalAmount: decimal('total_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+    usedAmount: decimal('used_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+    fiscalYear: text('fiscal_year').notNull(),
+    department: text('department'),
+    status: text('status').default('active'), // active, frozen, closed
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    budgetDeptIdx: index('budget_dept_idx').on(table.department),
+    budgetYearIdx: index('budget_year_idx').on(table.fiscalYear),
+}));
+
+export const costCenters = pgTable('cost_centers', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    code: text('code').notNull().unique(),
+    name: text('name').notNull(),
+    description: text('description'),
+    department: text('department'),
+    isActive: text('is_active').default('yes'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    costCenterCodeIdx: uniqueIndex('cost_center_code_idx').on(table.code),
+}));
+
+export type Budget = typeof budgets.$inferSelect;
+export type CostCenter = typeof costCenters.$inferSelect;
+
+// ============================================================================
+// WEBHOOK TABLES
+// ============================================================================
+
+export const webhookEventEnum = pgEnum('webhook_event', [
+    'order.created', 'order.updated', 'order.fulfilled',
+    'invoice.created', 'invoice.matched', 'invoice.disputed',
+    'rfq.created', 'rfq.closed',
+    'requisition.approved', 'requisition.rejected',
+    'contract.expiring', 'contract.expired',
+    'supplier.created', 'supplier.updated',
+]);
+
+export const webhooks = pgTable('webhooks', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    url: text('url').notNull(),
+    events: text('events').array().notNull(), // Array of event types to subscribe to
+    secret: text('secret').notNull(), // HMAC signing secret
+    isActive: text('is_active').default('yes'),
+    description: text('description'),
+    createdById: uuid('created_by_id').references(() => users.id),
+    lastTriggeredAt: timestamp('last_triggered_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    webhookActiveIdx: index('webhook_active_idx').on(table.isActive),
+}));
+
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', ['pending', 'success', 'failed', 'retrying']);
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    webhookId: uuid('webhook_id').references(() => webhooks.id).notNull(),
+    event: text('event').notNull(),
+    payload: text('payload').notNull(), // JSON
+    statusCode: integer('status_code'),
+    response: text('response'),
+    status: webhookDeliveryStatusEnum('status').default('pending'),
+    attempts: integer('attempts').default(0),
+    nextRetryAt: timestamp('next_retry_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    deliveryWebhookIdx: index('delivery_webhook_idx').on(table.webhookId),
+    deliveryStatusIdx: index('delivery_status_idx').on(table.status),
+}));
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;

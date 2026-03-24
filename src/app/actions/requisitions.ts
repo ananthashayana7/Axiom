@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc, and } from "drizzle-orm";
 import { createNotification } from "./notifications";
+import { consumeBudget, checkBudgetAvailability } from "./budgets";
 
 export async function getRequisitions() {
     try {
@@ -17,21 +18,44 @@ export async function getRequisitions() {
     }
 }
 
-export async function createRequisition(data: { title: string, description?: string, estimatedAmount: number, department?: string }) {
+export async function createRequisition(data: { 
+    title: string, 
+    description?: string, 
+    estimatedAmount: number, 
+    department?: string,
+    budgetId?: string 
+}) {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
     try {
         if (data.estimatedAmount <= 0) return { success: false, error: "Amount must be positive" };
 
+        // Budget Check (Sprint 3)
+        if (data.budgetId) {
+            const budgetCheck = await checkBudgetAvailability(data.budgetId, data.estimatedAmount);
+            if (!budgetCheck.available) {
+                return { 
+                    success: false, 
+                    error: budgetCheck.error || `Insufficient budget. Remaining: ${budgetCheck.remaining?.toLocaleString()}` 
+                };
+            }
+        }
+
         const [requisition] = await db.insert(requisitions).values({
             title: data.title,
             description: data.description,
             estimatedAmount: data.estimatedAmount.toFixed(2),
             department: data.department,
+            budgetId: data.budgetId,
             requestedById: (session.user as any).id,
             status: 'pending_approval'
         }).returning();
+
+        // Consume Budget if applicable
+        if (data.budgetId) {
+            await consumeBudget(data.budgetId, data.estimatedAmount);
+        }
 
         // Audit Trail (SOX Compliance)
         await db.insert(auditLogs).values({
