@@ -17,6 +17,8 @@ async function collectApiKeys(): Promise<string[]> {
         process.env.GOOGLE_GENERATIVE_AI_API_KEY,
         process.env.GEMINI_API_KEY_2,
         process.env.GEMINI_API_KEY_3,
+        process.env.GEMINI_API_KEY_4,
+        process.env.GEMINI_API_KEY_5,
     ];
     for (const k of envKeys) {
         if (k && k.trim().length > 0) keys.push(k.trim());
