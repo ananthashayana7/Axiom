@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 // POST create a new contract (admin only)
 export async function POST(req: Request) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin')
+    if (!session || session.user.role !== 'admin')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const data = await req.json();

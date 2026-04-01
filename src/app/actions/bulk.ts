@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, requisitions, auditLogs, users } from "@/db/schema";
+import { procurementOrders, requisitions, auditLogs } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function bulkUpdateOrderStatus(
@@ -12,7 +12,7 @@ export async function bulkUpdateOrderStatus(
     status: 'approved' | 'rejected' | 'sent' | 'cancelled'
 ) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can perform bulk order actions" };
     }
 
@@ -29,7 +29,7 @@ export async function bulkUpdateOrderStatus(
                     .where(eq(procurementOrders.id, id));
 
                 await db.insert(auditLogs).values({
-                    userId: (session.user as any).id,
+                    userId: session.user.id,
                     action: 'BULK_UPDATE',
                     entityType: 'order',
                     entityId: id,
@@ -59,7 +59,7 @@ export async function bulkUpdateOrderStatus(
 
 export async function bulkApproveRequisitions(ids: string[]) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can approve requisitions" };
     }
 
@@ -78,7 +78,7 @@ export async function bulkApproveRequisitions(ids: string[]) {
                 }
 
                 // Enforce Segregation of Duties
-                if (req.requestedById === (session.user as any).id) {
+                if (req.requestedById === session.user.id) {
                     errors.push(`Requisition ${id.split('-')[0]}: Self-approval blocked (SoD compliance)`);
                     continue;
                 }
@@ -93,7 +93,7 @@ export async function bulkApproveRequisitions(ids: string[]) {
                     .where(eq(requisitions.id, id));
 
                 await db.insert(auditLogs).values({
-                    userId: (session.user as any).id,
+                    userId: session.user.id,
                     action: 'BULK_APPROVE',
                     entityType: 'requisition',
                     entityId: id,
@@ -131,7 +131,7 @@ export async function bulkApproveRequisitions(ids: string[]) {
 
 export async function bulkRejectRequisitions(ids: string[], reason: string) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can reject requisitions" };
     }
 
@@ -155,7 +155,7 @@ export async function bulkRejectRequisitions(ids: string[], reason: string) {
                     .where(eq(requisitions.id, id));
 
                 await db.insert(auditLogs).values({
-                    userId: (session.user as any).id,
+                    userId: session.user.id,
                     action: 'BULK_REJECT',
                     entityType: 'requisition',
                     entityId: id,

@@ -7,7 +7,7 @@ import { eq, desc, gte, lte, and } from 'drizzle-orm';
 export async function GET(req: Request) {
     try {
         const session = await auth();
-        if (!session?.user || (session.user as any).role !== 'admin') {
+        if (!session?.user || session.user.role !== 'admin') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
 

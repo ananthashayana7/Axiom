@@ -48,7 +48,7 @@ export async function createRequisition(data: {
             estimatedAmount: data.estimatedAmount.toFixed(2),
             department: data.department,
             budgetId: data.budgetId,
-            requestedById: (session.user as any).id,
+            requestedById: session.user.id,
             status: 'pending_approval'
         }).returning();
 
@@ -59,7 +59,7 @@ export async function createRequisition(data: {
 
         // Audit Trail (SOX Compliance)
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'CREATE',
             entityType: 'requisition',
             entityId: requisition.id,
@@ -91,7 +91,7 @@ export async function createRequisition(data: {
                     createNotification({
                         userId: admin.id,
                         title: 'New Requisition Pending Approval',
-                        message: `"${data.title}" submitted by ${(session.user as any).name || 'a user'} — Est. ${data.estimatedAmount.toLocaleString()}`,
+                        message: `"${data.title}" submitted by ${session.user.name || 'a user'} — Est. ${data.estimatedAmount.toLocaleString()}`,
                         type: 'info',
                         link: `/sourcing/requisitions?id=${requisition.id}`,
                     })
@@ -109,13 +109,13 @@ export async function createRequisition(data: {
 
 export async function approveRequisition(id: string) {
     const session = await auth();
-    if (!session?.user || (session?.user as any)?.role !== 'admin') return { success: false, error: "Only admins can approve requisitions" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can approve requisitions" };
 
     try {
         const [requisition] = await db.select().from(requisitions).where(eq(requisitions.id, id));
         if (!requisition) return { success: false, error: "Requisition not found" };
 
-        if (requisition.requestedById === (session.user as any).id) {
+        if (requisition.requestedById === session.user.id) {
             return { success: false, error: "Self-approval is not allowed for compliance (Segregation of Duties)." };
         }
 
@@ -124,7 +124,7 @@ export async function approveRequisition(id: string) {
             .where(eq(requisitions.id, id));
 
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'APPROVE',
             entityType: 'requisition',
             entityId: id,
@@ -150,7 +150,7 @@ export async function approveRequisition(id: string) {
 
 export async function rejectRequisition(id: string, reason: string) {
     const session = await auth();
-    if (!session?.user || (session?.user as any)?.role !== 'admin') return { success: false, error: "Only admins can reject requisitions" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can reject requisitions" };
 
     try {
         await db.update(requisitions)
@@ -158,7 +158,7 @@ export async function rejectRequisition(id: string, reason: string) {
             .where(eq(requisitions.id, id));
 
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'REJECT',
             entityType: 'requisition',
             entityId: id,
@@ -185,11 +185,11 @@ export async function rejectRequisition(id: string, reason: string) {
     }
 }
 
-import { procurementOrders, orderItems } from "@/db/schema";
+import { procurementOrders } from "@/db/schema";
 
 export async function convertToPO(requisitionId: string, supplierId: string) {
     const session = await auth();
-    if (!session?.user || (session?.user as any)?.role !== 'admin') return { success: false, error: "Only admins can convert to PO" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can convert to PO" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -221,7 +221,7 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
 
             // 3. Log Audit
             await tx.insert(auditLogs).values({
-                userId: (session.user as any).id,
+                userId: session.user.id,
                 action: 'CONVERT',
                 entityType: 'requisition',
                 entityId: requisitionId,
@@ -241,7 +241,7 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
             revalidatePath('/sourcing/orders');
             return { success: true, orderId: order.id };
         });
-    } catch (error: any) {
+    } catch (error) {
         if (error.message === 'Rollback') return { success: false, error: "Transaction rolled back" };
         console.error("Conversion failed:", error);
         return { success: false, error: "Internal Server Error" };

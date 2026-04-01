@@ -51,7 +51,7 @@ export default async function OrdersPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {ordersList.map((order: any) => (
+                                    {ordersList.map((order) => (
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/30">
                                             <td className="p-4 align-middle font-mono text-xs">
                                                 <Link href={`/sourcing/orders/${order.id}`} className="font-bold text-primary hover:underline transition-colors">

@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { marketPriceIndex } from '@/db/schema';
 
+function isCronAuthorized(req: Request) {
+    const secret = process.env.CRON_SECRET;
+    if (!secret) return false;
+    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const header = req.headers.get('x-cron-token');
+    return bearer === secret || header === secret;
+}
+
 // Free commodity data sources
 const COMMODITY_ENDPOINTS = [
     {
@@ -44,8 +52,12 @@ function parseFreeMetals(data: any): { category: string; commodity: string; pric
     }));
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        if (!isCronAuthorized(req)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const now = new Date();
         const validFrom = new Date(now);
         validFrom.setHours(0, 0, 0, 0);

@@ -17,7 +17,7 @@ async function applyMigration() {
         if (!statement.trim()) continue;
         try {
             await db.execute(sql.raw(statement));
-        } catch (error: any) {
+        } catch (error) {
             // Ignore "already exists" errors to make it idempotent
             if (error.message.includes('already exists') || error.message.includes('already a value')) {
                 console.log(`Skipping: ${statement.slice(0, 50)}... (Already exists)`);

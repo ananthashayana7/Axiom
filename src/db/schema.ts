@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { pgTable, uuid, text, integer, decimal, timestamp, pgEnum, index, uniqueIndex, serial, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 

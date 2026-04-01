@@ -64,7 +64,7 @@ export default function ContactsPage() {
     const exportCSV = () => {
         const headers = ['Name', 'Email', 'Phone', 'Company', 'Job Title', 'Country', 'Region', 'Continent', 'Currency', 'Status'];
         const rows = filtered.map(c => [c.name, c.email, c.phone || '', c.company || '', c.jobTitle || '', c.country || '', c.region || '', c.continent || '', c.currency || '', c.status]);
-        const csv = [headers, ...rows].map(r => r.map((v: any) => `"${v}"`).join(',')).join('\n');
+        const csv = [headers, ...rows].map(r => r.map((v) => `"${v}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

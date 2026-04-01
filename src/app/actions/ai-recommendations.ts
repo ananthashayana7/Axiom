@@ -1,4 +1,5 @@
 'use server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { db } from "@/db";
 import { agentRecommendations, users, notifications, workflowTasks, auditLogs } from "@/db/schema";
@@ -16,6 +17,8 @@ async function requireAuth() {
     return session.user;
 }
 
+type ExecutionPayload = Record<string, string | number | boolean | null>;
+
 export async function createTypedRecommendation(data: {
     agentName: string;
     recommendationType: string;
@@ -26,7 +29,7 @@ export async function createTypedRecommendation(data: {
     confidence: number;
     businessImpact: string;
     explanation: string;
-    executionPayload?: Record<string, any>;
+    executionPayload?: ExecutionPayload;
     entityType?: string;
     entityId?: string;
     ownerId?: string;
@@ -75,12 +78,18 @@ export async function getRecommendations(filters?: {
 }) {
     await requireAuth();
 
-    const conditions: any[] = [];
-    if (filters?.status) conditions.push(eq(agentRecommendations.status, filters.status as any));
+    const validImpacts = ['low', 'medium', 'high', 'critical'] as const;
+    const validStatuses = ['pending', 'approved', 'dismissed'] as const;
+    const conditions: (typeof eq<any, any>)[] = [];
+    if (filters?.status && (validStatuses as readonly string[]).includes(filters.status)) {
+        conditions.push(eq(agentRecommendations.status, filters.status as 'pending' | 'approved' | 'dismissed'));
+    }
     if (filters?.agentName) conditions.push(eq(agentRecommendations.agentName, filters.agentName));
     if (filters?.entityType) conditions.push(eq(agentRecommendations.entityType, filters.entityType));
     if (filters?.entityId) conditions.push(eq(agentRecommendations.entityId, filters.entityId));
-    if (filters?.impact) conditions.push(eq(agentRecommendations.impact, filters.impact as any));
+    if (filters?.impact && (validImpacts as readonly string[]).includes(filters.impact)) {
+        conditions.push(eq(agentRecommendations.impact, filters.impact as 'low' | 'medium' | 'high' | 'critical'));
+    }
 
     const recs = await db.select({
         id: agentRecommendations.id,
@@ -185,11 +194,12 @@ export async function executeRecommendation(recommendationId: string) {
         .where(eq(agentRecommendations.id, recommendationId))
         .returning();
 
+    const entityType: string = updated.entityType || 'agent_recommendation';
     // Create a workflow task to track execution
     await db.insert(workflowTasks).values({
         title: `Execute: ${updated.title}`,
         description: updated.description,
-        entityType: (updated.entityType as any) || 'agent_recommendation',
+        entityType,
         entityId: updated.entityId || recommendationId,
         priority: updated.impact === 'critical' ? 'critical' : updated.impact === 'high' ? 'high' : 'medium',
         assigneeId: updated.ownerId || (user.id as string),
@@ -248,8 +258,8 @@ export async function trackRecommendationOutcome(recommendationId: string, outco
     expectedOutcome: string;
     actualOutcome: string;
     delta?: string;
-}) {
-    const user = await requireAuth();
+}) {  
+    await requireAuth();
 
     const [updated] = await db.update(agentRecommendations)
         .set({

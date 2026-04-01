@@ -3,17 +3,15 @@
 import { db } from "@/db";
 import { webhooks, webhookDeliveries } from "@/db/schema";
 import { auth } from "@/auth";
-import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { logActivity } from "./activity";
-import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 
 // ─── Webhook CRUD ─────────────────────────────────────────────────────
 
 export async function getWebhooks() {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') return [];
+    if (!session?.user || session.user.role !== 'admin') return [];
 
     try {
         return await db.select().from(webhooks).orderBy(desc(webhooks.createdAt));
@@ -29,7 +27,7 @@ export async function createWebhook(data: {
     description?: string;
 }) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can manage webhooks" };
     }
 
@@ -42,7 +40,7 @@ export async function createWebhook(data: {
             events: data.events,
             secret,
             description: data.description,
-            createdById: (session.user as any).id,
+            createdById: session.user.id,
             isActive: 'yes',
         }).returning();
 
@@ -57,7 +55,7 @@ export async function createWebhook(data: {
 
 export async function deleteWebhook(id: string) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can manage webhooks" };
     }
 
@@ -74,7 +72,7 @@ export async function deleteWebhook(id: string) {
 
 // ─── Webhook Triggering ────────────────────────────────────────────────
 
-export async function triggerWebhook(event: string, payload: Record<string, any>) {
+export async function triggerWebhook(event: string, payload: Record<string, unknown>) {
     try {
         // Find all active webhooks that subscribe to this event
         const activeWebhooks = await db
@@ -117,7 +115,7 @@ export async function triggerWebhook(event: string, payload: Record<string, any>
 
 export async function getWebhookDeliveries(webhookId: string) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') return [];
+    if (!session?.user || session.user.role !== 'admin') return [];
 
     try {
         return await db.select()

@@ -140,6 +140,13 @@ Recommended Azure setup for 10,000+ users:
 3. `Azure Cache for Redis` for caching and queue-like workloads.
 4. `Azure Blob Storage` for invoice/contracts/document assets.
 
+Production requirements before go-live:
+
+1. Set `CRON_SECRET` and call cron endpoints with either `Authorization: Bearer <CRON_SECRET>` or `x-cron-token`.
+2. Set `AZURE_STORAGE_CONNECTION_STRING` and `AZURE_STORAGE_CONTAINER` for production file uploads.
+3. Run a background supplier scoring worker (`npm run worker:supplier-score`) with access to the same `DATABASE_URL` and `REDIS_URL`.
+4. Keep `ALLOW_DEMO_BYPASS` disabled in production.
+
 Quick start:
 
 ```bash

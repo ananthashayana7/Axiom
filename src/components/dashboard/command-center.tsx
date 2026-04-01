@@ -10,21 +10,14 @@ import {
     CreditCard,
     FileText,
     Handshake,
-    Play,
     CheckCircle2,
     XCircle,
     Clock,
-    Sparkles,
-    AlertTriangle,
     RefreshCcw,
-    Zap,
     Activity,
     Loader2,
     ChevronRight,
-    Eye,
     Database,
-    Search,
-    FileCheck,
     BarChart3,
     ArrowUpRight
 } from "lucide-react";
@@ -84,7 +77,7 @@ export function CommandCenter() {
     const [paymentSavings, setPaymentSavings] = useState<number>(0);
     const [replenishmentAlerts, setReplenishmentAlerts] = useState<number>(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [isPending, startTransition] = useTransition();
+    const [, startTransition] = useTransition();
     const [runningAgent, setRunningAgent] = useState<string | null>(null);
     const [lastRunResult, setLastRunResult] = useState<{ agent: string; result: AgentRunResult; timestamp: Date } | null>(null);
     const [progressLogs, setProgressLogs] = useState<string[]>([]);
@@ -158,7 +151,7 @@ export function CommandCenter() {
 
         startTransition(async () => {
             try {
-                let result: { success: boolean; data?: any; error?: string } = { success: false };
+                let result: { success: boolean; data?: unknown; error?: string } = { success: false };
                 let runResult: AgentRunResult = {};
 
                 switch (agentName) {
@@ -170,7 +163,7 @@ export function CommandCenter() {
                         addLog(`PROC: Cross-referencing vendor bank identifiers...`);
                         result = await runFraudDetectionAgent(30);
                         if (result.success && result.data) {
-                            const highSeverity = result.data.filter((a: any) => a.severity === 'high' || a.severity === 'critical').length;
+                            const highSeverity = result.data.filter((a) => a.severity === 'high' || a.severity === 'critical').length;
                             runResult = {
                                 alertsFound: result.data.length,
                                 details: result.data.length > 0
@@ -190,7 +183,8 @@ export function CommandCenter() {
                         addLog(`PROC: Modeling capital float opportunities...`);
                         result = await runPaymentOptimizationAgent();
                         if (result.success && result.data) {
-                            const totalSavings = result.data.reduce((sum: number, o: any) => sum + (o.potentialSavings || 0), 0);
+                            const opportunities = result.data as Array<{ potentialSavings?: number }>;
+                            const totalSavings = opportunities.reduce((sum, o) => sum + (o.potentialSavings || 0), 0);
                             runResult = {
                                 savingsAmount: totalSavings,
                                 itemsScanned: result.data.length,
@@ -377,15 +371,6 @@ export function CommandCenter() {
             }
             setRunningAgent(null);
         });
-    };
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'running': return <Loader2 className="h-3 w-3 animate-spin text-blue-500" />;
-            case 'success': return <CheckCircle2 className="h-3 w-3 text-emerald-500" />;
-            case 'failed': return <XCircle className="h-3 w-3 text-red-500" />;
-            default: return <Clock className="h-3 w-3 text-stone-400" />;
-        }
     };
 
     if (isLoading) {

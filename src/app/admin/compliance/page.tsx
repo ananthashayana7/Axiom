@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = {
 
 export default async function CompliancePage() {
     const session = await auth();
-    if (!session?.user || !['admin', 'user'].includes((session.user as any).role)) {
+    if (!session?.user || !['admin', 'user'].includes(session.user.role)) {
         redirect('/');
     }
 
@@ -89,7 +89,7 @@ export default async function CompliancePage() {
                         </div>
                     ) : (
                         <div className="divide-y">
-                            {obligations.map((ob: any) => (
+                            {obligations.map((ob) => (
                                 <div key={ob.id} className="py-3 flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">

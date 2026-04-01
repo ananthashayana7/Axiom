@@ -38,7 +38,7 @@ export async function authenticate(
             code,
             redirectTo,
         });
-    } catch (error: any) {
+    } catch (error) {
         if (isRedirectError(error)) {
             throw error;
         }

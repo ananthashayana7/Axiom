@@ -50,8 +50,8 @@ export async function getRFQs() {
     const session = await auth();
     if (!session) return [];
 
-    const role = (session.user as any).role;
-    const supplierId = (session.user as any).supplierId;
+    const role = session.user.role;
+    const supplierId = session.user.supplierId;
 
     try {
         // Direct query through rfqSuppliers if it's a supplier
@@ -66,7 +66,7 @@ export async function getRFQs() {
                 .innerJoin(rfqs, eq(rfqSuppliers.rfqId, rfqs.id))
                 .where(eq(rfqSuppliers.supplierId, supplierId))
                 .orderBy(desc(rfqs.createdAt));
-            return vendorRfqs as any;
+            return vendorRfqs;
         }
 
         const baseRfqs = await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
@@ -116,8 +116,8 @@ export async function getRFQById(id: string) {
     const session = await auth();
     if (!session) return null;
 
-    const role = (session.user as any).role;
-    const supplierId = (session.user as any).supplierId;
+    const role = session.user.role;
+    const supplierId = session.user.supplierId;
 
     // Validate UUID format to prevent SQL errors
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -166,7 +166,7 @@ export async function getRFQById(id: string) {
 
         // If supplier, verify they are invited
         if (role === 'supplier') {
-            const isInvited = rfq.suppliers.some((s: any) => s.supplierId === supplierId);
+            const isInvited = rfq.suppliers.some((s) => s.supplierId === supplierId);
             if (!isInvited) return null;
         }
 
@@ -185,17 +185,17 @@ export async function recommendSuppliers(partIds: string[]) {
     try {
         // 1. Get categories of the requested parts
         const requestedParts = await db.select().from(parts).where(inArray(parts.id, partIds));
-        const requestedCategories = Array.from(new Set(requestedParts.map((p: any) => p.category)));
+        const requestedCategories = Array.from(new Set(requestedParts.map((p) => p.category)));
 
         // 2. Find active suppliers that match these categories
         const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.status, 'active'));
 
         const recommendations = allSuppliers
-            .filter((s: any) => {
+            .filter((s) => {
                 if (!s.categories) return false;
-                return s.categories.some((cat: any) => requestedCategories.includes(cat));
+                return s.categories.some((cat) => requestedCategories.includes(cat));
             })
-            .map((s: any) => {
+            .map((s) => {
                 // Scoring Formula: Performance (weight 0.7) - Risk (weight 0.3)
                 const performanceWeight = 0.7;
                 const riskWeight = 0.3;
@@ -211,7 +211,7 @@ export async function recommendSuppliers(partIds: string[]) {
                     ].filter(Boolean)
                 };
             })
-            .sort((a: any, b: any) => b.matchScore - a.matchScore)
+            .sort((a, b) => b.matchScore - a.matchScore)
             .slice(0, 3); // Top 3
 
         return recommendations;
@@ -223,7 +223,7 @@ export async function recommendSuppliers(partIds: string[]) {
 
 export async function createRFQ(title: string, description: string, items: { partId: string; quantity: number }[]) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -249,7 +249,7 @@ export async function createRFQ(title: string, description: string, items: { par
             const suggestedSuppliers = await recommendSuppliers(items.map(i => i.partId));
             if (suggestedSuppliers.length > 0) {
                 await tx.insert(rfqSuppliers).values(
-                    suggestedSuppliers.map((s: any) => ({
+                    suggestedSuppliers.map((s) => ({
                         rfqId: newRfq.id,
                         supplierId: s.id,
                         status: 'invited' as const
@@ -270,7 +270,7 @@ export async function createRFQ(title: string, description: string, items: { par
 
 export async function updateRFQStatus(id: string, status: 'draft' | 'open' | 'closed' | 'cancelled') {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         await db.update(rfqs).set({ status }).where(eq(rfqs.id, id));
@@ -289,7 +289,7 @@ export async function updateRFQStatus(id: string, status: 'draft' | 'open' | 'cl
 
 export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         // Check if already invited
@@ -327,7 +327,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
         const [rs] = await db.select().from(rfqSuppliers).where(eq(rfqSuppliers.id, rfqSupplierId));
         if (!rs) return { success: false, error: "Record not found" };
 
-        if ((session.user as any).role === 'supplier' && (session.user as any).supplierId !== rs.supplierId) {
+        if (session.user.role === 'supplier' && session.user.supplierId !== rs.supplierId) {
             return { success: false, error: "Unauthorized" };
         }
 

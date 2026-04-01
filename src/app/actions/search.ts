@@ -17,7 +17,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
     const session = await auth();
     if (!session?.user) return [];
 
-    const role = (session.user as any).role;
+    const role = session.user.role;
     const trimmedQuery = query.trim();
 
     if (!trimmedQuery || trimmedQuery.length < 2) return [];
@@ -32,7 +32,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
                 .where(ilike(suppliers.name, `%${trimmedQuery}%`))
                 .limit(5);
 
-            matchedSuppliers.forEach((s: any) => {
+            matchedSuppliers.forEach((s) => {
                 results.push({
                     id: s.id,
                     type: 'supplier',
@@ -49,7 +49,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
             .where(ilike(rfqs.title, `%${trimmedQuery}%`))
             .limit(5);
 
-        matchedRFQs.forEach((r: any) => {
+        matchedRFQs.forEach((r) => {
             const path = role === 'supplier' ? `/portal/rfqs/${r.id}` : `/sourcing/rfqs/${r.id}`;
             results.push({
                 id: r.id,
@@ -66,7 +66,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
             .where(ilike(procurementOrders.id, `%${trimmedQuery}%`))
             .limit(5);
 
-        matchedOrders.forEach((o: any) => {
+        matchedOrders.forEach((o) => {
             const path = role === 'supplier' ? `/portal/orders/${o.id}` : `/sourcing/orders/${o.id}`;
             results.push({
                 id: o.id,
@@ -86,7 +86,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
             ))
             .limit(5);
 
-        matchedParts.forEach((p: any) => {
+        matchedParts.forEach((p) => {
             results.push({
                 id: p.id,
                 type: 'part',

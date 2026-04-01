@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, Sparkles, Loader2, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { analyzeSupplierRisk } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
 
@@ -18,7 +17,13 @@ interface RiskResult {
     keyAlerts: string[];
 }
 
-export function RiskIntelligenceView({ supplier }: { supplier: any }) {
+interface RiskSupplier {
+    id: string;
+    name: string;
+    riskScore: number | null;
+}
+
+export function RiskIntelligenceView({ supplier }: { supplier: RiskSupplier }) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<RiskResult | null>(null);
 
@@ -33,7 +38,7 @@ export function RiskIntelligenceView({ supplier }: { supplier: any }) {
             } else {
                 toast.error("Failed to analyze risk profile");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred during risk analysis");
         } finally {
             setIsAnalyzing(false);

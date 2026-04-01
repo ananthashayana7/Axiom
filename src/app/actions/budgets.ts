@@ -27,7 +27,7 @@ export async function createBudget(data: {
     department?: string;
 }) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can manage budgets" };
     }
 
@@ -56,7 +56,7 @@ export async function updateBudget(id: string, data: Partial<{
     status: string;
 }>) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can manage budgets" };
     }
 
@@ -146,7 +146,7 @@ export async function createCostCenter(data: {
     department?: string;
 }) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin') {
         return { success: false, error: "Only admins can manage cost centers" };
     }
 

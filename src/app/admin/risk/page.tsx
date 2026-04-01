@@ -36,9 +36,9 @@ export default async function RiskDashboardPage() {
     if (!stats) return <div className="p-8">Unable to load risk intelligence.</div>;
 
     const allSuppliers = await db.query.suppliers.findMany();
-    const highRiskSuppliers = allSuppliers.filter((s: any) => (s.riskScore || 0) > 60);
-    const lowESGSuppliers = allSuppliers.filter((s: any) => (s.esgScore || 0) < 40);
-    const financialWatchlist = allSuppliers.filter((s: any) => (s.financialScore || 0) < 50);
+    const highRiskSuppliers = allSuppliers.filter((s) => (s.riskScore || 0) > 60);
+    const lowESGSuppliers = allSuppliers.filter((s) => (s.esgScore || 0) < 40);
+    const financialWatchlist = allSuppliers.filter((s) => (s.financialScore || 0) < 50);
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
@@ -127,7 +127,7 @@ export default async function RiskDashboardPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {lowESGSuppliers.slice(0, 4).map((s: any) => (
+                        {lowESGSuppliers.slice(0, 4).map((s) => (
                             <div key={s.id} className="space-y-2">
                                 <div className="flex justify-between items-center text-sm">
                                     <Link href={`/suppliers/${s.id}`} className="font-semibold hover:text-primary transition-colors">{s.name}</Link>
@@ -163,7 +163,7 @@ export default async function RiskDashboardPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {financialWatchlist.slice(0, 5).map((s: any) => (
+                        {financialWatchlist.slice(0, 5).map((s) => (
                             <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border bg-background hover:bg-muted/50 transition-colors">
                                 <div className="flex flex-col gap-1">
                                     <Link href={`/suppliers/${s.id}`} className="font-bold text-foreground hover:text-primary transition-colors">{s.name}</Link>
@@ -204,7 +204,7 @@ export default async function RiskDashboardPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {highRiskSuppliers.slice(0, 3).map((s: any) => (
+                        {highRiskSuppliers.slice(0, 3).map((s) => (
                             <RiskIntelligenceView key={s.id} supplier={s} />
                         ))}
                         {highRiskSuppliers.length === 0 && (

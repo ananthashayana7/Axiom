@@ -27,7 +27,7 @@ export default async function RFQsPage() {
             </div>
 
             <div className="grid gap-6">
-                {rfqs.map((rfq: any) => (
+                {rfqs.map((rfq) => (
                     <Card key={rfq.id} className="hover:shadow-md transition-shadow border-accent/20">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <div className="space-y-1">
@@ -56,7 +56,7 @@ export default async function RFQsPage() {
                         <CardContent>
                             <div className="flex flex-wrap gap-2 items-center text-sm">
                                 <span className="text-muted-foreground">AI Selected Suppliers:</span>
-                                {rfq.suppliers?.map((s: any) => (
+                                {rfq.suppliers?.map((s) => (
                                     <Badge key={s.id} variant="secondary" className="bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary px-3">
                                         {s.supplier?.name || "Unknown"}
                                     </Badge>

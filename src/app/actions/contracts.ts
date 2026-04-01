@@ -1,8 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { contracts, procurementOrders, suppliers } from "@/db/schema";
-import type { Contract, Supplier } from "@/db/schema";
+import { contracts, suppliers } from "@/db/schema";
 import { eq, desc, and, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -17,8 +16,8 @@ export async function getContracts(supplierId?: string) {
         if (supplierId) filters.push(eq(contracts.supplierId, supplierId));
 
         // If supplier user, force filter
-        const userRole = (session.user as any).role;
-        const userSupplierId = (session.user as any).supplierId;
+        const userRole = session.user.role;
+        const userSupplierId = session.user.supplierId;
         if (userRole === 'supplier') {
             filters.push(eq(contracts.supplierId, userSupplierId));
         }
@@ -73,7 +72,7 @@ interface CreateContractData {
 
 export async function createContract(data: CreateContractData) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         const [newContract] = await db.insert(contracts).values({
@@ -107,7 +106,7 @@ export async function createContract(data: CreateContractData) {
 
 export async function updateContractStatus(id: string, status: 'active' | 'expired' | 'terminated') {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         await db.update(contracts).set({ status }).where(eq(contracts.id, id));
@@ -163,7 +162,7 @@ export async function getExpiringContracts(days: number = 90) {
 
 export async function deleteContract(id: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         await db.delete(contracts).where(eq(contracts.id, id));

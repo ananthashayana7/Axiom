@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { fetchSapEntityData, mapSapRecordToAxiom, mappedRowsToCsv, testSapConnection, type SapEntityType } from '@/lib/services/sap';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 type SyncMode = 'dry-run' | 'commit';
 
@@ -28,11 +29,14 @@ function ensureAdmin(session: unknown) {
     return !!maybeUser && maybeUser.role === 'admin';
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     const session = await auth();
     if (!ensureAdmin(session)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+
+    const limited = enforceRateLimit(req, 'read', (session as any).user?.id);
+    if (limited) return limited;
 
     const baseUrl = process.env.SAP_BASE_URL;
     const hasAuth = Boolean(process.env.SAP_API_TOKEN || (process.env.SAP_USERNAME && process.env.SAP_PASSWORD));
@@ -60,6 +64,9 @@ export async function POST(req: Request) {
     if (!ensureAdmin(session)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+
+    const limited = enforceRateLimit(req, 'write', (session as any).user?.id);
+    if (limited) return limited;
 
     try {
         const body = (await req.json()) as SapSyncBody;

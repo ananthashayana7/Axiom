@@ -27,13 +27,13 @@ export async function createContact(data: {
     try {
         const [contact] = await db.insert(contacts).values({
             ...data,
-            createdBy: (session.user as any).id,
+            createdBy: session.user.id,
         }).returning();
         revalidatePath('/contacts');
         return { success: true, data: contact };
-    } catch (e: any) {
+    } catch (e) {
         console.error("Failed to create contact:", e);
-        return { success: false, error: e.message || "Failed to create contact" };
+        return { success: false, error: e instanceof Error ? e.message : "Failed to create contact" };
     }
 }
 
@@ -51,7 +51,7 @@ export async function updateContactStatus(id: string, status: 'active' | 'inacti
 
 export async function deleteContact(id: string) {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
     try {
         await db.delete(contacts).where(eq(contacts.id, id));
         revalidatePath('/contacts');

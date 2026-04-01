@@ -28,7 +28,7 @@ export async function logActivity(action: string, entityType: string, entityId: 
 
 export async function getAuditLogs(entityType?: string, entityId?: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return [];
+    if (!session || session.user.role !== 'admin') return [];
 
     try {
         const query = db.select({

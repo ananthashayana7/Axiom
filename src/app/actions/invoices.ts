@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from "@/db";
-import { invoices, procurementOrders, auditLogs, suppliers } from "@/db/schema";
+import { invoices, auditLogs, suppliers } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, ilike, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, type SQL } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function getInvoices(filters?: {
@@ -21,16 +21,19 @@ export async function getInvoices(filters?: {
     if (!session) return [];
 
     try {
-        const userRole = (session.user as any).role;
-        const userSupplierId = (session.user as any).supplierId;
+        const userRole = session.user.role;
+        const userSupplierId = session.user.supplierId;
 
-        const conditions: any[] = [];
+        const conditions: SQL[] = [];
 
         if (userRole === 'supplier') {
             conditions.push(eq(invoices.supplierId, userSupplierId));
         }
         if (filters?.status && filters.status !== 'all') {
-            conditions.push(eq(invoices.status, filters.status as any));
+            const allowedStatuses = ['pending', 'matched', 'disputed', 'paid'];
+            if (allowedStatuses.includes(filters.status)) {
+                conditions.push(eq(invoices.status, filters.status as 'pending' | 'matched' | 'disputed' | 'paid'));
+            }
         }
         if (filters?.invoiceNumber) {
             conditions.push(ilike(invoices.invoiceNumber, `%${filters.invoiceNumber}%`));
@@ -103,7 +106,7 @@ export async function createInvoice(data: {
 
         // Audit Log
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'CREATE',
             entityType: 'invoice',
             entityId: invoice.id,
@@ -121,10 +124,10 @@ export async function createInvoice(data: {
 
 export async function updateInvoiceStatus(id: string, status: 'matched' | 'disputed' | 'paid') {
     const session = await auth();
-    if (!session?.user || (session?.user as any)?.role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
-        const updateData: any = { status };
+        const updateData: { status: 'matched' | 'disputed' | 'paid'; matchedAt?: Date } = { status };
         if (status === 'matched') {
             updateData.matchedAt = new Date();
         }
@@ -136,7 +139,7 @@ export async function updateInvoiceStatus(id: string, status: 'matched' | 'dispu
         const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
 
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'UPDATE',
             entityType: 'invoice',
             entityId: id,

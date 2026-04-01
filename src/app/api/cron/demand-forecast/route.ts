@@ -4,8 +4,20 @@ import { orderItems, parts, procurementOrders, demandForecasts } from '@/db/sche
 import { eq, sql, desc } from 'drizzle-orm';
 import { getAiModel } from '@/lib/ai-provider';
 
-export async function GET() {
+function isCronAuthorized(req: Request) {
+    const secret = process.env.CRON_SECRET;
+    if (!secret) return false;
+    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const header = req.headers.get('x-cron-token');
+    return bearer === secret || header === secret;
+}
+
+export async function GET(req: Request) {
     try {
+        if (!isCronAuthorized(req)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         // 1. Aggregate order history per part per month (last 12 months)
         const twelveMonthsAgo = new Date();
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);

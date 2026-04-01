@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { db } from '@/db';
 import { suppliers, procurementOrders, invoices, supplierPerformanceLogs } from '@/db/schema';
 import { eq, sql, and, desc } from 'drizzle-orm';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
     req: NextRequest,
@@ -12,6 +13,17 @@ export async function GET(
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const user = session.user as any;
+        const limited = enforceRateLimit(req, 'read', user.id);
+        if (limited) return limited;
+
+        if (user.role !== 'admin') {
+            const { supplierId: sid } = await params;
+            if (user.role !== 'supplier' || user.supplierId !== sid) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
         }
 
         const { supplierId } = await params;

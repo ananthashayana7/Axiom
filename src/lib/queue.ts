@@ -1,38 +1,97 @@
-// src/lib/queue.ts – Mocked BullMQ setup (Dependencies could not be auto-installed)
 import { db } from '@/db';
 import { suppliers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-// Mock types to satisfy build
-type Job<T> = { data: T };
+type SupplierScorePayload = { supplierId: string };
 
-// Helper to simulate a scoring job for a supplier
-export async function enqueueSupplierScore(supplierId: string) {
-    console.log(`[Queue Mock] Enqueued scoring job for supplier: ${supplierId}`);
+const QUEUE_NAME = 'supplier-score';
 
-    // For now, simulate the worker logic synchronously since we lack BullMQ
-    try {
-        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
-        if (!supplier) return;
+async function computeSupplierScore(supplierId: string) {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
+    if (!supplier) return;
 
-        const riskScore = supplier.riskScore ?? 0;
-        const esgScore = supplier.esgScore ?? 0;
-        const performanceScore = supplier.performanceScore ?? 0;
-        const totalScore = Math.round((riskScore * 0.4) + (esgScore * 0.3) + (performanceScore * 0.3));
+    const riskScore = supplier.riskScore ?? 0;
+    const esgScore = supplier.esgScore ?? 0;
+    const performanceScore = supplier.performanceScore ?? 0;
 
-        await db
-            .update(suppliers)
-            .set({ riskScore: totalScore })
-            .where(eq(suppliers.id, supplierId));
+    const totalScore = Math.round((riskScore * 0.4) + (esgScore * 0.3) + (performanceScore * 0.3));
 
-        console.log(`[Queue Mock] Score computed for ${supplierId}: ${totalScore}`);
-    } catch (e) {
-        console.error("[Queue Mock] Failed simulated score:", e);
-    }
+    await db
+        .update(suppliers)
+        .set({ riskScore: totalScore })
+        .where(eq(suppliers.id, supplierId));
 }
 
-// Export empty/mock objects to avoid breaking imports
-export const supplierScoreQueue = { add: () => { } };
-export const supplierScoreScheduler = {};
-export const supplierScoreWorker = {};
+async function getQueue() {
+    if (!process.env.REDIS_URL) return null;
 
+    const [{ Queue }, { default: IORedis }] = await Promise.all([
+        import('bullmq'),
+        import('ioredis'),
+    ]);
+
+    const connection = new IORedis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: null,
+    });
+
+    return new Queue<SupplierScorePayload>(QUEUE_NAME, {
+        connection,
+        defaultJobOptions: {
+            attempts: 3,
+            removeOnComplete: 1000,
+            removeOnFail: 1000,
+            backoff: { type: 'exponential', delay: 5000 },
+        },
+    });
+}
+
+export async function enqueueSupplierScore(supplierId: string) {
+    if (!process.env.REDIS_URL) {
+        // Development-safe fallback when Redis is unavailable.
+        await computeSupplierScore(supplierId);
+        return;
+    }
+
+    const queue = await getQueue();
+    if (!queue) {
+        await computeSupplierScore(supplierId);
+        return;
+    }
+
+    await queue.add('compute-supplier-score', { supplierId });
+    await queue.close();
+}
+
+export async function startSupplierScoreWorker() {
+    if (!process.env.REDIS_URL) {
+        console.warn('[Queue] REDIS_URL not configured. Worker not started.');
+        return null;
+    }
+
+    const [{ Worker }, { default: IORedis }] = await Promise.all([
+        import('bullmq'),
+        import('ioredis'),
+    ]);
+
+    const connection = new IORedis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: null,
+    });
+
+    const worker = new Worker<SupplierScorePayload>(
+        QUEUE_NAME,
+        async (job) => {
+            await computeSupplierScore(job.data.supplierId);
+        },
+        { connection, concurrency: 5 }
+    );
+
+    worker.on('completed', (job) => {
+        console.log(`[Queue] Job completed: ${job.id}`);
+    });
+
+    worker.on('failed', (job, error) => {
+        console.error(`[Queue] Job failed: ${job?.id}`, error);
+    });
+
+    return worker;
+}

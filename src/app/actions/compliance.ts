@@ -30,7 +30,7 @@ export async function createComplianceObligation(data: {
     region?: string;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [obligation] = await db.insert(complianceObligations).values({
         title: data.title,
@@ -176,7 +176,7 @@ export async function getComplianceDashboard() {
 
 export async function updateComplianceStatus(obligationId: string, status: 'active' | 'expiring_soon' | 'expired' | 'waived' | 'not_applicable') {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(complianceObligations)
         .set({ status, updatedAt: new Date() })

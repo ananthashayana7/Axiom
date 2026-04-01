@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { db } from "@/db";
 import { procurementOrders, orderItems, parts, suppliers, invoices, contracts } from "@/db/schema";
@@ -99,25 +100,33 @@ export async function getFilterOptions() {
 
 /** Build WHERE conditions for procurement_orders table */
 function buildOrderConditions(filters: AnalyticsFilters) {
-    const conds = [];
+    const validOrderStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'sent', 'fulfilled', 'cancelled'] as const;
+    const conds: ReturnType<typeof gte | typeof lte | typeof inArray>[] = [];
     if (filters.dateFrom) conds.push(gte(procurementOrders.createdAt, new Date(filters.dateFrom)));
     if (filters.dateTo) conds.push(lte(procurementOrders.createdAt, new Date(filters.dateTo)));
     if (filters.supplierIds?.length) conds.push(inArray(procurementOrders.supplierId, filters.supplierIds));
-    if (filters.orderStatuses?.length) conds.push(inArray(procurementOrders.status, filters.orderStatuses as any));
+    if (filters.orderStatuses?.length) {
+        const statuses = filters.orderStatuses.filter((s): s is typeof validOrderStatuses[number] => (validOrderStatuses as readonly string[]).includes(s));
+        if (statuses.length) conds.push(inArray(procurementOrders.status, statuses));
+    }
     return conds;
 }
 
 /** Build WHERE conditions for invoices table */
 function buildInvoiceConditions(filters: AnalyticsFilters) {
-    const conds = [];
+    const validInvoiceStatuses = ['pending', 'matched', 'disputed', 'paid'] as const;
+    const conds: ReturnType<typeof gte | typeof lte | typeof inArray>[] = [];
     if (filters.dateFrom) conds.push(gte(invoices.createdAt, new Date(filters.dateFrom)));
     if (filters.dateTo) conds.push(lte(invoices.createdAt, new Date(filters.dateTo)));
     if (filters.supplierIds?.length) conds.push(inArray(invoices.supplierId, filters.supplierIds));
-    if (filters.invoiceStatuses?.length) conds.push(inArray(invoices.status, filters.invoiceStatuses as any));
+    if (filters.invoiceStatuses?.length) {
+        const statuses = filters.invoiceStatuses.filter((s): s is typeof validInvoiceStatuses[number] => (validInvoiceStatuses as readonly string[]).includes(s));
+        if (statuses.length) conds.push(inArray(invoices.status, statuses));
+    }
     return conds;
 }
 
-function whereAnd(conditions: any[]) {
+function whereAnd(conditions: ReturnType<typeof eq | typeof gte | typeof lte | typeof inArray>[] | ReturnType<typeof and>[]) {
     if (conditions.length === 0) return undefined;
     if (conditions.length === 1) return conditions[0];
     return and(...conditions);

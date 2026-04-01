@@ -20,13 +20,13 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Run tests
-        run: npm test
+        run: npm ci
 
       - name: Lint check
         run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:unit
 
       - name: Type check
         run: npx tsc --noEmit
@@ -37,3 +37,6 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high

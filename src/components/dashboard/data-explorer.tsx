@@ -26,9 +26,9 @@ const COLORS = [
 ];
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Filter, BarChart3, Download, RefreshCcw, Database, Info, TrendingUp } from "lucide-react"
+import { Filter, BarChart3, Database, Info, TrendingUp } from "lucide-react"
 import { useCurrency } from "@/components/currency-provider"
 
 type ExplorerTooltipPayload = {
@@ -80,17 +80,35 @@ function ExplorerTooltip({
 }
 
 interface DataExplorerProps {
-    monthlyData: any[];
-    categoryData: any[];
-    supplierData?: any[];
+    monthlyData: ExplorerDatum[];
+    categoryData: ExplorerDatum[];
+    supplierData?: ExplorerDatum[];
 }
+
+type ExplorerDatum = {
+    name: string;
+    [key: string]: string | number | undefined;
+};
+
+type Dimension = "time" | "category" | "supplier";
+type Metric = "spend" | "orders" | "mixed" | "fulfillment";
+
+const toDimension = (value: string): Dimension => {
+    if (value === "time" || value === "category" || value === "supplier") return value;
+    return "time";
+};
+
+const toMetric = (value: string): Metric => {
+    if (value === "spend" || value === "orders" || value === "mixed" || value === "fulfillment") return value;
+    return "spend";
+};
 
 export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: DataExplorerProps) {
     const { geoLocale } = useCurrency();
     const sym = geoLocale.currencySymbol || '';
 
-    const [dimension, setDimension] = useState<"time" | "category" | "supplier">("time");
-    const [metric, setMetric] = useState<"spend" | "orders" | "mixed" | "fulfillment">("spend");
+    const [dimension, setDimension] = useState<Dimension>("time");
+    const [metric, setMetric] = useState<Metric>("spend");
     const [chartType, setChartType] = useState<"composed" | "bar" | "area" | "scatter">("composed");
     const [showTrend, setShowTrend] = useState(false);
 
@@ -104,7 +122,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
     // Compute trend line data for time series
     const trendData = useMemo(() => {
         if (dimension !== 'time' || currentData.length < 2) return currentData;
-        const vals = currentData.map((d: any) => Number(d.total || d.spend || 0));
+        const vals = currentData.map((d) => Number(d.total || d.spend || 0));
         const n = vals.length;
         const sumX = n * (n - 1) / 2;
         const sumY = vals.reduce((a: number, b: number) => a + b, 0);
@@ -112,7 +130,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
         const sumX2 = vals.reduce((sum: number, _: number, i: number) => sum + i * i, 0);
         const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
         const intercept = (sumY - slope * sumX) / n;
-        return currentData.map((d: any, i: number) => ({ ...d, trend: Math.round(intercept + slope * i) }));
+        return currentData.map((d, i) => ({ ...d, trend: Math.round(intercept + slope * i) }));
     }, [dimension, currentData]);
 
     const chartConfig = useMemo(() => {
@@ -136,8 +154,8 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
 
     const avgValue = useMemo(() => {
         if (!currentData.length) return 0;
-        const vals = currentData.map((d: any) => d[chartConfig.barKey] || 0);
-        return vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+        const vals = currentData.map((d) => Number(d[chartConfig.barKey] || 0));
+        return vals.reduce((a, b) => a + b, 0) / vals.length;
     }, [currentData, chartConfig.barKey]);
 
     const fmtTick = (value: number) => {
@@ -165,7 +183,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto">
-                        <Select value={dimension} onValueChange={(v: any) => setDimension(v)}>
+                        <Select value={dimension} onValueChange={(v: string) => setDimension(toDimension(v))}>
                             <SelectTrigger className="w-fit min-w-[150px] h-9 text-[10px] bg-white/50 backdrop-blur-sm border-slate-200 rounded-xl hover:border-emerald-400 transition-all font-bold uppercase tracking-wider">
                                 <Filter className="h-3 w-3 text-emerald-600 mr-2" />
                                 {dimension}
@@ -177,7 +195,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                             </SelectContent>
                         </Select>
 
-                        <Select value={metric} onValueChange={(v: any) => setMetric(v)}>
+                        <Select value={metric} onValueChange={(v: string) => setMetric(toMetric(v))}>
                             <SelectTrigger className="w-fit min-w-[140px] h-9 text-[10px] bg-white/50 backdrop-blur-sm border-slate-200 rounded-xl hover:border-emerald-400 transition-all font-bold uppercase tracking-wider">
                                 Metric: {metric}
                             </SelectTrigger>
@@ -219,9 +237,9 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                     <XAxis dataKey="spend" name="Spend" tickFormatter={fmtTick} tick={{ fontSize: 10, fontWeight: 600 }} label={{ value: `Spend (${sym})`, position: 'insideBottom', offset: -10, fontSize: 10 }} />
                                     <YAxis dataKey="reliability" name="Reliability %" tick={{ fontSize: 10, fontWeight: 600 }} domain={[0, 100]} label={{ value: 'Reliability %', angle: -90, position: 'insideLeft', fontSize: 10 }} />
                                     <ZAxis dataKey="orders" range={[40, 400]} name="Orders" />
-                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={(p: any) => <ExplorerTooltip {...p} {...customTooltipProps} />} />
+                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={(p: unknown) => <ExplorerTooltip {...(p as { active?: boolean; payload?: ExplorerTooltipPayload[]; label?: string })} {...customTooltipProps} />} />
                                     <Scatter data={currentData} fill="#059669">
-                                        {currentData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                        {currentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                     </Scatter>
                                 </ScatterChart>
                             </ResponsiveContainer>
@@ -249,19 +267,19 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                             tick={{ fill: 'var(--color-muted-foreground)', fontSize: 10, fontWeight: 600 }}
                                             tickFormatter={v => `${v}%`} domain={[0, 100]} />
                                     )}
-                                    <Tooltip content={(p: any) => <ExplorerTooltip {...p} {...customTooltipProps} />} cursor={{ fill: 'var(--color-primary)', opacity: 0.05 }} />
+                                    <Tooltip content={(p: unknown) => <ExplorerTooltip {...(p as { active?: boolean; payload?: ExplorerTooltipPayload[]; label?: string })} {...customTooltipProps} />} cursor={{ fill: 'var(--color-primary)', opacity: 0.05 }} />
                                     {avgValue > 0 && (
                                         <ReferenceLine yAxisId="left" y={avgValue} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'Avg', fill: '#f59e0b', fontSize: 9 }} />
                                     )}
                                     {chartType === 'area' ? (
                                         <Area yAxisId="left" type="monotone" dataKey={chartConfig.barKey} stroke="#059669"
                                             strokeWidth={3} fill="url(#colorArea)" animationDuration={2000}>
-                                            {dimension !== 'time' && currentData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                            {dimension !== 'time' && currentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                         </Area>
                                     ) : (
                                         <Bar yAxisId="left" dataKey={chartConfig.barKey} fill="url(#colorBar)"
                                             radius={[6, 6, 0, 0]} animationDuration={2000}>
-                                            {dimension !== 'time' && currentData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                            {dimension !== 'time' && currentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                         </Bar>
                                     )}
                                     {showTrend && dimension === 'time' && (

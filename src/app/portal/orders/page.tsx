@@ -45,7 +45,7 @@ export default async function SupplierOrdersPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.map((order: any) => (
+                                {orders.map((order) => (
                                     <tr key={order.id} className="border-b hover:bg-muted/40 transition-colors align-top">
                                         <td className="p-4 font-mono text-xs text-primary font-bold">{order.id?.slice(0, 8)}</td>
                                         <td className="p-4">
@@ -60,7 +60,7 @@ export default async function SupplierOrdersPage() {
                                                 {(order.items || []).length === 0 ? (
                                                     <span className="text-muted-foreground italic">No items</span>
                                                 ) : (
-                                                    (order.items || []).map((item: any) => (
+                                                    (order.items || []).map((item) => (
                                                         <div key={item.id} className="flex items-center justify-between gap-2">
                                                             <span className="font-medium">{item.part?.name || 'Unknown Part'} ({item.part?.sku || 'N/A'})</span>
                                                             <span className="text-muted-foreground">Qty {item.quantity}</span>

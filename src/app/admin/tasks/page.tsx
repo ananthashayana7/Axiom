@@ -21,25 +21,28 @@ const statusColors: Record<string, string> = {
     escalated: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
-const entityLinks: Record<string, (id: string) => string> = {
-    requisition: (id) => `/sourcing/requisitions`,
-    rfq: (id) => `/sourcing/rfqs/${id}`,
-    order: (id) => `/sourcing/orders/${id}`,
-    invoice: (id) => `/sourcing/invoices`,
-    contract: (id) => `/sourcing/contracts`,
-    supplier: (id) => `/suppliers/${id}`,
+const entityLinks: Record<string, (id?: string) => string> = {
+    requisition: (_id?: string) => `/sourcing/requisitions`,
+    rfq: (id?: string) => `/sourcing/rfqs/${id}`,
+    order: (id?: string) => `/sourcing/orders/${id}`,
+    invoice: (_id?: string) => `/sourcing/invoices`,
+    contract: (_id?: string) => `/sourcing/contracts`,
+    supplier: (id?: string) => `/suppliers/${id}`,
     compliance_obligation: () => `/admin/compliance`,
     agent_recommendation: () => `/admin/agents`,
 };
 
+type TaskData = { status: string; title: string }[];
+type TaskSummary = { byStatus: Record<string, number>; overdueCount: number };
+
 export default async function TaskInboxPage() {
     const session = await auth();
-    if (!session?.user || !['admin', 'user'].includes((session.user as any).role)) {
+    if (!session?.user || !['admin', 'user'].includes(session.user.role)) {
         redirect('/');
     }
 
-    let tasks: any[] = [];
-    let summary: any = { byStatus: {}, overdueCount: 0 };
+    let tasks: TaskData = [];
+    let summary: TaskSummary = { byStatus: {}, overdueCount: 0 };
 
     try {
         tasks = await getAllTasks();
@@ -126,7 +129,7 @@ export default async function TaskInboxPage() {
                         </div>
                     ) : (
                         <div className="divide-y">
-                            {tasks.map((task: any) => {
+                            {tasks.map((task) => {
                                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !['completed', 'cancelled'].includes(task.status);
                                 const linkFn = entityLinks[task.entityType];
                                 const entityLink = linkFn ? linkFn(task.entityId) : '#';

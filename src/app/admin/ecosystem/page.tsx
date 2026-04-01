@@ -6,34 +6,35 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Network,
-    ShieldAlert,
-    Activity,
-    Search,
-    Filter,
-    ArrowUpRight,
     Building2,
-    Users,
     Zap,
-    AlertTriangle,
-    CheckCircle2,
-    Globe,
     Layers,
-    Share2,
-    Link as LinkIcon
+    Share2
 } from "lucide-react";
 import { buildSupplierEcosystem } from "@/app/actions/agents/supplier-ecosystem";
 import { toast } from "sonner";
 import {
-    PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
 } from 'recharts';
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+type EcosystemData = {
+    overallHealthScore: number;
+    nodes: Array<{ id: string; name: string; riskScore: number }>;
+    relationships: Array<unknown>;
+    clusters: Array<{ name: string; supplierIds: string[] }>;
+    riskHotspots: Array<{
+        sourceSupplier: string;
+        impactSeverity: string;
+        financialExposure: number;
+        mitigationOptions: string[];
+    }>;
+    recommendations: string[];
+};
 
 export default function SupplierEcosystemPage() {
-    const [ecosystem, setEcosystem] = useState<any>(null);
+    const [ecosystem, setEcosystem] = useState<EcosystemData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [activeView, setActiveView] = useState<'map' | 'risk' | 'clusters'>('map');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -42,7 +43,7 @@ export default function SupplierEcosystemPage() {
                 if (result.success) {
                     setEcosystem(result.data);
                 }
-            } catch (error) {
+            } catch (_error) {
                 toast.error("Failed to map ecosystem");
             } finally {
                 setLoading(false);
@@ -142,7 +143,7 @@ export default function SupplierEcosystemPage() {
                         <div className="w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] relative">
                             {/* Simulated Graph Nodes & Connections */}
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px]">
-                                {ecosystem?.nodes.slice(0, 15).map((node: any, i: number) => {
+                                {ecosystem?.nodes.slice(0, 15).map((node, i: number) => {
                                     const angle = (i / 15) * 2 * Math.PI;
                                     const r = 160;
                                     const x = Math.cos(angle) * r;
@@ -206,7 +207,7 @@ export default function SupplierEcosystemPage() {
                             <CardTitle className="text-xs font-black uppercase tracking-widest text-indigo-400">Risk Hotspot Feed</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-4">
-                            {ecosystem?.riskHotspots.slice(0, 3).map((hotspot: any, i: number) => (
+                            {ecosystem?.riskHotspots.slice(0, 3).map((hotspot, i: number) => (
                                 <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                                     <div className="flex items-center justify-between">
                                         <h4 className="text-sm font-black uppercase tracking-tighter text-indigo-300">{hotspot.sourceSupplier}</h4>
@@ -258,7 +259,7 @@ export default function SupplierEcosystemPage() {
                     </CardHeader>
                     <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={ecosystem?.clusters.map((c: any) => ({ name: c.name.split(' ')[0], count: c.supplierIds.length }))}>
+                            <BarChart data={ecosystem?.clusters.map((c) => ({ name: c.name.split(' ')[0], count: c.supplierIds.length }))}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
@@ -279,8 +280,8 @@ export default function SupplierEcosystemPage() {
                             <PieChart>
                                 <Pie
                                     data={[
-                                        { name: 'Critical Risk', value: ecosystem?.riskHotspots.filter((h: any) => h.impactSeverity === 'critical').length || 0 },
-                                        { name: 'High Risk', value: ecosystem?.riskHotspots.filter((h: any) => h.impactSeverity === 'high').length || 0 },
+                                        { name: 'Critical Risk', value: ecosystem?.riskHotspots.filter((h) => h.impactSeverity === 'critical').length || 0 },
+                                        { name: 'High Risk', value: ecosystem?.riskHotspots.filter((h) => h.impactSeverity === 'high').length || 0 },
                                         { name: 'Moderate', value: ecosystem?.nodes.length - ecosystem?.riskHotspots.length },
                                     ]}
                                     cx="50%"

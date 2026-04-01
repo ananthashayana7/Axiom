@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
     BookOpen,
@@ -14,12 +13,10 @@ import {
     MessageSquare,
     Sparkles,
     ShieldCheck,
-    Search,
-    Filter,
     ArrowRight,
+    Filter,
     ChevronRight,
     Share2,
-    CheckCircle2,
     Info,
     RefreshCcw,
     Scale,
@@ -30,9 +27,7 @@ import {
     History,
     Cloud,
     Terminal,
-    HardDrive,
-    Fingerprint,
-    Activity
+    HardDrive
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -429,6 +424,7 @@ export default function DocsPage() {
                     <AnimatePresence mode="wait">
                         {SECTIONS.filter(s => s.id === activeSection).map((section) => {
                             const Icon = section.icon;
+                            const sectionWithDiagram = section as { diagram?: { title: string; nodes: string[] } };
                             return (
                                 <motion.div
                                     key={section.id}
@@ -455,19 +451,19 @@ export default function DocsPage() {
                                     </div>
 
                                     {/* Workflow Diagram (visual) */}
-                                    {(section as any).diagram && (
+                                    {sectionWithDiagram.diagram && (
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground/60 border-b pb-4">
                                                 <Share2 size={16} />
-                                                {(section as any).diagram.title}
+                                                {sectionWithDiagram.diagram.title}
                                             </div>
                                             <div className="flex items-center justify-center gap-0 flex-wrap py-6 px-4 bg-gradient-to-r from-primary/5 via-background to-primary/5 rounded-2xl border overflow-x-auto">
-                                                {(section as any).diagram.nodes.map((node: string, i: number) => (
+                                                {sectionWithDiagram.diagram.nodes.map((node: string, i: number) => (
                                                     <div key={i} className="flex items-center shrink-0">
                                                         <div className="px-4 py-2.5 rounded-xl bg-background border-2 border-primary/20 shadow-sm text-xs font-bold text-foreground whitespace-nowrap hover:border-primary hover:shadow-md transition-all">
                                                             {node}
                                                         </div>
-                                                        {i < (section as any).diagram.nodes.length - 1 && (
+                                                        {i < sectionWithDiagram.diagram.nodes.length - 1 && (
                                                             <div className="flex items-center mx-1">
                                                                 <div className="w-6 h-0.5 bg-primary/40" />
                                                                 <ChevronRight className="h-4 w-4 text-primary/60 -ml-1" />

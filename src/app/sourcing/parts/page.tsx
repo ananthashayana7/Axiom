@@ -9,17 +9,17 @@ export const dynamic = 'force-dynamic';
 export default async function PartsPage() {
   const [parts, linkCounts] = await Promise.all([getParts(), getPartLinkedCounts()]);
 
-  const countsMap = new Map(linkCounts.map((row: any) => [row.partId, row]));
-  const partsWithLinks = parts.map((part: any) => {
+  const countsMap = new Map(linkCounts.map((row) => [row.partId, row]));
+  const partsWithLinks = parts.map((part) => {
     const counts = countsMap.get(part.id) || { orderCount: 0, invoiceCount: 0, rfqCount: 0 };
     return { ...part, ...counts };
   });
 
   // Basic stats calculation based on real data
   const totalParts = partsWithLinks.length;
-  const lowStock = partsWithLinks.filter((p: any) => p.stockLevel <= (p.reorderPoint || 50) && p.stockLevel > (p.minStockLevel || 20)).length;
-  const criticalStock = partsWithLinks.filter((p: any) => p.stockLevel <= (p.minStockLevel || 20)).length;
-  const categoriesCount = new Set(partsWithLinks.map((p: any) => p.category)).size;
+  const lowStock = partsWithLinks.filter((p) => p.stockLevel <= (p.reorderPoint || 50) && p.stockLevel > (p.minStockLevel || 20)).length;
+  const criticalStock = partsWithLinks.filter((p) => p.stockLevel <= (p.minStockLevel || 20)).length;
+  const categoriesCount = new Set(partsWithLinks.map((p) => p.category)).size;
   const totalOrderLinks = partsWithLinks.reduce((acc: number, p: any) => acc + (p.orderCount || 0), 0);
   const totalInvoiceLinks = partsWithLinks.reduce((acc: number, p: any) => acc + (p.invoiceCount || 0), 0);
 
@@ -114,9 +114,9 @@ export default async function PartsPage() {
           <div className="space-y-2 max-h-40 overflow-auto pr-1">
             {partsWithLinks
               .slice()
-              .sort((a: any, b: any) => (b.orderCount + b.invoiceCount) - (a.orderCount + a.invoiceCount))
+              .sort((a, b) => (b.orderCount + b.invoiceCount) - (a.orderCount + a.invoiceCount))
               .slice(0, 5)
-              .map((part: any) => (
+              .map((part) => (
                 <div key={part.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-semibold text-sm">{part.name}</p>

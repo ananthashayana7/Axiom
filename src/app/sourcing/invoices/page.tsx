@@ -79,7 +79,7 @@ export default function InvoicesPage() {
             inv.currency || 'INR', inv.country || inv.supplierCountry || 'N/A',
             inv.region || 'N/A', inv.continent || 'N/A', (inv.orderId || '').slice(0, 8),
         ]);
-        const csv = [headers, ...rows].map(row => row.map((v: any) => `"${v}"`).join(',')).join('\n');
+        const csv = [headers, ...rows].map(row => row.map((v) => `"${v}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -382,7 +382,7 @@ export default function InvoicesPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {invoicesList.map((invoice: any) => (
+                                        {invoicesList.map((invoice) => (
                                             <tr key={invoice.id} className="border-b transition-colors hover:bg-muted/50">
                                                 <td className="p-4 align-middle font-bold">
                                                     <div className="flex items-center gap-2">

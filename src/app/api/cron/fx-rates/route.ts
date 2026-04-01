@@ -3,6 +3,14 @@ import { db } from '@/db';
 import { platformSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
+function isCronAuthorized(req: Request) {
+    const secret = process.env.CRON_SECRET;
+    if (!secret) return false;
+    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const header = req.headers.get('x-cron-token');
+    return bearer === secret || header === secret;
+}
+
 const ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 
 interface FxRates {
@@ -31,8 +39,12 @@ function parseEcbXml(xml: string): FxRates {
     };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        if (!isCronAuthorized(req)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const response = await fetch(ECB_URL, {
             headers: { 'Accept': 'application/xml' },
             next: { revalidate: 0 },

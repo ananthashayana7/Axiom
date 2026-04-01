@@ -1,8 +1,9 @@
 'use server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { db } from "@/db";
 import { approvalPolicies, matchingTolerances, suppliers } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 
@@ -13,18 +14,20 @@ import { revalidatePath } from "next/cache";
 async function requireAdmin() {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
-    if ((session.user as any).role !== 'admin') throw new Error('Admin access required');
+    if (session.user.role !== 'admin') throw new Error('Admin access required');
     return session.user;
 }
 
 // ── Approval Policies ──
+
+type PolicyConditions = Record<string, string | number | boolean | string[]>;
 
 export async function createApprovalPolicy(data: {
     name: string;
     description?: string;
     entityType: string;
     policyType: 'amount' | 'category' | 'supplier_risk' | 'contract_coverage' | 'combined';
-    conditions: Record<string, any>;
+    conditions: PolicyConditions;
     approverIds?: string[];
     approverRole?: string;
     escalationTimeoutHours?: number;
@@ -51,7 +54,7 @@ export async function createApprovalPolicy(data: {
 export async function getApprovalPolicies(entityType?: string) {
     await requireAdmin();
 
-    const conditions: any[] = [eq(approvalPolicies.isActive, 'yes')];
+    const conditions: (typeof eq<any, any>)[] = [eq(approvalPolicies.isActive, 'yes')];
     if (entityType) conditions.push(eq(approvalPolicies.entityType, entityType));
 
     const policies = await db.select()
@@ -123,7 +126,7 @@ export async function evaluateApprovalPolicy(entityType: string, context: {
 export async function updateApprovalPolicy(policyId: string, data: Partial<{
     name: string;
     description: string;
-    conditions: Record<string, any>;
+    conditions: PolicyConditions;
     approverIds: string[];
     approverRole: string;
     escalationTimeoutHours: number;

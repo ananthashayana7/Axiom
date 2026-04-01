@@ -210,7 +210,7 @@ export default function FinancialMatchingPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {invoicesList.map((invoice: any) => (
+                                    {invoicesList.map((invoice) => (
                                         <tr key={invoice.id} className={cn("border-b transition-colors hover:bg-muted/30",
                                             invoice.status === 'disputed' && "bg-red-50/30",
                                             invoice.status === 'matched' && "bg-emerald-50/20",

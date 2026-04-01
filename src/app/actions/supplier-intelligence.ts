@@ -29,7 +29,7 @@ export async function createActionPlan(data: {
     steps?: Array<{ title: string; description: string; status: string; dueDate?: string }>;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [plan] = await db.insert(supplierActionPlans).values({
         supplierId: data.supplierId,
@@ -123,7 +123,7 @@ export async function createSupplierRequest(data: {
     linkedObligationId?: string;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin' && (user as any).role !== 'user') throw new Error('Access denied');
+    if (user.role !== 'admin' && user.role !== 'user') throw new Error('Access denied');
 
     const [request] = await db.insert(supplierRequests).values({
         supplierId: data.supplierId,
@@ -231,7 +231,7 @@ export async function respondToSupplierRequest(requestId: string, responseText: 
 
 export async function verifySupplierRequest(requestId: string, approved: boolean) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(supplierRequests)
         .set({
@@ -251,7 +251,7 @@ export async function verifySupplierRequest(requestId: string, approved: boolean
 
 export async function updateSupplierSegment(supplierId: string, segment: 'strategic' | 'bottleneck' | 'leverage' | 'routine' | 'high_risk') {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(suppliers)
         .set({ segment })
@@ -281,7 +281,7 @@ export async function getSupplierSegmentation() {
 
 export async function updateSupplierLifecycle(supplierId: string, lifecycleStatus: 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated') {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(suppliers)
         .set({ lifecycleStatus })

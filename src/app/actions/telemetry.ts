@@ -7,7 +7,7 @@ import { desc, eq, sql } from "drizzle-orm";
 
 export async function getSystemTelemetry() {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return [];
+    if (!session || session.user.role !== 'admin') return [];
 
     try {
         const logs = await db.select({
@@ -34,7 +34,7 @@ export async function getSystemTelemetry() {
 
 export async function getTelemetryStats() {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return null;
+    if (!session || session.user.role !== 'admin') return null;
 
     try {
         const [errorCount] = await db.select({ count: sql<number>`count(*)` })

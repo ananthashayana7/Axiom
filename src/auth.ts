@@ -96,6 +96,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             name: user.name,
                             email: user.email,
                             role: user.role,
+                            supplierId: user.supplierId,
                         }
                     } else {
                         console.warn(`[AUTH] LOGIN_FAILED_WRONG_PASSWORD | identifier: ${identifier}`);
@@ -105,7 +106,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                         });
                         return null;
                     }
-                } catch (error: any) {
+                } catch (error) {
                     if (error.message === 'require-2fa' || error.message === 'setup-2fa') {
                         throw error;
                     }
@@ -148,7 +149,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 // Map the Axiom user data onto the session
                 user.id = existingUser.id;
                 user.name = existingUser.name;
-                (user as any).role = existingUser.role;
+                user.role = existingUser.role;
+                user.supplierId = existingUser.supplierId;
             }
             return true;
         },

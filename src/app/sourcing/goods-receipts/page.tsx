@@ -27,10 +27,10 @@ export default async function GoodsReceiptsPage() {
     const receiptsList = await getGoodsReceipts();
     const orders = await getOrders();
 
-    const passedCount = receiptsList.filter((r: any) => r.inspectionStatus === 'passed').length;
-    const failedCount = receiptsList.filter((r: any) => r.inspectionStatus === 'failed').length;
-    const pendingCount = receiptsList.filter((r: any) => !r.inspectionStatus || r.inspectionStatus === 'pending').length;
-    const conditionalCount = receiptsList.filter((r: any) => r.inspectionStatus === 'conditional').length;
+    const passedCount = receiptsList.filter((r) => r.inspectionStatus === 'passed').length;
+    const failedCount = receiptsList.filter((r) => r.inspectionStatus === 'failed').length;
+    const pendingCount = receiptsList.filter((r) => !r.inspectionStatus || r.inspectionStatus === 'pending').length;
+    const conditionalCount = receiptsList.filter((r) => r.inspectionStatus === 'conditional').length;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
@@ -97,7 +97,7 @@ export default async function GoodsReceiptsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {receiptsList.map((receipt: any) => (
+                                    {receiptsList.map((receipt) => (
                                         <tr key={receipt.id} className={cn("border-b transition-colors hover:bg-muted/20",
                                             receipt.inspectionStatus === 'failed' && "bg-red-50/30",
                                             receipt.inspectionStatus === 'passed' && "bg-emerald-50/10",

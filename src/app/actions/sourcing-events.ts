@@ -25,7 +25,7 @@ export async function createSourcingEvent(data: {
     noBidHandling?: string;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin' && (user as any).role !== 'user') throw new Error('Access denied');
+    if (user.role !== 'admin' && user.role !== 'user') throw new Error('Access denied');
 
     const [event] = await db.insert(sourcingEvents).values({
         rfqId: data.rfqId,
@@ -151,7 +151,7 @@ export async function getSourcingEvent(rfqId: string) {
 
 export async function awardSourcingEvent(eventId: string, supplierId: string, justification: string, awardMemo?: string) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(sourcingEvents)
         .set({

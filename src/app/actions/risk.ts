@@ -58,7 +58,7 @@ export type MitigationPlanType = 'secondary_source' | 'audit_request' | 'stockpi
 
 export async function mitigateRisk(supplierId: string, plan: MitigationPlanType, reason: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         // In a real app, this might trigger a workflow or emails

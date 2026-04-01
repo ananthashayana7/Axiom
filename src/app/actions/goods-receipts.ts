@@ -63,7 +63,7 @@ export async function createGoodsReceipt(data: { orderId: string, notes?: string
 }
 export async function deleteGoodsReceipt(id: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         await db.delete(goodsReceipts).where(eq(goodsReceipts.id, id));

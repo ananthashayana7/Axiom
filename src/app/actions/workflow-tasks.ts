@@ -2,9 +2,13 @@
 
 import { db } from "@/db";
 import { workflowTasks, users, notifications } from "@/db/schema";
-import { eq, and, desc, asc, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, lte, sql, inArray, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+
+type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled' | 'escalated';
+type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+type TaskEntityType = 'requisition' | 'rfq' | 'order' | 'invoice' | 'contract' | 'supplier' | 'compliance_obligation' | 'agent_recommendation';
 
 // ============================================================================
 // WORKFLOW TASK ENGINE - First-class tasks across procurement objects
@@ -63,16 +67,20 @@ export async function getInboxTasks(filters?: {
     entityType?: string;
 }) {
     const user = await requireAuth();
-    const conditions = [eq(workflowTasks.assigneeId, user.id as string)];
+    const conditions: SQL[] = [eq(workflowTasks.assigneeId, user.id as string)];
 
-    if (filters?.status) {
-        conditions.push(eq(workflowTasks.status, filters.status as any));
+    const statusValues: TaskStatus[] = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'escalated'];
+    const priorityValues: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+    const entityValues: TaskEntityType[] = ['requisition', 'rfq', 'order', 'invoice', 'contract', 'supplier', 'compliance_obligation', 'agent_recommendation'];
+
+    if (filters?.status && statusValues.includes(filters.status as TaskStatus)) {
+        conditions.push(eq(workflowTasks.status, filters.status as TaskStatus));
     }
-    if (filters?.priority) {
-        conditions.push(eq(workflowTasks.priority, filters.priority as any));
+    if (filters?.priority && priorityValues.includes(filters.priority as TaskPriority)) {
+        conditions.push(eq(workflowTasks.priority, filters.priority as TaskPriority));
     }
-    if (filters?.entityType) {
-        conditions.push(eq(workflowTasks.entityType, filters.entityType as any));
+    if (filters?.entityType && entityValues.includes(filters.entityType as TaskEntityType)) {
+        conditions.push(eq(workflowTasks.entityType, filters.entityType as TaskEntityType));
     }
 
     const tasks = await db.select({
@@ -106,13 +114,17 @@ export async function getAllTasks(filters?: {
     assigneeId?: string;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
 
-    if (filters?.status) conditions.push(eq(workflowTasks.status, filters.status as any));
-    if (filters?.priority) conditions.push(eq(workflowTasks.priority, filters.priority as any));
-    if (filters?.entityType) conditions.push(eq(workflowTasks.entityType, filters.entityType as any));
+    const statusValues: TaskStatus[] = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'escalated'];
+    const priorityValues: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+    const entityValues: TaskEntityType[] = ['requisition', 'rfq', 'order', 'invoice', 'contract', 'supplier', 'compliance_obligation', 'agent_recommendation'];
+
+    if (filters?.status && statusValues.includes(filters.status as TaskStatus)) conditions.push(eq(workflowTasks.status, filters.status as TaskStatus));
+    if (filters?.priority && priorityValues.includes(filters.priority as TaskPriority)) conditions.push(eq(workflowTasks.priority, filters.priority as TaskPriority));
+    if (filters?.entityType && entityValues.includes(filters.entityType as TaskEntityType)) conditions.push(eq(workflowTasks.entityType, filters.entityType as TaskEntityType));
     if (filters?.assigneeId) conditions.push(eq(workflowTasks.assigneeId, filters.assigneeId));
 
     const tasks = await db.select({
@@ -142,9 +154,9 @@ export async function getAllTasks(filters?: {
 }
 
 export async function updateTaskStatus(taskId: string, status: 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled' | 'escalated', evidence?: string) {
-    const user = await requireAuth();
+    await requireAuth();
 
-    const updateData: any = { status, updatedAt: new Date() };
+    const updateData: { status: TaskStatus; updatedAt: Date; completedAt?: Date; completionEvidence?: string } = { status, updatedAt: new Date() };
     if (status === 'completed') {
         updateData.completedAt = new Date();
         if (evidence) updateData.completionEvidence = evidence;
@@ -182,7 +194,7 @@ export async function assignTask(taskId: string, assigneeId: string) {
 }
 
 export async function escalateTask(taskId: string, escalateToId: string, reason: string) {
-    const user = await requireAuth();
+    await requireAuth();
 
     const [updated] = await db.update(workflowTasks)
         .set({
@@ -209,7 +221,7 @@ export async function escalateTask(taskId: string, escalateToId: string, reason:
 
 export async function getOverdueTasks() {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const now = new Date();
     const tasks = await db.select({
@@ -235,6 +247,9 @@ export async function getOverdueTasks() {
 }
 
 export async function getTasksByEntity(entityType: string, entityId: string) {
+    const entityValues: TaskEntityType[] = ['requisition', 'rfq', 'order', 'invoice', 'contract', 'supplier', 'compliance_obligation', 'agent_recommendation'];
+    if (!entityValues.includes(entityType as TaskEntityType)) return [];
+
     const tasks = await db.select({
         id: workflowTasks.id,
         title: workflowTasks.title,
@@ -249,7 +264,7 @@ export async function getTasksByEntity(entityType: string, entityId: string) {
     }).from(workflowTasks)
       .leftJoin(users, eq(workflowTasks.assigneeId, users.id))
       .where(and(
-          eq(workflowTasks.entityType, entityType as any),
+          eq(workflowTasks.entityType, entityType as TaskEntityType),
           eq(workflowTasks.entityId, entityId)
       ))
       .orderBy(desc(workflowTasks.createdAt));

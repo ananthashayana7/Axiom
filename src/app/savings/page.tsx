@@ -1,12 +1,12 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area
+    PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { TrendingDown, DollarSign, Target, Award, Download, PiggyBank, ArrowDownRight } from "lucide-react";
 import { getSavingsData } from "@/app/actions/savings";
@@ -34,7 +34,7 @@ export default function SavingsPage() {
             ['Savings Rate (%)', data.savingsRate],
             ['Orders with Savings', data.ordersWithSavings],
         ];
-        const csv = rows.map(r => r.map((v: any) => `"${v}"`).join(',')).join('\n');
+        const csv = rows.map(r => r.map((v) => `"${v}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

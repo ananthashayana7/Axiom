@@ -12,7 +12,7 @@ import { logActivity } from "./activity";
 export async function getUsers() {
     try {
         const session = await auth();
-        if ((session?.user as any)?.role !== 'admin') {
+        if (session?.user?.role !== 'admin') {
             return [];
         }
 
@@ -52,7 +52,7 @@ export async function getDepartmentLeads() {
 
 export async function createUser(formData: FormData) {
     const session = await auth();
-    if ((session?.user as any)?.role !== 'admin') {
+    if (session?.user?.role !== 'admin') {
         return { success: false, error: "Unauthorized" };
     }
 
@@ -99,7 +99,7 @@ export async function createUser(formData: FormData) {
 
 export async function updateUser(id: string, formData: FormData) {
     const session = await auth();
-    const currentUser = session?.user as any;
+    const currentUser = session?.user;
 
     // Only admin can update others; users can update themselves
     if (currentUser?.role !== 'admin' && currentUser?.id !== id) {
@@ -115,7 +115,8 @@ export async function updateUser(id: string, formData: FormData) {
         const password = formData.get("password") as string;
         const role = formData.get("role") as 'admin' | 'user';
 
-        const updateData: any = { name, email, employeeId, department };
+        type UpdateUserData = { name?: string; email?: string; employeeId?: string | null; department?: string; password?: string; role?: 'admin' | 'user' };
+        const updateData: UpdateUserData = { name, email, employeeId, department };
 
         // Only admins can change roles
         if (currentUser?.role === 'admin' && role) {
@@ -142,7 +143,7 @@ export async function updateUser(id: string, formData: FormData) {
 
 export async function deleteUser(id: string) {
     const session = await auth();
-    const currentUser = session?.user as any;
+    const currentUser = session?.user;
 
     if (currentUser?.role !== 'admin') {
         return { success: false, error: "Unauthorized" };

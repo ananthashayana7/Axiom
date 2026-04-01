@@ -64,7 +64,7 @@ export default async function AuditDashboard() {
                     <CardHeader className="pb-2">
                         <CardDescription className="text-xs font-bold uppercase tracking-wider">Active Auditors</CardDescription>
                         <CardTitle className="text-2xl">
-                            {new Set(logs.map((l: any) => l.userName)).size}
+                            {new Set(logs.map((l) => l.userName)).size}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -77,7 +77,7 @@ export default async function AuditDashboard() {
                     <CardHeader className="pb-2">
                         <CardDescription className="text-xs font-bold uppercase tracking-wider">Entity Coverage</CardDescription>
                         <CardTitle className="text-2xl">
-                            {new Set(logs.map((l: any) => l.entityType)).size}
+                            {new Set(logs.map((l) => l.entityType)).size}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>

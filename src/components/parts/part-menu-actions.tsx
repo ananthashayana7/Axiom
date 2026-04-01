@@ -1,14 +1,8 @@
 'use client';
 
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
     Dialog,
     DialogContent,
@@ -16,7 +10,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import {
     AlertDialog,
@@ -54,7 +47,6 @@ interface Part {
 }
 
 export function PartMenuActions({ part }: { part: Part }) {
-    const [open, setOpen] = useState(false);
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -74,7 +66,7 @@ export function PartMenuActions({ part }: { part: Part }) {
             } else {
                 toast.error(result.error || "Failed to delete part");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred");
         } finally {
             setIsDeleting(false);
@@ -91,7 +83,7 @@ export function PartMenuActions({ part }: { part: Part }) {
             } else {
                 toast.error("Failed to update part");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred");
         } finally {
             setIsUpdating(false);
@@ -255,7 +247,7 @@ export function PartMenuActions({ part }: { part: Part }) {
                                                 setTrendReason(intelligence.reason);
                                                 setTrendSource(intelligence.source);
                                                 toast.success(`Intelligence fetched from ${intelligence.source}`);
-                                            } catch (error) {
+                                            } catch {
                                                 toast.error("Failed to fetch market intelligence");
                                             } finally {
                                                 setIsFetchingTrend(false);

@@ -202,7 +202,7 @@ export function getUserCountryCode(): string {
     return detectUserCountry();
 }
 
-/** Get the ISO 3166-1 alpha-3 code (needed for react-simple-maps) */
+/** Get the ISO 3166-1 alpha-3 country code for geo visualizations */
 const ALPHA2_TO_ALPHA3: Record<string, string> = {
     IN: 'IND', DE: 'DEU', FR: 'FRA', IT: 'ITA', ES: 'ESP',
     NL: 'NLD', BE: 'BEL', AT: 'AUT', PT: 'PRT', IE: 'IRL',

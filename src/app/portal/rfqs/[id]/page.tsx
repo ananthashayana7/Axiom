@@ -87,7 +87,7 @@ export default function SupplierRFQDetail() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {rfq.items.map((item: any) => (
+                                        {rfq.items.map((item) => (
                                             <tr key={item.id}>
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold">{item.part.name}</div>

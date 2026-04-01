@@ -23,7 +23,7 @@ export const authConfig = {
 
             if (isOnLoginPage) {
                 if (isLoggedIn) {
-                    const role = (auth?.user as any)?.role;
+                    const role = auth?.user?.role;
                     if (role === 'admin') return Response.redirect(new URL('/admin', nextUrl));
                     if (role === 'supplier') return Response.redirect(new URL('/portal', nextUrl));
                     return Response.redirect(new URL('/', nextUrl));
@@ -35,7 +35,7 @@ export const authConfig = {
                 return Response.redirect(new URL('/login', nextUrl))
             };
 
-            const userRole = (auth.user as any)?.role;
+            const userRole = auth.user?.role;
 
             // Redirect suppliers to portal if they land on admin or procurement pages
             if (userRole === 'supplier') {
@@ -70,7 +70,8 @@ export const authConfig = {
         async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
-                token.role = (user as any).role;
+                token.role = user.role;
+                token.supplierId = user.supplierId;
             }
 
             if (trigger === "update" && session) {
@@ -81,7 +82,8 @@ export const authConfig = {
         async session({ session, token }) {
             if (session.user) {
                 session.user.id = token.id as string;
-                (session.user as any).role = token.role as string;
+                session.user.role = token.role as string;
+                session.user.supplierId = token.supplierId as string | undefined;
             }
             return session;
         },

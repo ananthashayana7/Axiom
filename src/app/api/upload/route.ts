@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 const ALLOWED_MIME_TYPES = new Set([
     'application/pdf',
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const limited = enforceRateLimit(req, 'write', (session.user as any).id);
+        if (limited) return limited;
+
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
 
@@ -68,10 +72,39 @@ export async function POST(req: NextRequest) {
         await mkdir(uploadDir, { recursive: true });
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const filePath = path.join(uploadDir, filename);
-        await writeFile(filePath, buffer);
 
-        const url = `/uploads/${year}/${month}/${filename}`;
+        let url = `/uploads/${year}/${month}/${filename}`;
+
+        const azureConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+        const azureContainer = process.env.AZURE_STORAGE_CONTAINER || 'axiom-docs';
+        const shouldUseAzure = process.env.NODE_ENV === 'production' || !!azureConnectionString;
+
+        if (shouldUseAzure) {
+            if (!azureConnectionString) {
+                return NextResponse.json(
+                    { error: 'File storage is not configured. Missing AZURE_STORAGE_CONNECTION_STRING.' },
+                    { status: 503 }
+                );
+            }
+
+            const { BlobServiceClient } = await import('@azure/storage-blob');
+            const blobServiceClient = BlobServiceClient.fromConnectionString(azureConnectionString);
+            const containerClient = blobServiceClient.getContainerClient(azureContainer);
+            await containerClient.createIfNotExists();
+
+            const blobPath = `${year}/${month}/${filename}`;
+            const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+            await blockBlobClient.uploadData(buffer, {
+                blobHTTPHeaders: {
+                    blobContentType: file.type || 'application/octet-stream',
+                },
+            });
+
+            url = blockBlobClient.url;
+        } else {
+            const filePath = path.join(uploadDir, filename);
+            await writeFile(filePath, buffer);
+        }
 
         return NextResponse.json({
             success: true,

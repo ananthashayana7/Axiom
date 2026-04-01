@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections } from "@/db/schema";
-import { eq, and, sql, lte, gte, inArray } from "drizzle-orm";
+import { eq, and, lte, gte, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -13,8 +13,8 @@ export async function getOrders() {
     const session = await auth();
     if (!session) return [];
 
-    const role = (session.user as any).role;
-    const supplierId = (session.user as any).supplierId;
+    const role = session.user.role;
+    const supplierId = session.user.supplierId;
 
     try {
         const allOrdersRaw = await db
@@ -54,7 +54,7 @@ interface CreateOrderInput {
 
 export async function createOrder(data: CreateOrderInput) { // Use simpler type for direct call
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const { supplierId, totalAmount, items } = data;
@@ -91,7 +91,7 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
 
             if (contractId) {
                 await tx.insert(auditLogs).values({
-                    userId: (session.user as any).id,
+                    userId: session.user.id,
                     action: 'LINK',
                     entityType: 'order',
                     entityId: orderId,
@@ -125,9 +125,8 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
-    const user = session.user as any;
-    const role = user.role;
-    const userSupplierId = user.supplierId;
+    const role = session.user.role;
+    const userSupplierId = session.user.supplierId;
 
     try {
         // Fetch current order to validate transition
@@ -171,7 +170,7 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
 
 export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -201,11 +200,11 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                 const orderId = newOrder.insertedId;
 
                 // 3. Create items with estimated unit price
-                const totalQuantity = items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+                const totalQuantity = items.reduce((acc: number, curr) => acc + curr.quantity, 0);
                 const estimatedAvgPrice = totalQuantity > 0 ? totalAmount / totalQuantity : 0;
 
                 await tx.insert(orderItems).values(
-                    items.map((item: any) => ({
+                    items.map((item) => ({
                         orderId,
                         partId: item.partId,
                         quantity: item.quantity,
@@ -229,7 +228,7 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                 return { success: true, orderId };
             });
         });
-    } catch (error: any) {
+    } catch (error) {
         await TelemetryService.trackError("OrderManagement", "rfq_conversion_failed", error, { rfqId, supplierId });
         console.error("Conversion error:", error);
         return { success: false, error: error.message || "Failed to convert RFQ to Order." };
@@ -249,14 +248,14 @@ export async function recordGoodsReceipt(orderId: string, data: {
         return await db.transaction(async (tx) => {
             const [receipt] = await tx.insert(goodsReceipts).values({
                 orderId,
-                receivedById: (session.user as any).id,
+                receivedById: session.user.id,
                 notes: data.notes
             }).returning();
 
             // 2. Create QC Inspection Record
             await tx.insert(qcInspections).values({
                 receiptId: receipt.id,
-                inspectorId: (session.user as any).id,
+                inspectorId: session.user.id,
                 status: (data.visualInspectionPassed && data.quantityVerified && data.documentMatch) ? 'passed' : 'failed',
                 visualInspectionPassed: data.visualInspectionPassed ? 'yes' : 'no',
                 quantityVerified: data.quantityVerified ? 'yes' : 'no',
@@ -289,7 +288,7 @@ export async function updateOrderLogistics(orderId: string, data: {
     estimatedArrival: string
 }) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         await db.update(procurementOrders)
@@ -448,7 +447,7 @@ export async function getOrderFinanceDetails(orderId: string) {
 
 export async function deleteOrder(id: string) {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         await db.delete(procurementOrders).where(eq(procurementOrders.id, id));

@@ -1,13 +1,11 @@
-import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getSupplierById, getSupplierOrders, updateSupplier, getSupplierPerformanceMetrics } from "@/app/actions/suppliers";
+import { getSupplierById, getSupplierOrders, getSupplierPerformanceMetrics } from "@/app/actions/suppliers";
 import { getAuditLogs, getComments } from "@/app/actions/activity";
 import { CommentsSection } from "@/components/shared/comments";
 import { AuditLogList } from "@/components/shared/audit-log";
 import { auth } from "@/auth";
-import { ArrowLeft, Building2, Mail, AlertTriangle, Calendar, Star, Trophy, Target, Activity } from "lucide-react";
+import { ArrowLeft, Building2, Mail, AlertTriangle, Target, Activity } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { formatPmaId } from "@/lib/utils/format-id";
@@ -20,10 +18,32 @@ import { RecordPerformanceModal } from "@/components/suppliers/record-performanc
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
 
+type LifecycleStatus = 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated';
+type SupplierMetrics = {
+    performanceScore: number;
+    onTimeDeliveryRate: string;
+    defectRate: string;
+    collaborationScore: number;
+    responsivenessScore: number;
+    performanceLogs: Array<{
+        recordedAt: string | Date;
+        deliveryRate: string;
+        qualityScore: string;
+        collaborationScore: number;
+    }>;
+};
+type SupplierDocument = {
+    id: string;
+    name: string;
+    type: 'contract' | 'invoice' | 'quote' | 'license' | 'other';
+    url: string | null;
+    createdAt: Date | null;
+};
+
 export default async function SupplierPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
-    const isAdmin = (session?.user as any)?.role === 'admin';
+    const isAdmin = session?.user?.role === 'admin';
 
     const supplier = await getSupplierById(id);
     const orders = await getSupplierOrders(id);
@@ -81,7 +101,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 <Card className="w-full lg:w-[450px] p-6 bg-background shadow-sm border-accent/50">
                     <SupplierLifecycleStepper
                         supplierId={id}
-                        currentStatus={supplier.lifecycleStatus as any}
+                        currentStatus={supplier.lifecycleStatus as LifecycleStatus}
                         isAdmin={isAdmin}
                     />
                 </Card>
@@ -89,7 +109,14 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
             <div className="grid gap-8 grid-cols-1 lg:grid-cols-3 mb-10">
                 <div className="lg:col-span-2">
-                    <SupplierScorecard metrics={performanceData as any} />
+                    <SupplierScorecard metrics={(performanceData as SupplierMetrics) || {
+                        performanceScore: supplier.performanceScore || 0,
+                        onTimeDeliveryRate: supplier.onTimeDeliveryRate || '0',
+                        defectRate: supplier.defectRate || '0',
+                        collaborationScore: supplier.collaborationScore || 0,
+                        responsivenessScore: supplier.responsivenessScore || 0,
+                        performanceLogs: [],
+                    }} />
                 </div>
 
                 <div className="space-y-6">
@@ -100,7 +127,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-bold">
-                                ₹{orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                ₹{orders.reduce((sum: number, o) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
                             <p className="text-[10px] text-muted-foreground mt-2 italic">Across {orders.length} orders</p>
                         </CardContent>
@@ -146,7 +173,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                 <div className="flex justify-between text-xs">
                                     <span className="text-muted-foreground">Conflict Minerals</span>
                                     <Badge variant="outline" className="text-[10px] py-0 h-4 uppercase">
-                                        {(supplier as any).conflictMineralsStatus || 'Unknown'}
+                                            {supplier.conflictMineralsStatus || 'Unknown'}
                                     </Badge>
                                 </div>
                                 <div className="space-y-1.5 pt-1">
@@ -212,14 +239,14 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     <CardContent className="pt-4 pb-3">
                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Total Orders</p>
                         <p className="text-2xl font-black text-cyan-600">{orders.length}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">{orders.filter((o: any) => o.status === 'fulfilled').length} fulfilled</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{orders.filter((o) => o.status === 'fulfilled').length} fulfilled</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-amber-500">
                     <CardContent className="pt-4 pb-3">
                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Avg Order Value</p>
                         <p className="text-2xl font-black text-amber-600">
-                            ₹{orders.length > 0 ? (orders.reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || '0'), 0) / orders.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'}
+                            ₹{orders.length > 0 ? (orders.reduce((sum: number, o) => sum + parseFloat(o.totalAmount || '0'), 0) / orders.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'}
                         </p>
                     </CardContent>
                 </Card>
@@ -244,7 +271,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {orders.map((order: any) => (
+                                    {orders.map((order) => (
                                         <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle font-mono text-xs">
                                                 <Link href={`/sourcing/orders/${order.id}`} className="text-primary hover:underline">
@@ -287,7 +314,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
                 <DocumentList
                     supplierId={id}
-                    documents={docs as any}
+                    documents={docs as SupplierDocument[]}
                     isAdmin={isAdmin}
                 />
                 <CommentsSection

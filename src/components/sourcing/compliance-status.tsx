@@ -1,10 +1,9 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Sparkles, Loader2 } from "lucide-react";
+import { ShieldCheck, AlertTriangle, XCircle, Sparkles, Loader2 } from "lucide-react";
 import { analyzeCompliance } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
 
@@ -14,7 +13,7 @@ interface ComplianceResult {
     recommendation: string;
 }
 
-export function ComplianceStatus({ rfqId, rfqRequirements, initialDocuments }: { rfqId: string, rfqRequirements: string, initialDocuments: any[] }) {
+export function ComplianceStatus({ rfqRequirements, initialDocuments }: { rfqId: string, rfqRequirements: string, initialDocuments: any[] }) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<ComplianceResult | null>(null);
 
@@ -36,7 +35,7 @@ export function ComplianceStatus({ rfqId, rfqRequirements, initialDocuments }: {
             } else {
                 toast.error("Failed to analyze compliance");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred during compliance analysis");
         } finally {
             setIsAnalyzing(false);

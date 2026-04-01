@@ -55,6 +55,23 @@ services:
       redis:
         condition: service_started
 
+  worker_supplier_score:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: axiom_worker_supplier_score_prod
+    restart: always
+    command: ["npm", "run", "worker:supplier-score"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
 volumes:
   axiom_db_data:
   axiom_redis_data:

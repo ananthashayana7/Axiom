@@ -9,25 +9,19 @@ import {
     Sparkles,
     CheckCircle2,
     AlertTriangle,
-    Users,
     FileText,
     TrendingUp,
     ShieldCheck,
-    Truck,
     Clock,
-    Wallet,
-    Info
+    Wallet
 } from "lucide-react";
 import { AnalyzeQuoteButton } from "@/components/sourcing/analyze-quote-button";
 import { ApproveOrderButton } from "@/components/sourcing/approve-order-button";
-import { getAuditLogs, getComments } from "@/app/actions/activity";
 import { ComplianceStatus } from "@/components/sourcing/compliance-status";
 import { CostIntelligence } from "@/components/sourcing/cost-intelligence";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { ManualInviteDialog } from "@/components/sourcing/manual-invite-dialog";
-import { getParts } from "@/app/actions/parts";
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
 import type { Supplier, Part } from "@/db/schema";
 import { LaunchSourcingButton, ComparePricesButton } from "@/components/sourcing/rfq-action-buttons";
 
@@ -61,12 +55,13 @@ type RFQWithRelations = {
     createdAt: Date | null;
     items: RFQItem[];
     suppliers: RFQSupplier[];
+    documents?: unknown[];
 };
 
 export default async function RFQDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
-    const isAdmin = (session?.user as any)?.role === 'admin';
+    const isAdmin = session?.user?.role === 'admin';
 
     const rfq = await getRFQById(id) as RFQWithRelations | null;
 
@@ -82,14 +77,11 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
     const topSupplierId = sortedSuppliers[0]?.id;
     const quotedSuppliers = sortedSuppliers.filter((s) => s.aiAnalysis);
 
-    const initialComments = await getComments('rfq' as any, id);
-    const auditLogs = isAdmin ? await getAuditLogs('rfq' as any, id) : [];
     const allSuppliersMaster = await getSuppliers();
-    const allParts = await getParts();
 
     const handleStatusChange = async (formData: FormData) => {
         'use server';
-        const newStatus = formData.get('status') as any;
+        const newStatus = formData.get('status') as 'draft' | 'open' | 'closed' | 'cancelled';
         await updateRFQStatus(id, newStatus);
     };
 
@@ -353,7 +345,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             <ComplianceStatus
                                 rfqId={rfq.id}
                                 rfqRequirements={rfq.description || ""}
-                                initialDocuments={(rfq as any).documents || []}
+                                initialDocuments={rfq.documents || []}
                             />
                         </CardContent>
                     </Card>

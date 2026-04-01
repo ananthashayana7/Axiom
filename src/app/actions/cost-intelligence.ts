@@ -90,7 +90,7 @@ export async function getSavingsOverview() {
 
 export async function validateSavings(recordId: string) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [updated] = await db.update(savingsRecords)
         .set({
@@ -116,7 +116,7 @@ export async function upsertBenchmark(data: {
     validTo?: Date;
 }) {
     const user = await requireAuth();
-    if ((user as any).role !== 'admin') throw new Error('Admin access required');
+    if (user.role !== 'admin') throw new Error('Admin access required');
 
     const [record] = await db.insert(marketPriceIndex).values({
         partCategory: data.partCategory,

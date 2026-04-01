@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
@@ -37,8 +38,8 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
     const [aiData, setAiData] = useState<any>(null)
     const router = useRouter()
 
-    const handleDataExtracted = (data: any) => {
-        setAiData(JSON.stringify(data));
+    const handleDataExtracted = (_data: any) => {
+        setAiData(JSON.stringify(_data));
         // Auto-fill logic would ideally utilize form refs or react-hook-form, 
         // but for native forms, we can rely on defaultValue mapping if we re-render or just let user manually check.
         // For better UX with native forms, we can set key prop to force re-render with new defaults
@@ -75,8 +76,7 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
             } else {
                 toast.error(result.error || 'Failed to create contract')
             }
-        } catch (error) {
-            toast.error('An error occurred. Please try again.')
+        } catch {            toast.error('An error occurred. Please try again.')
         } finally {
             setLoading(false)
         }

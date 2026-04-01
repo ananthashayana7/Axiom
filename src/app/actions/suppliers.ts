@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, procurementOrders, supplierPerformanceLogs, documents, rfqSuppliers, type Supplier } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -10,7 +10,7 @@ import { TelemetryService } from "@/lib/telemetry";
 
 export async function calculateABCAnalysis() {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         return await TelemetryService.time("SupplierManagement", "ABCAnalysis", async () => {
@@ -77,8 +77,8 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
     if (!session) return null;
 
     // Supplier users can only view themselves
-    const userRole = (session.user as any).role;
-    const userSupplierId = (session.user as any).supplierId;
+    const userRole = session.user.role;
+    const userSupplierId = session.user.supplierId;
     if (userRole === 'supplier' && userSupplierId !== id) return null;
 
     try {
@@ -129,7 +129,7 @@ interface UpdateSupplierData {
 
 export async function updateSupplier(id: string, data: Partial<UpdateSupplierData>) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const normalizedCountryCode = data.countryCode?.toUpperCase().trim();
@@ -161,7 +161,7 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
                 carbonFootprintScope3: data.carbonFootprintScope3?.toString(),
                 latitude,
                 longitude,
-                lastAuditDate: data.performanceScore !== undefined ? new Date() : (data as any).lastAuditDate
+                ...(data.performanceScore !== undefined ? { lastAuditDate: new Date() } : {})
             })
             .where(eq(suppliers.id, id));
 
@@ -185,7 +185,7 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
 
 export async function addSupplier(formData: FormData) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const name = formData.get("name") as string;
@@ -224,7 +224,7 @@ export async function addSupplier(formData: FormData) {
             lifecycleStatus: "prospect",
             abcClassification: "None",
             conflictMineralsStatus: "unknown",
-            tierLevel: (formData.get("tier") as any) || "tier_3",
+            tierLevel: ((formData.get("tier") as 'tier_1' | 'tier_2' | 'tier_3' | 'critical' | null) || "tier_3"),
             isoCertifications: formData.getAll("iso") as string[],
             esgEnvironmentScore: parseInt(formData.get("esg_env") as string) || 0,
             esgSocialScore: parseInt(formData.get("esg_soc") as string) || 0,
@@ -314,7 +314,7 @@ export async function recordPerformanceLog(data: {
     notes?: string;
 }) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -349,7 +349,7 @@ export async function recordPerformanceLog(data: {
 
 export async function deleteSupplier(id: string) {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         // 1. Check for blocking dependencies

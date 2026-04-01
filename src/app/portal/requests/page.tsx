@@ -18,7 +18,7 @@ const statusColors: Record<string, string> = {
 
 export default async function PortalRequestsPage() {
     const session = await auth();
-    if (!session?.user || (session.user as any).role !== 'supplier') {
+    if (!session?.user || session.user.role !== 'supplier') {
         redirect('/');
     }
 
@@ -53,7 +53,7 @@ export default async function PortalRequestsPage() {
                         </div>
                     ) : (
                         <div className="divide-y">
-                            {requests.map((req: any) => {
+                            {requests.map((req) => {
                                 const isOverdue = req.dueDate && new Date(req.dueDate) < new Date() && !['submitted', 'verified'].includes(req.status);
                                 return (
                                     <div key={req.id} className={`py-3 ${isOverdue ? 'bg-red-50/50 dark:bg-red-950/10 -mx-4 px-4 rounded' : ''}`}>

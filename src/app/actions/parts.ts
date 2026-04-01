@@ -206,7 +206,7 @@ export async function deleteAllParts() {
 
 export async function processLowStockAlerts() {
     const session = await auth();
-    if (!session || (session.user as any).role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const lowStockParts = await db.select()

@@ -1,10 +1,9 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Minus, Sparkles, Loader2, Wallet, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, Minus, Sparkles, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { analyzeCosts } from "@/app/actions/ai-agents";
 import { toast } from "sonner";
 import { useCurrency } from '@/components/currency-provider';
@@ -42,7 +41,7 @@ export function CostIntelligence({ quoteItems, historicalParts }: { quoteItems: 
             } else {
                 toast.error("Failed to analyze costs");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred during cost analysis");
         } finally {
             setIsAnalyzing(false);

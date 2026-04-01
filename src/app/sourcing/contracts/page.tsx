@@ -23,12 +23,12 @@ export default async function ContractsPage() {
     const contracts = await getContracts();
     const suppliers = await getSuppliers();
 
-    const activeCount = contracts.filter((c: any) => c.status === 'active').length;
-    const expiringCount = contracts.filter((c: any) => {
+    const activeCount = contracts.filter((c) => c.status === 'active').length;
+    const expiringCount = contracts.filter((c) => {
         const days = getDaysUntilExpiry(c.validTo);
         return days !== null && days <= 60 && days > 0 && c.status === 'active';
     }).length;
-    const expiredCount = contracts.filter((c: any) => c.status === 'expired').length;
+    const expiredCount = contracts.filter((c) => c.status === 'expired').length;
     const totalValue = contracts.reduce((sum: number, c: any) => sum + (Number(c.value) || 0), 0);
 
     return (
@@ -77,7 +77,7 @@ export default async function ContractsPage() {
             <ContractCharts contracts={contracts} />
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {contracts.map((contract: any) => {
+                {contracts.map((contract) => {
                     const daysLeft = getDaysUntilExpiry(contract.validTo);
                     const isExpiringSoon = daysLeft !== null && daysLeft <= 60 && daysLeft > 0;
                     const isExpired = contract.status === 'expired' || (daysLeft !== null && daysLeft < 0);

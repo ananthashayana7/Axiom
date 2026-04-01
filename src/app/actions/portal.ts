@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqSuppliers, rfqs, procurementOrders, rfqItems, parts, documents, suppliers, orderItems } from "@/db/schema";
+import { rfqSuppliers, rfqs, procurementOrders, parts, documents, suppliers, orderItems } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
@@ -9,7 +9,7 @@ import { logActivity } from "./activity";
 
 export async function getSupplierStats() {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
 
     if (!supplierId) return null;
 
@@ -23,8 +23,8 @@ export async function getSupplierStats() {
             .where(and(eq(procurementOrders.supplierId, supplierId), eq(procurementOrders.status, 'sent')));
 
         return {
-            invitedRFQs: Number((invitedRFQsCount[0] as any)?.count || 0),
-            activeOrders: Number((activeOrdersCount[0] as any)?.count || 0),
+            invitedRFQs: Number(invitedRFQsCount[0]?.count || 0),
+            activeOrders: Number(activeOrdersCount[0]?.count || 0),
         };
     } catch (error) {
         console.error("Portal stats error:", error);
@@ -36,7 +36,7 @@ export async function getSupplierStats() {
 
 export async function getSupplierRFQs() {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
 
     if (!supplierId) return [];
 
@@ -62,7 +62,7 @@ export async function getSupplierRFQs() {
 
 export async function getSupplierOrders() {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
 
     if (!supplierId) return [];
 
@@ -110,7 +110,7 @@ export async function getSupplierOrders() {
 
 export async function getSupplierDocuments() {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
 
     if (!supplierId) return [];
 
@@ -129,12 +129,12 @@ export async function getSupplierDocuments() {
 
 export async function uploadSupplierDocument(formData: FormData) {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
 
     if (!supplierId) throw new Error("Unauthorized");
 
     const name = formData.get('name') as string;
-    const type = formData.get('type') as any;
+    const type = String(formData.get('type') || 'other');
 
     try {
         await db.insert(documents).values({
@@ -155,7 +155,7 @@ export async function uploadSupplierDocument(formData: FormData) {
 }
 export async function getSupplierProfile() {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
     if (!supplierId) return null;
 
     try {
@@ -169,7 +169,7 @@ export async function getSupplierProfile() {
 
 export async function updateSupplierProfile(formData: FormData) {
     const session = await auth();
-    const supplierId = (session?.user as any)?.supplierId;
+    const supplierId = session?.user?.supplierId;
     if (!supplierId) return { success: false, error: "Unauthorized" };
 
     const contactEmail = formData.get('contactEmail') as string;

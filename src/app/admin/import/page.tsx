@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,8 +44,7 @@ export default function AdminImportPage() {
             } else {
                 toast.error('Dry run failed');
             }
-        } catch (error) {
-            toast.error('Dry run failed');
+        } catch {            toast.error('Dry run failed');
         } finally {
             setIsDryRunning(false);
         }
@@ -68,8 +68,7 @@ export default function AdminImportPage() {
             } else {
                 toast.error(result.message || 'Import failed');
             }
-        } catch (error) {
-            toast.error('Import failed');
+        } catch {            toast.error('Import failed');
         } finally {
             setIsImporting(false);
         }

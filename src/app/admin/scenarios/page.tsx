@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import {
     BarChart3,
@@ -19,25 +18,49 @@ import {
     CheckCircle2,
     ArrowRight
 } from "lucide-react";
-import { runScenarioAnalysis, getScenarioTemplates } from "@/app/actions/agents/scenario-modeling";
+import { runScenarioAnalysis } from "@/app/actions/agents/scenario-modeling";
 import { toast } from "sonner";
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    Cell
-} from 'recharts';
+
+type ScenarioOutcome = {
+    metric: string;
+    currentValue: string;
+    projectedValue: string;
+    impact: 'positive' | 'negative' | string;
+    changePercent: number;
+};
+
+type ScenarioResult = {
+    scenarioId: string;
+    title: string;
+    description: string;
+    confidenceScore: number;
+    overallImpact: string;
+    outcomes: ScenarioOutcome[];
+    recommendations: string[];
+    riskFactors: string[];
+};
+
+type ScenarioInput = {
+    scenarioType: string;
+    title?: string;
+    description: string;
+    parameters: {
+        percentChange: number;
+        volumeShift?: number;
+    };
+};
 
 export default function ScenarioModelingPage() {
-    const [scenarios, setScenarios] = useState<any[]>([]);
-    const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+    const [scenarios, setScenarios] = useState<ScenarioResult[]>([]);
     const [isSimulating, setIsSimulating] = useState(false);
-    const [params, setParams] = useState<Record<string, any>>({
+    const [params, setParams] = useState<{ percentChange: number; volumeShift: number }>({
         percentChange: 10,
         volumeShift: 20
     });
 
-    const handleRunSimulation = async (template?: any) => {
+    const handleRunSimulation = async (template?: ScenarioInput) => {
         setIsSimulating(true);
-        const scenarioInput = template || {
+        const scenarioInput: ScenarioInput = template || {
             scenarioType: 'price_change',
             description: `Simulating a ${params.percentChange}% price fluctuation across key categories.`,
             parameters: params
@@ -51,7 +74,7 @@ export default function ScenarioModelingPage() {
                     description: `Scenario "${result.data.title}" has been modeled successfully.`
                 });
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error("Simulation Failed", {
                 description: "AI engine encountered an error during Monte Carlo simulation."
             });
@@ -202,7 +225,7 @@ export default function ScenarioModelingPage() {
                                         <div className="space-y-6">
                                             <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest">Projected Outcomes</h4>
                                             <div className="space-y-4">
-                                                {scenario.outcomes.map((outcome: any, i: number) => (
+                                                {scenario.outcomes.map((outcome, i: number) => (
                                                     <div key={i} className="flex items-center justify-between p-4 bg-stone-50 rounded-xl border">
                                                         <div>
                                                             <p className="text-[10px] font-black text-stone-400 uppercase mb-1">{outcome.metric}</p>
@@ -226,7 +249,7 @@ export default function ScenarioModelingPage() {
                                                 <Zap className="absolute -right-4 -bottom-4 h-24 w-24 text-white/5 rotate-12" />
                                                 <h4 className="text-xs font-black text-indigo-300 uppercase tracking-widest mb-4">AI Recommendations</h4>
                                                 <ul className="space-y-3">
-                                                    {scenario.recommendations.map((rec: string, i: number) => (
+                                                    {scenario.recommendations.map((rec, i: number) => (
                                                         <li key={i} className="flex items-start gap-3 text-sm font-medium">
                                                             <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                                                             {rec}

@@ -26,7 +26,7 @@ import { revalidatePath } from "next/cache";
 
 export async function resetDatabase() {
     const session = await auth();
-    if (!session || (session.user as any).role !== 'admin') {
+    if (!session || session.user.role !== 'admin') {
         return { success: false, error: "Unauthorized. Admin rights required." };
     }
 
