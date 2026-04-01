@@ -53,7 +53,7 @@ const supplierLinks = [
 ];
 
 /* ---- tiny helper for nav links ---- */
-const navCls = "flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-accent hover:text-accent-foreground transition-colors";
+const navCls = "flex items-center rounded-sm px-3 py-1 text-[13px] font-medium hover:bg-accent hover:text-accent-foreground transition-colors";
 
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
@@ -65,7 +65,7 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {/* ── Brand ── */}
                 <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-8 w-8 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10 shrink-0">
+                    <div className="h-8 w-8 bg-primary/10 rounded-sm flex items-center justify-center border border-primary/20 shrink-0">
                         <svg viewBox="0 0 24 24" className="w-5 h-5 text-primary" fill="currentColor">
                             <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
                             <path d="M12 11L8 18H16L12 11Z" />
@@ -73,7 +73,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
                         </svg>
                     </div>
-                    <h2 className="text-xl font-bold text-foreground font-display leading-none tracking-tight">
+                    <h2 className="text-xl font-bold text-foreground font-mono leading-none tracking-tight">
                         Axiom
                     </h2>
                 </div>
@@ -90,14 +90,14 @@ export async function Sidebar({ className }: { className?: string }) {
                             Suppliers
                         </NavLink>
                     )}
-                    <NavLink href="/copilot" className={cn(navCls, "text-primary dark:text-primary font-bold")}>
+                    <NavLink href="/copilot" className={cn(navCls, "font-bold")}>
                         <AxiomLogo className="mr-2 h-4 w-4" />
                         Axiom Copilot
                     </NavLink>
                     {role === 'admin' && (
                         <Link href="/admin/agents">
-                            <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
-                                <AxiomLogo className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="flex items-center rounded-sm px-3 py-1 text-[13px] font-medium hover:bg-accent hover:text-accent-foreground bg-muted text-foreground font-bold transition-all border border-border">
+                                <AxiomLogo className="mr-2 h-4 w-4" />
                                 AI Agents
                             </span>
                         </Link>
@@ -174,7 +174,7 @@ export async function Sidebar({ className }: { className?: string }) {
                                 .map((link) => {
                                     const Icon = link.icon;
                                     return (
-                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-sm px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
                                             <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
                                             {link.label}
                                         </NavLink>
