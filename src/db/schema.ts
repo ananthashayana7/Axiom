@@ -14,6 +14,34 @@ export const invoiceStatusEnum = pgEnum('invoice_status', ['pending', 'matched',
 export const telemetryTypeEnum = pgEnum('telemetry_type', ['event', 'metric', 'error', 'security']);
 export const inspectionStatusEnum = pgEnum('inspection_status', ['pending', 'passed', 'failed', 'conditional']);
 
+// ============================================================================
+// WORKFLOW, COMPLIANCE, SUPPLIER INTELLIGENCE, SOURCING & COST ENUMS
+// ============================================================================
+
+export const taskStatusEnum = pgEnum('task_status', ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'escalated']);
+export const taskPriorityEnum = pgEnum('task_priority', ['low', 'medium', 'high', 'critical']);
+export const taskEntityTypeEnum = pgEnum('task_entity_type', [
+    'requisition', 'rfq', 'order', 'invoice', 'contract', 'supplier', 'compliance_obligation', 'agent_recommendation'
+]);
+export const complianceStatusEnum = pgEnum('compliance_status', ['active', 'expiring_soon', 'expired', 'waived', 'not_applicable']);
+export const supplierRequestTypeEnum = pgEnum('supplier_request_type', [
+    'document_request', 'corrective_action', 'compliance_attestation', 'commercial_clarification', 'onboarding', 'periodic_review'
+]);
+export const supplierRequestStatusEnum = pgEnum('supplier_request_status', ['draft', 'sent', 'acknowledged', 'in_progress', 'submitted', 'verified', 'rejected', 'overdue']);
+export const actionPlanSeverityEnum = pgEnum('action_plan_severity', ['low', 'medium', 'high', 'critical']);
+export const actionPlanStatusEnum = pgEnum('action_plan_status', ['draft', 'active', 'in_progress', 'completed', 'cancelled']);
+export const supplierSegmentEnum = pgEnum('supplier_segment', ['strategic', 'bottleneck', 'leverage', 'routine', 'high_risk']);
+export const sourcingEventStatusEnum = pgEnum('sourcing_event_status', [
+    'draft', 'launched', 'supplier_qa', 'bid_submitted', 'bid_locked', 'evaluation', 'negotiation', 'awarded', 'closed', 'cancelled'
+]);
+export const sourcingMessageTypeEnum = pgEnum('sourcing_message_type', ['question', 'answer', 'clarification', 'general', 'system']);
+export const savingsCategoryEnum = pgEnum('savings_category', [
+    'negotiated', 'avoided', 'process', 'logistics', 'payment_term', 'should_cost', 'consolidation', 'volume_discount'
+]);
+export const savingsTrackingStatusEnum = pgEnum('savings_tracking_status', ['forecast', 'realized', 'validated', 'disputed']);
+export const approvalPolicyTypeEnum = pgEnum('approval_policy_type', ['amount', 'category', 'supplier_risk', 'contract_coverage', 'combined']);
+export const importJobStatusEnum = pgEnum('import_job_status', ['pending', 'validating', 'validated', 'importing', 'completed', 'failed', 'rolled_back']);
+
 export const users = pgTable('users', {
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
@@ -69,6 +97,7 @@ export const suppliers = pgTable('suppliers', {
     longitude: decimal('longitude', { precision: 10, scale: 7 }),
     countryCode: text('country_code'), // ISO 2-char code
     city: text('city'),
+    segment: supplierSegmentEnum('segment'), // Kraljic matrix: strategic, bottleneck, leverage, routine, high_risk
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     statusIdx: index('supplier_status_idx').on(table.status),
@@ -245,6 +274,9 @@ export const rfqs = pgTable('rfqs', {
     title: text('title').notNull(),
     description: text('description'),
     status: rfqStatusEnum('status').default('draft'),
+    deadline: timestamp('deadline'),
+    category: text('category'),
+    createdById: uuid('created_by_id').references(() => users.id),
     createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -390,11 +422,25 @@ export const agentRecommendations = pgTable('agent_recommendations', {
     reviewedBy: uuid('reviewed_by').references(() => users.id),
     reviewedAt: timestamp('reviewed_at'),
     expiresAt: timestamp('expires_at'),
+    // AI Productization fields
+    confidence: integer('confidence'), // 0-100 confidence score
+    ownerId: uuid('owner_id').references(() => users.id),
+    businessImpact: text('business_impact'), // Human-readable impact explanation
+    explanation: text('explanation'), // Why the AI recommended this
+    executionPayload: text('execution_payload'), // JSON: structured action to execute
+    executedAt: timestamp('executed_at'),
+    dismissalReason: text('dismissal_reason'),
+    outcomeTracking: text('outcome_tracking'), // JSON: { expectedOutcome, actualOutcome, delta }
+    entityType: text('entity_type'), // 'supplier', 'rfq', 'order', 'contract', 'invoice'
+    entityId: uuid('entity_id'), // Link to specific procurement object
+    dueDate: timestamp('due_date'),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     agentRecNameIdx: index('agent_rec_name_idx').on(table.agentName),
     agentRecStatusIdx: index('agent_rec_status_idx').on(table.status),
     agentRecImpactIdx: index('agent_rec_impact_idx').on(table.impact),
+    agentRecEntityIdx: index('agent_rec_entity_idx').on(table.entityType, table.entityId),
+    agentRecOwnerIdx: index('agent_rec_owner_idx').on(table.ownerId),
 }));
 
 export const demandForecasts = pgTable('demand_forecasts', {
@@ -789,3 +835,328 @@ export const webhookDeliveries = pgTable('webhook_deliveries', {
 
 export type Webhook = typeof webhooks.$inferSelect;
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+
+// ============================================================================
+// WORKFLOW TASKS - First-class task engine for all procurement objects
+// ============================================================================
+
+export const workflowTasks = pgTable('workflow_tasks', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    description: text('description'),
+    entityType: taskEntityTypeEnum('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    status: taskStatusEnum('status').default('open'),
+    priority: taskPriorityEnum('priority').default('medium'),
+    assigneeId: uuid('assignee_id').references(() => users.id),
+    createdById: uuid('created_by_id').references(() => users.id).notNull(),
+    dueDate: timestamp('due_date'),
+    slaDeadline: timestamp('sla_deadline'),
+    escalatedAt: timestamp('escalated_at'),
+    escalatedToId: uuid('escalated_to_id').references(() => users.id),
+    escalationReason: text('escalation_reason'),
+    completedAt: timestamp('completed_at'),
+    completionEvidence: text('completion_evidence'), // JSON: notes, document refs
+    nextAction: text('next_action'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    taskEntityIdx: index('task_entity_idx').on(table.entityType, table.entityId),
+    taskAssigneeIdx: index('task_assignee_idx').on(table.assigneeId),
+    taskStatusIdx: index('task_status_idx').on(table.status),
+    taskDueIdx: index('task_due_idx').on(table.dueDate),
+    taskPriorityIdx: index('task_priority_idx').on(table.priority),
+}));
+
+export const workflowTasksRelations = relations(workflowTasks, ({ one }: any) => ({
+    assignee: one(users, { fields: [workflowTasks.assigneeId], references: [users.id], relationName: 'taskAssignee' }),
+    createdBy: one(users, { fields: [workflowTasks.createdById], references: [users.id], relationName: 'taskCreator' }),
+    escalatedTo: one(users, { fields: [workflowTasks.escalatedToId], references: [users.id], relationName: 'taskEscalation' }),
+}));
+
+export type WorkflowTask = typeof workflowTasks.$inferSelect;
+
+// ============================================================================
+// COMPLIANCE OBLIGATIONS - Deadline-driven compliance management
+// ============================================================================
+
+export const complianceObligations = pgTable('compliance_obligations', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    description: text('description'),
+    supplierId: uuid('supplier_id').references(() => suppliers.id),
+    contractId: uuid('contract_id').references(() => contracts.id),
+    category: text('category').notNull(), // e.g. 'iso_certification', 'insurance', 'esg_attestation', 'regulatory'
+    status: complianceStatusEnum('status').default('active'),
+    ownerId: uuid('owner_id').references(() => users.id),
+    documentRequired: text('document_required').default('yes'),
+    documentUrl: text('document_url'),
+    evidenceSubmittedAt: timestamp('evidence_submitted_at'),
+    expiresAt: timestamp('expires_at'),
+    reminderDaysBefore: integer('reminder_days_before').default(30),
+    lastReminderSentAt: timestamp('last_reminder_sent_at'),
+    escalationPolicy: text('escalation_policy'), // JSON: { afterDays: 7, escalateTo: userId }
+    policyPack: text('policy_pack'), // e.g. 'EU_REGULATORY', 'ISO_COMPLIANCE', 'ESG_STANDARD'
+    region: text('region'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    complianceSupplierIdx: index('compliance_supplier_idx').on(table.supplierId),
+    complianceStatusIdx: index('compliance_status_idx').on(table.status),
+    complianceExpiryIdx: index('compliance_expiry_idx').on(table.expiresAt),
+    complianceCategoryIdx: index('compliance_category_idx').on(table.category),
+}));
+
+export const complianceObligationsRelations = relations(complianceObligations, ({ one }: any) => ({
+    supplier: one(suppliers, { fields: [complianceObligations.supplierId], references: [suppliers.id] }),
+    contract: one(contracts, { fields: [complianceObligations.contractId], references: [contracts.id] }),
+    owner: one(users, { fields: [complianceObligations.ownerId], references: [users.id] }),
+}));
+
+export type ComplianceObligation = typeof complianceObligations.$inferSelect;
+
+// ============================================================================
+// SUPPLIER REQUESTS - Structured request management for suppliers
+// ============================================================================
+
+export const supplierRequests = pgTable('supplier_requests', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
+    requestType: supplierRequestTypeEnum('request_type').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    status: supplierRequestStatusEnum('status').default('draft'),
+    assigneeId: uuid('assignee_id').references(() => users.id),
+    dueDate: timestamp('due_date'),
+    responseText: text('response_text'),
+    responseDocumentUrl: text('response_document_url'),
+    respondedAt: timestamp('responded_at'),
+    verifiedById: uuid('verified_by_id').references(() => users.id),
+    verifiedAt: timestamp('verified_at'),
+    linkedObligationId: uuid('linked_obligation_id').references(() => complianceObligations.id),
+    createdById: uuid('created_by_id').references(() => users.id).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    srSupplierIdx: index('sr_supplier_idx').on(table.supplierId),
+    srStatusIdx: index('sr_status_idx').on(table.status),
+    srTypeIdx: index('sr_type_idx').on(table.requestType),
+    srDueIdx: index('sr_due_idx').on(table.dueDate),
+}));
+
+export const supplierRequestsRelations = relations(supplierRequests, ({ one }: any) => ({
+    supplier: one(suppliers, { fields: [supplierRequests.supplierId], references: [suppliers.id] }),
+    assignee: one(users, { fields: [supplierRequests.assigneeId], references: [users.id], relationName: 'srAssignee' }),
+    createdBy: one(users, { fields: [supplierRequests.createdById], references: [users.id], relationName: 'srCreator' }),
+    verifiedBy: one(users, { fields: [supplierRequests.verifiedById], references: [users.id], relationName: 'srVerifier' }),
+    linkedObligation: one(complianceObligations, { fields: [supplierRequests.linkedObligationId], references: [complianceObligations.id] }),
+}));
+
+export type SupplierRequest = typeof supplierRequests.$inferSelect;
+
+// ============================================================================
+// SUPPLIER ACTION PLANS - Remediation, development, and lifecycle governance
+// ============================================================================
+
+export const supplierActionPlans = pgTable('supplier_action_plans', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    severity: actionPlanSeverityEnum('severity').default('medium'),
+    status: actionPlanStatusEnum('status').default('draft'),
+    planType: text('plan_type').notNull(), // 'remediation', 'development', 'onboarding', 'requalification', 'periodic_review'
+    ownerId: uuid('owner_id').references(() => users.id),
+    dueDate: timestamp('due_date'),
+    steps: text('steps'), // JSON: [{ title, description, status, dueDate, evidence }]
+    linkedEvidence: text('linked_evidence'), // JSON: [{ type, url, uploadedAt }]
+    completedAt: timestamp('completed_at'),
+    createdById: uuid('created_by_id').references(() => users.id).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    apSupplierIdx: index('ap_supplier_idx').on(table.supplierId),
+    apStatusIdx: index('ap_status_idx').on(table.status),
+    apSeverityIdx: index('ap_severity_idx').on(table.severity),
+    apDueIdx: index('ap_due_idx').on(table.dueDate),
+}));
+
+export const supplierActionPlansRelations = relations(supplierActionPlans, ({ one }: any) => ({
+    supplier: one(suppliers, { fields: [supplierActionPlans.supplierId], references: [suppliers.id] }),
+    owner: one(users, { fields: [supplierActionPlans.ownerId], references: [users.id], relationName: 'apOwner' }),
+    createdBy: one(users, { fields: [supplierActionPlans.createdById], references: [users.id], relationName: 'apCreator' }),
+}));
+
+export type SupplierActionPlan = typeof supplierActionPlans.$inferSelect;
+
+// ============================================================================
+// SOURCING EVENTS - Full event orchestration for RFQs
+// ============================================================================
+
+export const sourcingEvents = pgTable('sourcing_events', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    rfqId: uuid('rfq_id').references(() => rfqs.id).notNull(),
+    status: sourcingEventStatusEnum('status').default('draft'),
+    launchedAt: timestamp('launched_at'),
+    bidDeadline: timestamp('bid_deadline'),
+    qaDeadline: timestamp('qa_deadline'),
+    evaluationDeadline: timestamp('evaluation_deadline'),
+    scoringModel: text('scoring_model'), // JSON: { price: 40, quality: 30, delivery: 20, risk: 10 }
+    awardMemo: text('award_memo'),
+    awardedSupplierId: uuid('awarded_supplier_id').references(() => suppliers.id),
+    awardedAt: timestamp('awarded_at'),
+    awardJustification: text('award_justification'),
+    scenarioComparison: text('scenario_comparison'), // JSON: [{ name, supplierId, score, breakdown }]
+    noBidHandling: text('no_bid_handling').default('extend_deadline'), // 'extend_deadline', 'close', 'reinvite'
+    ownerId: uuid('owner_id').references(() => users.id),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    seRfqIdx: index('se_rfq_idx').on(table.rfqId),
+    seStatusIdx: index('se_status_idx').on(table.status),
+    seDeadlineIdx: index('se_deadline_idx').on(table.bidDeadline),
+}));
+
+export const sourcingEventsRelations = relations(sourcingEvents, ({ one }: any) => ({
+    rfq: one(rfqs, { fields: [sourcingEvents.rfqId], references: [rfqs.id] }),
+    awardedSupplier: one(suppliers, { fields: [sourcingEvents.awardedSupplierId], references: [suppliers.id] }),
+    owner: one(users, { fields: [sourcingEvents.ownerId], references: [users.id] }),
+}));
+
+export type SourcingEvent = typeof sourcingEvents.$inferSelect;
+
+// ============================================================================
+// SOURCING MESSAGES - Supplier communication per RFQ/sourcing event
+// ============================================================================
+
+export const sourcingMessages = pgTable('sourcing_messages', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    rfqId: uuid('rfq_id').references(() => rfqs.id).notNull(),
+    supplierId: uuid('supplier_id').references(() => suppliers.id),
+    senderId: uuid('sender_id').references(() => users.id).notNull(),
+    messageType: sourcingMessageTypeEnum('message_type').default('general'),
+    subject: text('subject'),
+    content: text('content').notNull(),
+    parentMessageId: uuid('parent_message_id'),
+    isRead: text('is_read').default('no'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    smRfqIdx: index('sm_rfq_idx').on(table.rfqId),
+    smSupplierIdx: index('sm_supplier_idx').on(table.supplierId),
+    smSenderIdx: index('sm_sender_idx').on(table.senderId),
+    smParentIdx: index('sm_parent_idx').on(table.parentMessageId),
+}));
+
+export const sourcingMessagesRelations = relations(sourcingMessages, ({ one }: any) => ({
+    rfq: one(rfqs, { fields: [sourcingMessages.rfqId], references: [rfqs.id] }),
+    supplier: one(suppliers, { fields: [sourcingMessages.supplierId], references: [suppliers.id] }),
+    sender: one(users, { fields: [sourcingMessages.senderId], references: [users.id] }),
+}));
+
+export type SourcingMessage = typeof sourcingMessages.$inferSelect;
+
+// ============================================================================
+// SAVINGS RECORDS - Taxonomy-governed savings tracking
+// ============================================================================
+
+export const savingsRecords = pgTable('savings_records', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entityType: text('entity_type').notNull(), // 'order', 'rfq', 'contract', 'negotiation'
+    entityId: uuid('entity_id').notNull(),
+    category: savingsCategoryEnum('category').notNull(),
+    trackingStatus: savingsTrackingStatusEnum('tracking_status').default('forecast'),
+    forecastAmount: decimal('forecast_amount', { precision: 12, scale: 2 }).notNull(),
+    realizedAmount: decimal('realized_amount', { precision: 12, scale: 2 }),
+    baselineAmount: decimal('baseline_amount', { precision: 12, scale: 2 }), // Original/benchmark price
+    currency: text('currency').default('INR'),
+    validatedById: uuid('validated_by_id').references(() => users.id),
+    validatedAt: timestamp('validated_at'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    savEntityIdx: index('sav_entity_idx').on(table.entityType, table.entityId),
+    savCategoryIdx: index('sav_category_idx').on(table.category),
+    savStatusIdx: index('sav_status_idx').on(table.trackingStatus),
+}));
+
+export type SavingsRecord = typeof savingsRecords.$inferSelect;
+
+// ============================================================================
+// APPROVAL POLICIES - Configurable approval routing rules
+// ============================================================================
+
+export const approvalPolicies = pgTable('approval_policies', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    entityType: text('entity_type').notNull(), // 'requisition', 'order', 'invoice', 'contract'
+    policyType: approvalPolicyTypeEnum('policy_type').default('amount'),
+    conditions: text('conditions').notNull(), // JSON: { minAmount, maxAmount, categories, riskThreshold, ... }
+    approverIds: text('approver_ids').array(), // User IDs who can approve
+    approverRole: text('approver_role'), // Role-based fallback
+    escalationTimeoutHours: integer('escalation_timeout_hours').default(48),
+    isActive: text('is_active').default('yes'),
+    priority: integer('priority').default(0), // Higher = evaluated first
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    apEntityTypeIdx: index('ap_entity_type_idx').on(table.entityType),
+    apActiveIdx: index('ap_active_idx').on(table.isActive),
+}));
+
+export type ApprovalPolicy = typeof approvalPolicies.$inferSelect;
+
+// ============================================================================
+// MATCHING TOLERANCES - Configurable three-way match rules
+// ============================================================================
+
+export const matchingTolerances = pgTable('matching_tolerances', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category'), // Part category or null for global
+    supplierId: uuid('supplier_id').references(() => suppliers.id), // Supplier-specific or null for global
+    priceTolerancePercent: decimal('price_tolerance_percent', { precision: 5, scale: 2 }).default('2.00'),
+    quantityTolerancePercent: decimal('quantity_tolerance_percent', { precision: 5, scale: 2 }).default('5.00'),
+    allowPartialDelivery: text('allow_partial_delivery').default('yes'),
+    exceptionReasons: text('exception_reasons'), // JSON: ['price_adjustment', 'freight_included', ...]
+    isActive: text('is_active').default('yes'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    mtCategoryIdx: index('mt_category_idx').on(table.category),
+    mtSupplierIdx: index('mt_supplier_idx').on(table.supplierId),
+}));
+
+export type MatchingTolerance = typeof matchingTolerances.$inferSelect;
+
+// ============================================================================
+// IMPORT JOBS - Import history, validation, and rollback support
+// ============================================================================
+
+export const importJobs = pgTable('import_jobs', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entityType: text('entity_type').notNull(), // 'suppliers', 'parts', 'invoices', 'orders', 'contracts', etc.
+    status: importJobStatusEnum('status').default('pending'),
+    fileName: text('file_name').notNull(),
+    totalRows: integer('total_rows').default(0),
+    successRows: integer('success_rows').default(0),
+    errorRows: integer('error_rows').default(0),
+    validationReport: text('validation_report'), // JSON: [{ row, field, issue }]
+    fieldMapping: text('field_mapping'), // JSON: { csvColumn: dbField, ... }
+    sourceSystemId: text('source_system_id'), // For ERP connector identification
+    rollbackData: text('rollback_data'), // JSON: inserted/updated IDs for undo
+    importedById: uuid('imported_by_id').references(() => users.id).notNull(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table: any) => ({
+    ijStatusIdx: index('ij_status_idx').on(table.status),
+    ijEntityIdx: index('ij_entity_idx').on(table.entityType),
+    ijCreatedIdx: index('ij_created_idx').on(table.createdAt),
+}));
+
+export const importJobsRelations = relations(importJobs, ({ one }: any) => ({
+    importedBy: one(users, { fields: [importJobs.importedById], references: [users.id] }),
+}));
+
+export type ImportJob = typeof importJobs.$inferSelect;

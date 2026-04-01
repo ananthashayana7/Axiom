@@ -17,7 +17,10 @@ import {
     PiggyBank,
     ContactRound,
     LifeBuoy,
-    FileUp
+    FileUp,
+    Inbox,
+    ShieldCheck,
+    ClipboardList
 } from "lucide-react";
 import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,8 @@ type SessionUser = {
 };
 
 const adminLinks = [
+    { label: "Task Inbox", icon: Inbox, href: "/admin/tasks" },
+    { label: "Compliance", icon: ShieldCheck, href: "/admin/compliance" },
     { label: "User Management", icon: UserCog, href: "/admin/users" },
     { label: "Support Tickets", icon: LifeBuoy, href: "/admin/support" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
@@ -44,6 +49,7 @@ const supplierLinks = [
     { label: "Incoming Bids", icon: FileText, href: "/portal/rfqs" },
     { label: "Active Orders", icon: ShoppingCart, href: "/portal/orders" },
     { label: "My Documents", icon: FileText, href: "/portal/documents" },
+    { label: "Requests & Tasks", icon: ClipboardList, href: "/portal/requests" },
 ];
 
 /* ---- tiny helper for nav links ---- */
@@ -162,7 +168,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             {adminLinks
                                 .filter(link => {
                                     if (role === 'admin') return true;
-                                    const userVisiblePaths = ['/admin/audit', '/admin/analytics', '/admin/risk'];
+                                const userVisiblePaths = ['/admin/audit', '/admin/analytics', '/admin/risk', '/admin/tasks', '/admin/compliance'];
                                     return userVisiblePaths.includes(link.href);
                                 })
                                 .map((link) => {

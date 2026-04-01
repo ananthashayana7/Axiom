@@ -2,8 +2,8 @@
 
 import { auth } from '@/auth';
 import { db } from '@/db';
-import { invoices, parts, procurementOrders, suppliers } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { invoices, parts, procurementOrders, suppliers, importJobs } from '@/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { triggerAgentBundle } from './agents';
 
@@ -438,5 +438,79 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
         updated,
         skipped,
         issues: issues.slice(0, 50),
+    };
+}
+
+// ============================================================================
+// IMPORT JOB HISTORY & TRACKING
+// ============================================================================
+
+export async function recordImportJob(data: {
+    entityType: string;
+    fileName: string;
+    totalRows: number;
+    successRows: number;
+    errorRows: number;
+    validationReport?: Array<{ row: number; field?: string; issue: string }>;
+    fieldMapping?: Record<string, string>;
+    sourceSystemId?: string;
+}) {
+    await requireAdmin();
+    const session = await auth();
+
+    const [job] = await db.insert(importJobs).values({
+        entityType: data.entityType,
+        status: data.errorRows === 0 ? 'completed' : (data.successRows > 0 ? 'completed' : 'failed'),
+        fileName: data.fileName,
+        totalRows: data.totalRows,
+        successRows: data.successRows,
+        errorRows: data.errorRows,
+        validationReport: data.validationReport ? JSON.stringify(data.validationReport) : null,
+        fieldMapping: data.fieldMapping ? JSON.stringify(data.fieldMapping) : null,
+        sourceSystemId: data.sourceSystemId,
+        importedById: session!.user!.id as string,
+        startedAt: new Date(),
+        completedAt: new Date(),
+    }).returning();
+
+    revalidatePath('/admin/import');
+    return job;
+}
+
+export async function getImportHistory(limit = 20) {
+    await requireAdmin();
+
+    const jobs = await db.select({
+        id: importJobs.id,
+        entityType: importJobs.entityType,
+        status: importJobs.status,
+        fileName: importJobs.fileName,
+        totalRows: importJobs.totalRows,
+        successRows: importJobs.successRows,
+        errorRows: importJobs.errorRows,
+        sourceSystemId: importJobs.sourceSystemId,
+        startedAt: importJobs.startedAt,
+        completedAt: importJobs.completedAt,
+        createdAt: importJobs.createdAt,
+    }).from(importJobs)
+      .orderBy(desc(importJobs.createdAt))
+      .limit(limit);
+
+    return jobs;
+}
+
+export async function getImportJobDetails(jobId: string) {
+    await requireAdmin();
+
+    const [job] = await db.select()
+        .from(importJobs)
+        .where(eq(importJobs.id, jobId));
+
+    if (!job) throw new Error('Import job not found');
+
+    return {
+        ...job,
+        validationReport: job.validationReport ? JSON.parse(job.validationReport) : [],
+        fieldMapping: job.fieldMapping ? JSON.parse(job.fieldMapping) : {},
     };
 }
