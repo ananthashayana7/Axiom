@@ -28,6 +28,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  const currentYear = new Date().getFullYear();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -53,14 +54,22 @@ export default async function RootLayout({
                       {children}
                     </PageTransition>
                   </main>
+                  <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur lg:px-8">
+                    Axiom Platform • Operational date system: {currentYear}
+                  </footer>
                   <CommandPalette />
                 </div>
                 <InactivityTracker />
               </>
             ) : (
-              <main className="flex-1">
-                {children}
-              </main>
+              <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
+                <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur">
+                  Axiom Platform • Operational date system: {currentYear}
+                </footer>
+              </div>
             )}
             <Toaster position="top-right" richColors />
             </CurrencyProvider>

@@ -31,6 +31,8 @@ export async function createNotification(data: {
     type?: 'info' | 'warning' | 'success' | 'error';
     link?: string;
 }) {
+    const session = await auth();
+    if (!session?.user) return { success: false, error: "Unauthorized" };
     try {
         await db.insert(notifications).values({
             userId: data.userId,

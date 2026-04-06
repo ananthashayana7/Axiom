@@ -71,6 +71,14 @@ export async function getInvoices(filters?: {
                 supplierId: invoices.supplierId,
                 matchedAt: invoices.matchedAt,
                 createdAt: invoices.createdAt,
+                invoiceDate: invoices.invoiceDate,
+                dueDate: invoices.dueDate,
+                taxAmount: invoices.taxAmount,
+                subtotal: invoices.subtotal,
+                lineItems: invoices.lineItems,
+                paymentTerms: invoices.paymentTerms,
+                purchaseOrderRef: invoices.purchaseOrderRef,
+                documentUrl: invoices.documentUrl,
                 supplierName: suppliers.name,
                 supplierCountry: suppliers.countryCode,
             })
@@ -87,20 +95,44 @@ export async function getInvoices(filters?: {
 }
 
 export async function createInvoice(data: {
-    orderId: string,
+    orderId?: string,
     supplierId: string,
     invoiceNumber: string,
-    amount: number
+    amount: number,
+    currency?: string,
+    invoiceDate?: string,
+    dueDate?: string,
+    taxAmount?: number,
+    subtotal?: number,
+    lineItems?: { description: string; quantity: number; unitPrice: number; totalPrice: number }[],
+    paymentTerms?: string,
+    purchaseOrderRef?: string,
+    documentUrl?: string,
+    region?: string,
+    country?: string,
+    continent?: string,
 }) {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
     try {
         const [invoice] = await db.insert(invoices).values({
-            orderId: data.orderId,
+            ...(data.orderId ? { orderId: data.orderId } : {}),
             supplierId: data.supplierId,
             invoiceNumber: data.invoiceNumber,
             amount: data.amount.toString(),
+            currency: data.currency || 'INR',
+            invoiceDate: data.invoiceDate ? new Date(data.invoiceDate) : undefined,
+            dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+            taxAmount: data.taxAmount?.toString(),
+            subtotal: data.subtotal?.toString(),
+            lineItems: data.lineItems ? JSON.stringify(data.lineItems) : undefined,
+            paymentTerms: data.paymentTerms,
+            purchaseOrderRef: data.purchaseOrderRef,
+            documentUrl: data.documentUrl,
+            region: data.region,
+            country: data.country,
+            continent: data.continent,
             status: 'pending'
         }).returning();
 
@@ -110,7 +142,7 @@ export async function createInvoice(data: {
             action: 'CREATE',
             entityType: 'invoice',
             entityId: invoice.id,
-            details: `Invoice ${data.invoiceNumber} created for order ${data.orderId}`
+            details: `Invoice ${data.invoiceNumber} created${data.orderId ? ` for order ${data.orderId}` : ''}`
         });
 
         revalidatePath('/sourcing/invoices');

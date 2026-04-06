@@ -4,9 +4,19 @@
 import { db } from "@/db";
 import { procurementOrders, orderItems, parts, suppliers, invoices, contracts } from "@/db/schema";
 import { eq, sql, desc, and, gte, lte, inArray } from "drizzle-orm";
+import { auth } from "@/auth";
+
+const analyticsOrderItemTotals = db.select({
+    orderId: orderItems.orderId,
+    lineTotal: sql<string>`COALESCE(SUM(${orderItems.quantity} * CAST(${orderItems.unitPrice} AS numeric)), 0)`.as('line_total')
+}).from(orderItems).groupBy(orderItems.orderId).as('analytics_order_item_totals');
+
+const analyticsEffectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${analyticsOrderItemTotals.lineTotal} AS numeric), 0)`;
 
 /* ─── Legacy function kept for sourcing page compatibility ─── */
 export async function getSpendStats() {
+    const session = await auth();
+    if (!session?.user) return { spendByCategory: [], spendBySupplier: [], topParts: [], spendTrend: [], supplierPerformance: [], totalActualSpend: 0, realizedSavings: 0, savingsRate: 0 };
     try {
         const spendByCategory = await db.select({
             category: parts.category,
@@ -80,6 +90,8 @@ export interface AnalyticsFilters {
 
 /** Dropdown / multi-select options for the filter bar */
 export async function getFilterOptions() {
+    const session = await auth();
+    if (!session?.user) return { regions: [], suppliers: [], categories: [], countries: [] };
     try {
         const [regionRows, supplierRows, categoryRows, countryRows] = await Promise.all([
             db.selectDistinct({ region: suppliers.region }).from(suppliers).where(sql`${suppliers.region} IS NOT NULL`),
@@ -134,6 +146,8 @@ function whereAnd(conditions: ReturnType<typeof eq | typeof gte | typeof lte | t
 
 /** The main Intelligence Hub data fetcher — drives all charts + KPIs */
 export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
+    const session = await auth();
+    if (!session?.user) return null;
     try {
         const orderConds = buildOrderConditions(filters);
         const orderWhere = whereAnd(orderConds);
@@ -143,12 +157,14 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
 
         // ── KPI Aggregates ───────────────────────────────────────
         const [kpiRow] = await db.select({
-            totalSpend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            totalSpend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             totalSavings: sql<string>`COALESCE(SUM(CAST(${procurementOrders.savingsAmount} AS numeric)), 0)`,
             totalInitialQuote: sql<string>`COALESCE(SUM(CAST(${procurementOrders.initialQuoteAmount} AS numeric)), 0)`,
             orderCount: sql<string>`COUNT(*)`,
-            avgOrderValue: sql<string>`COALESCE(AVG(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
-        }).from(procurementOrders).where(orderWhere);
+            avgOrderValue: sql<string>`COALESCE(AVG(${analyticsEffectiveOrderTotal}), 0)`,
+        }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
+            .where(orderWhere);
 
         const [supplierCountRow] = await db.select({
             count: sql<string>`COUNT(DISTINCT ${procurementOrders.supplierId})`
@@ -162,30 +178,36 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
         // ── 1. Monthly Spend Trend (all available months) ────────
         const spendTrend = await db.select({
             month: sql<string>`to_char(${procurementOrders.createdAt}, 'YYYY-MM')`,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             savings: sql<string>`COALESCE(SUM(CAST(${procurementOrders.savingsAmount} AS numeric)), 0)`,
             orders: sql<string>`COUNT(*)`,
-        }).from(procurementOrders).where(orderWhere)
+        }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
+            .where(orderWhere)
             .groupBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY-MM')`)
             .orderBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY-MM')`);
 
         // ── 2. Yearly Spend Trend (10+ year view) ────────────────
         const yearlyTrend = await db.select({
             year: sql<string>`to_char(${procurementOrders.createdAt}, 'YYYY')`,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             savings: sql<string>`COALESCE(SUM(CAST(${procurementOrders.savingsAmount} AS numeric)), 0)`,
             orders: sql<string>`COUNT(*)`,
-        }).from(procurementOrders).where(orderWhere)
+        }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
+            .where(orderWhere)
             .groupBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY')`)
             .orderBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY')`);
 
         // ── 3. Quarterly Trend ───────────────────────────────────
         const quarterlyTrend = await db.select({
             quarter: sql<string>`to_char(${procurementOrders.createdAt}, 'YYYY-"Q"Q')`,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             savings: sql<string>`COALESCE(SUM(CAST(${procurementOrders.savingsAmount} AS numeric)), 0)`,
             orders: sql<string>`COUNT(*)`,
-        }).from(procurementOrders).where(orderWhere)
+        }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
+            .where(orderWhere)
             .groupBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY-"Q"Q')`)
             .orderBy(sql`to_char(${procurementOrders.createdAt}, 'YYYY-"Q"Q')`);
 
@@ -208,39 +230,42 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
         if (filters.regions?.length) suppConds.push(inArray(suppliers.region, filters.regions));
         const spendBySupplier = await db.select({
             name: suppliers.name,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             orders: sql<string>`COUNT(*)`,
             savings: sql<string>`COALESCE(SUM(CAST(${procurementOrders.savingsAmount} AS numeric)), 0)`,
         }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
             .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
             .where(whereAnd(suppConds))
             .groupBy(suppliers.name)
-            .orderBy(sql`SUM(CAST(${procurementOrders.totalAmount} AS numeric)) DESC`)
+            .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`)
             .limit(20);
 
         // ── 6. Spend by Region ───────────────────────────────────
         const spendByRegion = await db.select({
             region: suppliers.region,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             supplierCount: sql<string>`COUNT(DISTINCT ${suppliers.id})`,
         }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
             .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
             .where(orderWhere)
             .groupBy(suppliers.region)
-            .orderBy(sql`SUM(CAST(${procurementOrders.totalAmount} AS numeric)) DESC`);
+            .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`);
 
         // ── 7. Spend by Country ──────────────────────────────────
         const spendByCountry = await db.select({
             country: suppliers.country,
             countryCode: suppliers.countryCode,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             supplierCount: sql<string>`COUNT(DISTINCT ${suppliers.id})`,
             orderCount: sql<string>`COUNT(*)`,
         }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
             .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
             .where(orderWhere)
             .groupBy(suppliers.country, suppliers.countryCode)
-            .orderBy(sql`SUM(CAST(${procurementOrders.totalAmount} AS numeric)) DESC`);
+            .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`);
 
         // ── 8. Invoice Distribution ──────────────────────────────
         const invoiceDistribution = await db.select({
@@ -262,8 +287,11 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
         const orderDistribution = await db.select({
             status: procurementOrders.status,
             count: sql<string>`COUNT(*)`,
-            totalAmount: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
-        }).from(procurementOrders).where(orderWhere).groupBy(procurementOrders.status);
+            totalAmount: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
+        }).from(procurementOrders)
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
+            .where(orderWhere)
+            .groupBy(procurementOrders.status);
 
         // ── 11. Supplier Performance Scatter ─────────────────────
         const perfConds: any[] = [];
@@ -275,12 +303,13 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
             performanceScore: suppliers.performanceScore,
             esgScore: suppliers.esgScore,
             financialScore: suppliers.financialScore,
-            spend: sql<string>`COALESCE(SUM(CAST(${procurementOrders.totalAmount} AS numeric)), 0)`,
+            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
         }).from(suppliers)
             .leftJoin(procurementOrders, eq(procurementOrders.supplierId, suppliers.id))
+            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
             .where(whereAnd(perfConds))
             .groupBy(suppliers.id, suppliers.name, suppliers.riskScore, suppliers.performanceScore, suppliers.esgScore, suppliers.financialScore)
-            .orderBy(sql`SUM(CAST(${procurementOrders.totalAmount} AS numeric)) DESC NULLS LAST`)
+            .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC NULLS LAST`)
             .limit(50);
 
         // ── 12. Savings by Type ──────────────────────────────────

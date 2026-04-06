@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Plus, Trash2, ShoppingCart } from "lucide-react"
 import { createOrder } from "@/app/actions/orders"
+import { toast } from "sonner"
 
 interface Part {
     id: string;
@@ -38,6 +39,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
     const [incoterms, setIncoterms] = useState("")
     const [asnNumber, setAsnNumber] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const submitLockRef = useRef(false)
 
     // Helper to add an empty item row
     const addItem = () => {
@@ -61,17 +63,25 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!supplierId || items.length === 0) return
+        if (!supplierId || items.length === 0 || submitLockRef.current) return
 
+        submitLockRef.current = true
         setIsSubmitting(true)
         try {
-            await createOrder({
+            const result = await createOrder({
                 supplierId,
                 totalAmount,
                 items,
                 incoterms,
                 asnNumber
             })
+
+            if (!result.success) {
+                toast.error('error' in result ? result.error : "Failed to create order")
+                return
+            }
+
+            toast.success("Order created")
             setOpen(false)
             // Reset form
             setSupplierId("")
@@ -80,7 +90,9 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
             setAsnNumber("")
         } catch (error) {
             console.error("Failed to create order", error)
+            toast.error("Failed to create order")
         } finally {
+            submitLockRef.current = false
             setIsSubmitting(false)
         }
     }
@@ -90,12 +102,12 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
             <DialogTrigger asChild>
                 <Button className="gap-2" suppressHydrationWarning>
                     <Plus className="h-4 w-4" />
-                    Create RFQ
+                    Create Order
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Create New Order (RFQ)</DialogTitle>
+                    <DialogTitle>Create New Order</DialogTitle>
                     <DialogDescription>
                         Build a procurement order by adding parts and quantities.
                     </DialogDescription>
@@ -216,7 +228,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                         <div className="flex gap-2">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSubmitting || !supplierId || items.length === 0}>
-                                {isSubmitting ? "Creating..." : "Create RFQ"}
+                                {isSubmitting ? "Creating..." : "Create Order"}
                             </Button>
                         </div>
                     </div>

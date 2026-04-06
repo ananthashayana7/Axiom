@@ -13,6 +13,11 @@ import { users as usersTable } from "@/db/schema";
 const HEURISTIC_CONFIDENCE_NUMERIC = 55; // we trust extracted numeric signals moderately
 const HEURISTIC_CONFIDENCE_DEFAULT = 35; // base confidence when only structural parsing succeeds
 
+type SupplierRecommendation = typeof suppliers.$inferSelect & {
+    matchScore: number;
+    matchReasons: string[];
+};
+
 function heuristicQuotationSummary(quoteText: string) {
     const text = quoteText || "";
     const amountMatches = [...text.matchAll(/(?:₹|rs\.?|inr|usd|\$|eur)?\s*([\d.,]+)\b/gi)]
@@ -54,22 +59,23 @@ export async function getRFQs() {
     const supplierId = session.user.supplierId;
 
     try {
-        // Direct query through rfqSuppliers if it's a supplier
-        if (role === 'supplier') {
-            const vendorRfqs = await db.select({
+        const baseRfqs = role === 'supplier'
+            ? await db.select({
                 id: rfqs.id,
                 title: rfqs.title,
+                description: rfqs.description,
                 status: rfqs.status,
+                deadline: rfqs.deadline,
+                category: rfqs.category,
+                createdById: rfqs.createdById,
                 createdAt: rfqs.createdAt,
             })
                 .from(rfqSuppliers)
                 .innerJoin(rfqs, eq(rfqSuppliers.rfqId, rfqs.id))
                 .where(eq(rfqSuppliers.supplierId, supplierId))
-                .orderBy(desc(rfqs.createdAt));
-            return vendorRfqs;
-        }
+                .orderBy(desc(rfqs.createdAt))
+            : await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
 
-        const baseRfqs = await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
         const rfqIds = baseRfqs.map(r => r.id);
 
         if (rfqIds.length === 0) return [];
@@ -86,7 +92,7 @@ export async function getRFQs() {
             })
             .from(rfqSuppliers)
             .leftJoin(suppliers, eq(rfqSuppliers.supplierId, suppliers.id))
-            .where(sql`${rfqSuppliers.rfqId} IN ${rfqIds}`);
+            .where(inArray(rfqSuppliers.rfqId, rfqIds));
 
         // Fetch items
         const rfqItemsData = await db
@@ -99,7 +105,7 @@ export async function getRFQs() {
             })
             .from(rfqItems)
             .leftJoin(parts, eq(rfqItems.partId, parts.id))
-            .where(sql`${rfqItems.rfqId} IN ${rfqIds}`);
+            .where(inArray(rfqItems.rfqId, rfqIds));
 
         return baseRfqs.map(rfq => ({
             ...rfq,
@@ -190,10 +196,10 @@ export async function recommendSuppliers(partIds: string[]) {
         // 2. Find active suppliers that match these categories
         const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.status, 'active'));
 
-        const recommendations = allSuppliers
+        const recommendations: SupplierRecommendation[] = allSuppliers
             .filter((s) => {
                 if (!s.categories) return false;
-                return s.categories.some((cat) => requestedCategories.includes(cat));
+                return s.categories.some((cat: string) => requestedCategories.includes(cat));
             })
             .map((s) => {
                 // Scoring Formula: Performance (weight 0.7) - Risk (weight 0.3)

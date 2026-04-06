@@ -365,7 +365,7 @@ export const qcInspections = pgTable('qc_inspections', {
 
 export const invoices = pgTable('invoices', {
     id: uuid('id').defaultRandom().primaryKey(),
-    orderId: uuid('order_id').references(() => procurementOrders.id).notNull(),
+    orderId: uuid('order_id').references(() => procurementOrders.id),
     supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
     invoiceNumber: text('invoice_number').notNull(),
     amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
@@ -374,6 +374,14 @@ export const invoices = pgTable('invoices', {
     country: text('country'),
     continent: text('continent'),
     status: invoiceStatusEnum('status').default('pending'),
+    invoiceDate: timestamp('invoice_date'),
+    dueDate: timestamp('due_date'),
+    taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }),
+    subtotal: decimal('subtotal', { precision: 12, scale: 2 }),
+    lineItems: text('line_items'),
+    paymentTerms: text('payment_terms'),
+    purchaseOrderRef: text('purchase_order_ref'),
+    documentUrl: text('document_url'),
     matchedAt: timestamp('matched_at'),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({

@@ -82,6 +82,8 @@ export async function postComment(entityType: string, entityId: string, text: st
 }
 
 export async function getComments(entityType: string, entityId: string) {
+    const session = await auth();
+    if (!session?.user) return [];
     try {
         return await db.select({
             id: comments.id,

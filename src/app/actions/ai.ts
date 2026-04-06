@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, parts, suppliers, chatHistory } from "@/db/schema";
-import { eq, sum, desc, sql, count, asc } from "drizzle-orm";
+import { procurementOrders, orderItems, parts, suppliers, chatHistory, invoices } from "@/db/schema";
+import { eq, sum, desc, sql, count, asc, ilike, and, gte, lte, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 
@@ -118,6 +118,8 @@ export async function clearChatHistory() {
 }
 
 export async function analyzeSpend() {
+    const session = await auth();
+    if (!session?.user) return { summary: "Unauthorized", recommendations: [], savingsPotential: 0 };
     return await TelemetryService.time("SpendAnalysis", "analyzeSpend", async () => {
         console.log("Starting analyzeSpend...");
         const context = await getDatabaseContext();
@@ -149,6 +151,8 @@ export async function analyzeSpend() {
 }
 
 export async function getFullAiInsights() {
+    const session = await auth();
+    if (!session?.user) return null;
     const context = await getDatabaseContext();
     if (!context) return null;
 
@@ -208,6 +212,102 @@ export async function getFullAiInsights() {
     }
 }
 
+// ──────────────────────────────────────────────────────────
+// Copilot Function-Calling Tools (Gemini Tool Use)
+// ──────────────────────────────────────────────────────────
+
+import { SchemaType, type FunctionDeclaration } from "@google/generative-ai";
+import { createInvoice, getInvoices } from "./invoices";
+
+const copilotFunctionDeclarations: FunctionDeclaration[] = [
+    {
+        name: "create_invoice",
+        description: "Create a new invoice record in Axiom. Use when a user asks to log, record, or create an invoice.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                supplierId: { type: SchemaType.STRING, description: "The supplier/vendor ID" },
+                supplierName: { type: SchemaType.STRING, description: "Supplier name to look up if supplierId is unknown" },
+                invoiceNumber: { type: SchemaType.STRING, description: "Invoice number/reference" },
+                amount: { type: SchemaType.NUMBER, description: "Total invoice amount" },
+                currency: { type: SchemaType.STRING, description: "3-letter ISO currency code (default INR)" },
+                invoiceDate: { type: SchemaType.STRING, description: "Invoice date in YYYY-MM-DD format" },
+                dueDate: { type: SchemaType.STRING, description: "Payment due date in YYYY-MM-DD format" },
+                taxAmount: { type: SchemaType.NUMBER, description: "Tax amount" },
+                subtotal: { type: SchemaType.NUMBER, description: "Subtotal before tax" },
+                paymentTerms: { type: SchemaType.STRING, description: "Payment terms e.g. Net 30" },
+                purchaseOrderRef: { type: SchemaType.STRING, description: "Referenced PO number" },
+            },
+            required: ["invoiceNumber", "amount"],
+        },
+    },
+    {
+        name: "search_invoices",
+        description: "Search and filter invoices in Axiom. Use when user asks to find, list, show, or look up invoices.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                invoiceNumber: { type: SchemaType.STRING, description: "Invoice number to search for" },
+                status: { type: SchemaType.STRING, description: "Filter by status: pending, matched, disputed, paid" },
+                currency: { type: SchemaType.STRING, description: "Filter by currency code" },
+                country: { type: SchemaType.STRING, description: "Filter by country" },
+                dateFrom: { type: SchemaType.STRING, description: "Start date filter YYYY-MM-DD" },
+                dateTo: { type: SchemaType.STRING, description: "End date filter YYYY-MM-DD" },
+            },
+        },
+    },
+];
+
+async function resolveSupplierIdByName(name: string): Promise<string | null> {
+    const results = await db.select({ id: suppliers.id, name: suppliers.name })
+        .from(suppliers)
+        .where(ilike(suppliers.name, `%${name}%`))
+        .limit(1);
+    return results[0]?.id || null;
+}
+
+async function executeCopilotFunction(
+    fnName: string,
+    args: Record<string, unknown>
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+    switch (fnName) {
+        case "create_invoice": {
+            let supplierId = args.supplierId as string | undefined;
+            if (!supplierId && args.supplierName) {
+                supplierId = await resolveSupplierIdByName(args.supplierName as string) || undefined;
+            }
+            if (!supplierId) {
+                return { success: false, error: "Supplier ID is required. Please specify a supplier name or ID." };
+            }
+            return await createInvoice({
+                supplierId,
+                invoiceNumber: args.invoiceNumber as string,
+                amount: Number(args.amount),
+                currency: (args.currency as string) || 'INR',
+                invoiceDate: args.invoiceDate as string | undefined,
+                dueDate: args.dueDate as string | undefined,
+                taxAmount: args.taxAmount ? Number(args.taxAmount) : undefined,
+                subtotal: args.subtotal ? Number(args.subtotal) : undefined,
+                paymentTerms: args.paymentTerms as string | undefined,
+                purchaseOrderRef: args.purchaseOrderRef as string | undefined,
+            });
+        }
+        case "search_invoices": {
+            const results = await getInvoices({
+                invoiceNumber: args.invoiceNumber as string | undefined,
+                status: args.status as string | undefined,
+                currency: args.currency as string | undefined,
+                country: args.country as string | undefined,
+                dateFrom: args.dateFrom as string | undefined,
+                dateTo: args.dateTo as string | undefined,
+            });
+            return { success: true, data: results.slice(0, 20) };
+        }
+        default:
+            return { success: false, error: `Unknown function: ${fnName}` };
+    }
+}
+
 export async function processCopilotQuery(
     query: string,
     history: { role: 'user' | 'assistant', content: string }[] = [],
@@ -248,12 +348,15 @@ export async function processCopilotQuery(
                 return directResponse;
             }
 
-            const model = await getAiModel();
-        if (!model) throw new Error("AI model not available");
+            const model = await getAiModel("gemini-2.5-flash", {
+                tools: [{ functionDeclarations: copilotFunctionDeclarations }],
+            });
+            if (!model) throw new Error("AI model not available");
             const historyContext = history.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const prompt = `
                 You are Axiom Copilot, an analytical and efficient procurement AI. 
                 Your role is to help users manage their supply chain, analyze spend, mitigate risk, understand how the Axiom app works, and reason over uploaded business files.
+                You can also CREATE invoices and SEARCH invoices using the tools provided. When a user asks you to log, record, or create an invoice, use the create_invoice tool. When they ask to find or list invoices, use the search_invoices tool.
                  
                 Database State (Snapshot):
                 ${JSON.stringify(context, null, 2)}
@@ -297,10 +400,35 @@ export async function processCopilotQuery(
                     - DO NOT hallucinate names, numbers, or dates.
                     - When the request is specific or multi-step, reason carefully and provide a concise, actionable answer with bullets or a table.
                     - Cite your sources. Example: "(Source: Database Stats)", "(Source: Product Knowledge → Requisitions)", or "(Source: Uploaded CSV Preview)".
+                 7. TOOL USE:
+                    - When the user wants to create/log/record an invoice, call the create_invoice function with extracted details.
+                    - When the user wants to search/find/list invoices, call the search_invoices function.
+                    - After executing a tool, summarize the result to the user clearly.
              `;
 
             const result = await model.generateContent(prompt);
-            const response = await result.response;
+            const response = result.response;
+
+            // Check if the model wants to call a function
+            const functionCalls = response.functionCalls();
+            if (functionCalls && functionCalls.length > 0) {
+                const fc = functionCalls[0];
+                const fnResult = await executeCopilotFunction(fc.name, fc.args as Record<string, unknown>);
+
+                // Send function result back to the model for a natural language summary
+                const followUp = await model.generateContent([
+                    { text: prompt },
+                    { functionCall: { name: fc.name, args: fc.args } },
+                    { functionResponse: { name: fc.name, response: fnResult } },
+                ]);
+                const text = followUp.response.text();
+
+                await saveChatMessage('user', query);
+                await saveChatMessage('assistant', text);
+                await TelemetryService.trackEvent("AxiomCopilot", "function_call_success", { function: fc.name });
+                return text;
+            }
+
             const text = response.text();
 
             await saveChatMessage('user', query);
@@ -603,7 +731,9 @@ async function processDocumentAttachment(
     }
 
     try {
-        const model = await getAiModel();
+        const model = await getAiModel("gemini-2.5-flash", {
+            tools: [{ functionDeclarations: copilotFunctionDeclarations }],
+        });
         if (!model) throw new Error("AI model not available");
 
         const historyContext = getHistoryContext(history, 8);
@@ -646,6 +776,7 @@ INSTRUCTIONS:
 6. Use Markdown formatting for clear readability.
 7. If some fields are missing or partially unreadable, say what is missing and continue with the usable evidence instead of failing.
 8. When helpful, connect the analysis to relevant Axiom modules, routes, or AI agents from Product Knowledge.
+9. TOOL USE: If the user explicitly asks to "log", "create", "save", or "record" an invoice from this document, use the create_invoice tool with the data extracted from the document. If the user asks to search or find invoices, use the search_invoices tool.
  
 GROUNDING: Extract data ONLY from the uploaded document, document preview, Database State, Product Knowledge, and conversation history. Do NOT hallucinate values.`;
 
@@ -664,7 +795,36 @@ GROUNDING: Extract data ONLY from the uploaded document, document preview, Datab
 ${attachmentPreview.contentLabel}:
 ${attachmentPreview.extractedText}`);
 
-        const response = await result.response;
+        const response = result.response;
+
+        // Handle function calls from document analysis
+        const functionCalls = response.functionCalls();
+        if (functionCalls && functionCalls.length > 0) {
+            const fc = functionCalls[0];
+            const fnResult = await executeCopilotFunction(fc.name, fc.args as Record<string, unknown>);
+
+            const contentParts = attachmentPreview.mode === 'inline'
+                ? [
+                    { text: prompt },
+                    { inlineData: { data: attachment.data, mimeType: attachmentPreview.mimeType } },
+                    { functionCall: { name: fc.name, args: fc.args } },
+                    { functionResponse: { name: fc.name, response: fnResult } },
+                ]
+                : [
+                    { text: `${prompt}\n\n${attachmentPreview.contentLabel}:\n${attachmentPreview.extractedText}` },
+                    { functionCall: { name: fc.name, args: fc.args } },
+                    { functionResponse: { name: fc.name, response: fnResult } },
+                ];
+
+            const followUp = await model.generateContent(contentParts);
+            const text = followUp.response.text();
+
+            await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+            await saveChatMessage('assistant', text);
+            await TelemetryService.trackEvent("AxiomCopilot", "document_function_call", { function: fc.name, fileName });
+            return text;
+        }
+
         const text = response.text();
 
         await saveChatMessage('user', `[Document: ${fileName}] ${query}`);

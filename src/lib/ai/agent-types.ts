@@ -130,6 +130,7 @@ export interface FraudAlert {
 
 export type FraudAlertType =
     | 'duplicate_invoice'
+    | 'zero_value_order'
     | 'unusual_amount'
     | 'new_vendor_high_value'
     | 'unusual_timing'

@@ -45,12 +45,11 @@ export async function calculateABCAnalysis() {
                         .set({ abcClassification: classification })
                         .where(eq(suppliers.id, s.id));
                 }
+
+                await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
+                revalidatePath("/suppliers");
                 return { success: true };
             });
-
-            await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
-            revalidatePath("/suppliers");
-            return { success: true };
         });
     } catch (error) {
         await TelemetryService.trackError("SupplierManagement", "abc_analysis_failed", error);
@@ -91,6 +90,10 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 }
 
 export async function getSupplierOrders(supplierId: string) {
+    const session = await auth();
+    if (!session) return [];
+    // Supplier users can only view their own orders
+    if (session.user.role === 'supplier' && session.user.supplierId !== supplierId) return [];
     try {
         const orders = await db.select().from(procurementOrders).where(eq(procurementOrders.supplierId, supplierId));
         return orders;
@@ -154,7 +157,24 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
 
         await db.update(suppliers)
             .set({
-                ...data,
+                name: data.name,
+                contactEmail: data.contactEmail,
+                city: data.city,
+                riskScore: data.riskScore,
+                performanceScore: data.performanceScore,
+                esgScore: data.esgScore,
+                financialScore: data.financialScore,
+                lifecycleStatus: data.lifecycleStatus,
+                status: data.status,
+                abcClassification: data.abcClassification,
+                conflictMineralsStatus: data.conflictMineralsStatus,
+                isoCertifications: data.isoCertifications,
+                esgEnvironmentScore: data.esgEnvironmentScore,
+                esgSocialScore: data.esgSocialScore,
+                esgGovernanceScore: data.esgGovernanceScore,
+                financialHealthRating: data.financialHealthRating,
+                tierLevel: data.tierLevel,
+                modernSlaveryStatement: data.modernSlaveryStatement,
                 countryCode: normalizedCountryCode,
                 carbonFootprintScope1: data.carbonFootprintScope1?.toString(),
                 carbonFootprintScope2: data.carbonFootprintScope2?.toString(),
@@ -248,6 +268,9 @@ export async function addSupplier(formData: FormData) {
 }
 
 export async function getSupplierPerformanceMetrics(supplierId: string) {
+    const session = await auth();
+    if (!session) return null;
+    if (session.user.role === 'supplier' && session.user.supplierId !== supplierId) return null;
     try {
         const [supplierInfo] = await db
             .select({
@@ -285,6 +308,8 @@ export async function getSupplierPerformanceMetrics(supplierId: string) {
  * Weights: Environment (40%), Social (30%), Governance (30%)
  */
 export async function calculateSupplierESG(supplierId: string) {
+    const session = await auth();
+    if (!session || session.user.role === 'supplier') return null;
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
         if (!supplier) return null;

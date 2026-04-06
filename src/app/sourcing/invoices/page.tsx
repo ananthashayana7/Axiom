@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
     FileText, CheckCircle2, Clock, AlertTriangle,
-    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins, BarChart3
+    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins, BarChart3, Upload
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
+import { UploadInvoiceDialog } from "./upload-invoice-dialog";
 import { toast } from "sonner";
+import { getSuppliers } from "@/app/actions/suppliers";
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, LineChart, Line, Legend,
@@ -37,6 +39,8 @@ export default function InvoicesPage() {
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
+    const [showUpload, setShowUpload] = useState(false);
+    const [suppliersList, setSuppliersList] = useState<{ id: string; name: string }[]>([]);
     const [filters, setFilters] = useState({
         invoiceNumber: '', status: 'all', country: '', continent: 'all',
         region: '', dateFrom: '', dateTo: '', currency: 'all',
@@ -60,6 +64,10 @@ export default function InvoicesPage() {
     }, [filters]);
 
     useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
+    useEffect(() => {
+        getSuppliers().then(s => setSuppliersList(s.map(sup => ({ id: sup.id, name: sup.name }))));
+    }, []);
 
     const clearFilters = () => setFilters({ invoiceNumber: '', status: 'all', country: '', continent: 'all', region: '', dateFrom: '', dateTo: '', currency: 'all' });
 
@@ -131,6 +139,7 @@ export default function InvoicesPage() {
                     <p className="text-muted-foreground mt-1 font-medium">Filter, track and export invoices across all regions.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => setShowUpload(true)} className="gap-2"><Upload className="h-4 w-4" /> Upload Invoice</Button>
                     <Button variant="outline" onClick={fetchInvoices} className="gap-2"><RefreshCcw className="h-4 w-4" /> Refresh</Button>
                     <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 relative">
                         <Filter className="h-4 w-4" /> Filters
@@ -424,6 +433,13 @@ export default function InvoicesPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <UploadInvoiceDialog
+                open={showUpload}
+                onOpenChange={setShowUpload}
+                onSuccess={fetchInvoices}
+                suppliers={suppliersList}
+            />
         </div>
     );
 }

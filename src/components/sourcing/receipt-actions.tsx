@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { deleteGoodsReceipt } from "@/app/actions/goods-receipts"
+import { deleteGoodsReceipt, updateGoodsReceiptInspection } from "@/app/actions/goods-receipts"
 import { toast } from "sonner"
-import { MoreHorizontal, Trash, FileText, ExternalLink } from "lucide-react"
+import { MoreHorizontal, Trash, FileText, ExternalLink, CheckCircle2, AlertTriangle, Clock3, XCircle } from "lucide-react"
 import Link from "next/link"
 import {
     DropdownMenu,
@@ -15,8 +15,19 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function ReceiptActions({ receiptId, orderId }: { receiptId: string, orderId: string }) {
+export function ReceiptActions({ receiptId, orderId, inspectionStatus }: { receiptId: string, orderId: string, inspectionStatus?: string | null }) {
     const [loading, setLoading] = useState(false)
+
+    const handleInspectionUpdate = async (status: 'pending' | 'passed' | 'failed' | 'conditional') => {
+        setLoading(true)
+        const res = await updateGoodsReceiptInspection({ receiptId, status })
+        if (res.success) {
+            toast.success(`Inspection marked ${status}`)
+        } else {
+            toast.error(res.error || "Failed to update inspection")
+        }
+        setLoading(false)
+    }
 
     const handleDelete = async () => {
         if (!confirm("Are you sure you want to delete this receiving record? This will not affect the Order status but will remove the delivery log.")) return
@@ -47,6 +58,24 @@ export function ReceiptActions({ receiptId, orderId }: { receiptId: string, orde
                         <ExternalLink className="h-3 w-3 ml-auto opacity-40" />
                     </DropdownMenuItem>
                 </Link>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-2">Inspection Status</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleInspectionUpdate('passed')} disabled={loading || inspectionStatus === 'passed'} className="cursor-pointer py-3">
+                    <CheckCircle2 className="h-4 w-4 mr-3 text-emerald-600" />
+                    <span className="font-semibold">Mark Passed</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleInspectionUpdate('conditional')} disabled={loading || inspectionStatus === 'conditional'} className="cursor-pointer py-3">
+                    <AlertTriangle className="h-4 w-4 mr-3 text-amber-600" />
+                    <span className="font-semibold">Mark Conditional</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleInspectionUpdate('failed')} disabled={loading || inspectionStatus === 'failed'} className="cursor-pointer py-3">
+                    <XCircle className="h-4 w-4 mr-3 text-red-600" />
+                    <span className="font-semibold">Mark Failed</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleInspectionUpdate('pending')} disabled={loading || inspectionStatus === 'pending'} className="cursor-pointer py-3">
+                    <Clock3 className="h-4 w-4 mr-3 text-stone-500" />
+                    <span className="font-semibold">Reset to Pending</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-700 focus:bg-red-50 py-3 cursor-pointer">
                     <Trash className="h-4 w-4 mr-3" />

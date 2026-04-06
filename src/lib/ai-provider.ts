@@ -45,7 +45,7 @@ async function collectApiKeys(): Promise<string[]> {
     return [...new Set(keys)];
 }
 
-export async function getAiModel(modelName: string = "gemini-2.5-flash") {
+export async function getAiModel(modelName: string = "gemini-2.5-flash", config?: Record<string, unknown>) {
     const apiKeys = await collectApiKeys();
 
     if (apiKeys.length === 0) {
@@ -57,7 +57,7 @@ export async function getAiModel(modelName: string = "gemini-2.5-flash") {
     for (const apiKey of apiKeys) {
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: modelName });
+            const model = genAI.getGenerativeModel({ model: modelName, ...config });
             // Lightweight validation: if construction succeeds, return immediately.
             // Actual API errors (quota, invalid key) surface at generation time and
             // are handled by the caller's retry / fallback logic.

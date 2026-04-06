@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import Link from "next/link";
 
 const CURRENCY_LOCALE: Record<string, string> = {
     INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB', JPY: 'ja-JP',
@@ -267,7 +268,24 @@ export default function FinancialMatchingPage() {
                                     {invoicesList.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="p-12 text-center text-muted-foreground italic">
-                                                No invoices match the current filters.
+                                                <div className="flex flex-col items-center gap-3 not-italic">
+                                                    <p className="text-sm font-medium text-foreground">No invoices match the current filters.</p>
+                                                    <p className="max-w-xl text-xs text-muted-foreground">
+                                                        Financial Matching only processes supplier invoices. Goods receipts unlock three-way match validation, but they do not appear in this queue until an invoice is recorded against the order.
+                                                    </p>
+                                                    <div className="flex flex-wrap justify-center gap-2 pt-1">
+                                                        <Link href="/sourcing/invoices">
+                                                            <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold uppercase">
+                                                                Open Invoice Records
+                                                            </Button>
+                                                        </Link>
+                                                        <Link href="/sourcing/orders">
+                                                            <Button size="sm" className="h-8 text-[10px] font-bold uppercase">
+                                                                Review Source Orders
+                                                            </Button>
+                                                        </Link>
+                                                    </div>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}

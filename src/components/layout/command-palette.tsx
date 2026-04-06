@@ -23,12 +23,22 @@ export function CommandPalette() {
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState("")
     const [results, setResults] = React.useState<SearchResult[]>([])
+    const [recentSearches, setRecentSearches] = React.useState<string[]>([])
     const [loading, setLoading] = React.useState(false)
     const [mounted, setMounted] = React.useState(false)
     const router = useRouter()
 
     React.useEffect(() => {
         setMounted(true)
+        try {
+            const stored = window.localStorage.getItem("axiom:recent-searches")
+            if (stored) {
+                setRecentSearches(JSON.parse(stored))
+            }
+        } catch {
+            setRecentSearches([])
+        }
+
         const down = (e: KeyboardEvent) => {
             if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
@@ -36,9 +46,28 @@ export function CommandPalette() {
             }
         }
 
+        const openFromTrigger = (event: Event) => {
+            const customEvent = event as CustomEvent<{ open?: boolean }>
+            setOpen(customEvent.detail?.open ?? true)
+        }
+
         document.addEventListener("keydown", down)
-        return () => document.removeEventListener("keydown", down)
+        window.addEventListener("axiom:command-palette-toggle", openFromTrigger as EventListener)
+        return () => {
+            document.removeEventListener("keydown", down)
+            window.removeEventListener("axiom:command-palette-toggle", openFromTrigger as EventListener)
+        }
     }, [])
+
+    const rememberSearch = React.useCallback((value: string) => {
+        const next = [value, ...recentSearches.filter((entry) => entry !== value)].slice(0, 5)
+        setRecentSearches(next)
+        try {
+            window.localStorage.setItem("axiom:recent-searches", JSON.stringify(next))
+        } catch {
+            // ignore storage failures
+        }
+    }, [recentSearches])
 
     React.useEffect(() => {
         if (!query || query.length < 2) {
@@ -60,6 +89,11 @@ export function CommandPalette() {
         setOpen(false)
         command()
     }, [])
+
+    const runSearchNavigation = React.useCallback((href: string, value: string) => {
+        rememberSearch(value)
+        runCommand(() => router.push(href))
+    }, [rememberSearch, router, runCommand])
 
     if (!mounted) return null
 
@@ -88,7 +122,7 @@ export function CommandPalette() {
                                     <Command.Item
                                         key={`${res.type}-${res.id}`}
                                         value={`${res.type} ${res.title}`}
-                                        onSelect={() => runCommand(() => router.push(res.href))}
+                                        onSelect={() => runSearchNavigation(res.href, res.title)}
                                         className="relative flex cursor-default select-none items-center rounded-sm px-2 py-3 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-muted/50 transition-colors"
                                     >
                                         <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -101,6 +135,22 @@ export function CommandPalette() {
                                             <span className="font-semibold">{res.title}</span>
                                             <span className="text-xs text-muted-foreground">{res.subtitle}</span>
                                         </div>
+                                    </Command.Item>
+                                ))}
+                            </Command.Group>
+                        )}
+
+                        {recentSearches.length > 0 && query.length < 2 && (
+                            <Command.Group heading="Recent Searches">
+                                {recentSearches.map((entry) => (
+                                    <Command.Item
+                                        key={entry}
+                                        value={`recent ${entry}`}
+                                        onSelect={() => setQuery(entry)}
+                                        className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50"
+                                    >
+                                        <History className="mr-2 h-4 w-4" />
+                                        <span>{entry}</span>
                                     </Command.Item>
                                 ))}
                             </Command.Group>

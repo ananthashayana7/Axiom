@@ -3,7 +3,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { auth } from "@/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { User, Settings, Search, LogOut, Terminal } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
 import { cn } from "@/lib/utils";
@@ -37,16 +37,6 @@ export async function Header() {
             </div>
 
             <div className="flex items-center gap-5">
-                {role === 'admin' && (
-                    <Link
-                        href="/admin/telemetry"
-                        className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-lg transition-all border border-emerald-100 dark:border-emerald-800/50"
-                        title="System Telemetry"
-                    >
-                        <Terminal className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Vitals</span>
-                    </Link>
-                )}
                 <ThemeToggle />
                 <NotificationBell />
                 <div className="h-6 w-[1px] bg-border hidden sm:block" />

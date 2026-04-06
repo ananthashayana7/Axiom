@@ -134,7 +134,7 @@ export default async function GoodsReceiptsPage() {
                                                 </p>
                                             </td>
                                             <td className="p-6 align-middle text-right">
-                                                <ReceiptActions receiptId={receipt.id} orderId={receipt.orderId} />
+                                                <ReceiptActions receiptId={receipt.id} orderId={receipt.orderId} inspectionStatus={receipt.inspectionStatus} />
                                             </td>
                                         </tr>
                                     ))}

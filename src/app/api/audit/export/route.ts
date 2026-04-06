@@ -95,8 +95,13 @@ export async function GET(req: Request) {
 
 function csvEscape(value: string): string {
     if (!value) return '';
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`;
+    // Prevent CSV injection: strip leading formula-triggering characters
+    let sanitized = value;
+    while (/^[=+\-@\t\r]/.test(sanitized)) {
+        sanitized = sanitized.slice(1);
     }
-    return value;
+    if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
+        return `"${sanitized.replace(/"/g, '""')}"`;
+    }
+    return sanitized;
 }

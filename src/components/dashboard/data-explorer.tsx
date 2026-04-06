@@ -54,7 +54,7 @@ function ExplorerTooltip({
 
     const sym = currencySymbol || '';
     const fmtVal = (v: number, name: string) => {
-        if (name === 'reliability' || name === 'Reliability Score' || name === 'Fulfillment %') return `${v.toFixed(1)}%`;
+        if (name === 'reliability' || name === 'Reliability Score' || name === 'Fulfillment %' || name === 'Performance Score' || name === 'Performance %') return `${v.toFixed(1)}%`;
         if (v >= 10000000) return `${sym}${(v / 10000000).toFixed(1)}Cr`;
         if (v >= 100000) return `${sym}${(v / 100000).toFixed(1)}L`;
         if (v >= 1000) return `${sym}${(v / 1000).toFixed(1)}K`;
@@ -91,7 +91,7 @@ type ExplorerDatum = {
 };
 
 type Dimension = "time" | "category" | "supplier";
-type Metric = "spend" | "orders" | "mixed" | "fulfillment";
+type Metric = "spend" | "orders" | "mixed" | "performance";
 
 const toDimension = (value: string): Dimension => {
     if (value === "time" || value === "category" || value === "supplier") return value;
@@ -99,7 +99,7 @@ const toDimension = (value: string): Dimension => {
 };
 
 const toMetric = (value: string): Metric => {
-    if (value === "spend" || value === "orders" || value === "mixed" || value === "fulfillment") return value;
+    if (value === "spend" || value === "orders" || value === "mixed" || value === "performance") return value;
     return "spend";
 };
 
@@ -147,7 +147,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
         } else if (dimension === "supplier") {
             xKey = "name";
             barKey = metric === 'orders' ? "orders" : "spend";
-            lineKey = metric === 'fulfillment' ? "reliability" : "reliability";
+            lineKey = "reliability";
         }
         return { xKey, barKey, lineKey };
     }, [dimension, metric]);
@@ -202,7 +202,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                             <SelectContent className="rounded-xl border-slate-200 shadow-2xl">
                                 <SelectItem value="spend">Total Spend ({sym})</SelectItem>
                                 <SelectItem value="orders">Order Volume</SelectItem>
-                                {dimension === "supplier" && <SelectItem value="fulfillment">Fulfillment Rate</SelectItem>}
+                                {dimension === "supplier" && <SelectItem value="performance">Performance Score</SelectItem>}
                             </SelectContent>
                         </Select>
 
@@ -235,7 +235,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                 <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
                                     <XAxis dataKey="spend" name="Spend" tickFormatter={fmtTick} tick={{ fontSize: 10, fontWeight: 600 }} label={{ value: `Spend (${sym})`, position: 'insideBottom', offset: -10, fontSize: 10 }} />
-                                    <YAxis dataKey="reliability" name="Reliability %" tick={{ fontSize: 10, fontWeight: 600 }} domain={[0, 100]} label={{ value: 'Reliability %', angle: -90, position: 'insideLeft', fontSize: 10 }} />
+                                    <YAxis dataKey="reliability" name="Performance %" tick={{ fontSize: 10, fontWeight: 600 }} domain={[0, 100]} label={{ value: 'Performance %', angle: -90, position: 'insideLeft', fontSize: 10 }} />
                                     <ZAxis dataKey="orders" range={[40, 400]} name="Orders" />
                                     <Tooltip cursor={{ strokeDasharray: '3 3' }} content={(p: unknown) => <ExplorerTooltip {...(p as { active?: boolean; payload?: ExplorerTooltipPayload[]; label?: string })} {...customTooltipProps} />} />
                                     <Scatter data={currentData} fill="#059669">
@@ -288,7 +288,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                     )}
                                     {dimension === 'supplier' && metric !== 'orders' && chartConfig.lineKey && (
                                         <Line yAxisId="right" type="monotone" dataKey={chartConfig.lineKey}
-                                            stroke="#0891b2" strokeWidth={3} dot={{ r: 4, fill: '#0891b2' }} name="Reliability Score" animationDuration={2500} />
+                                            stroke="#0891b2" strokeWidth={3} dot={{ r: 4, fill: '#0891b2' }} name="Performance Score" animationDuration={2500} />
                                     )}
                                     <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-[10px] font-bold uppercase tracking-wide">{v}</span>} />
                                 </ComposedChart>

@@ -10,6 +10,7 @@ import { auth } from "@/auth";
 import {
     invoices,
     procurementOrders,
+    orderItems,
     suppliers,
     users,
     auditLogs,
@@ -49,12 +50,14 @@ export async function runFraudDetectionAgent(
         // Run all detection checks
         const [
             duplicateInvoices,
+            zeroValueOrders,
             unusualAmounts,
             newVendorHighValue,
             roundNumberPatterns,
             segregationViolations
         ] = await Promise.all([
             detectDuplicateInvoices(lookbackDate),
+            detectZeroValueOrders(lookbackDate),
             detectUnusualAmounts(lookbackDate),
             detectNewVendorHighValue(lookbackDate),
             detectRoundNumberPatterns(lookbackDate),
@@ -62,6 +65,7 @@ export async function runFraudDetectionAgent(
         ]);
 
         alerts.push(...duplicateInvoices);
+        alerts.push(...zeroValueOrders);
         alerts.push(...unusualAmounts);
         alerts.push(...newVendorHighValue);
         alerts.push(...roundNumberPatterns);
@@ -219,6 +223,68 @@ async function detectDuplicateInvoices(since: Date): Promise<FraudAlert[]> {
         }
     } catch (error) {
         console.warn("Duplicate invoice detection error:", error);
+    }
+
+    return alerts;
+}
+
+/**
+ * Detect suspicious orders created with zero or missing value.
+ */
+async function detectZeroValueOrders(since: Date): Promise<FraudAlert[]> {
+    const alerts: FraudAlert[] = [];
+
+    try {
+        const orders = await db
+            .select({
+                id: procurementOrders.id,
+                supplierId: procurementOrders.supplierId,
+                supplierName: suppliers.name,
+                amount: procurementOrders.totalAmount,
+                status: procurementOrders.status,
+                createdAt: procurementOrders.createdAt,
+                itemCount: sql<number>`COUNT(${orderItems.id})::int`,
+                itemValue: sql<number>`COALESCE(SUM(${orderItems.quantity} * ${orderItems.unitPrice}::numeric), 0)::numeric`
+            })
+            .from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .leftJoin(orderItems, eq(orderItems.orderId, procurementOrders.id))
+            .where(gte(procurementOrders.createdAt, since))
+            .groupBy(
+                procurementOrders.id,
+                procurementOrders.supplierId,
+                suppliers.name,
+                procurementOrders.totalAmount,
+                procurementOrders.status,
+                procurementOrders.createdAt
+            )
+            .having(sql`COALESCE(${procurementOrders.totalAmount}::numeric, 0) <= 0`);
+
+        for (const order of orders) {
+            const itemValue = Number(order.itemValue || 0);
+            const itemCount = Number(order.itemCount || 0);
+            const status = order.status || 'draft';
+
+            alerts.push({
+                entityType: 'order',
+                entityId: order.id,
+                alertType: 'zero_value_order',
+                severity: status === 'sent' || status === 'fulfilled' || itemValue > 0 ? 'high' : 'medium',
+                description: `Order ${order.id.slice(0, 8).toUpperCase()} for ${order.supplierName || 'unknown supplier'} was created with zero value`,
+                indicators: [
+                    `Recorded order total: ₹${Number(order.amount || 0).toLocaleString()}`,
+                    `Order status: ${status}`,
+                    `${itemCount} line items linked`,
+                    `Computed line-item value: ₹${itemValue.toLocaleString()}`
+                ],
+                suggestedAction: itemValue > 0
+                    ? 'Recalculate the order header total from its line items and review downstream financial matching.'
+                    : 'Review the source RFQ or manual order entry. Orders should not be approved or sent with zero total value.',
+                falsePositiveProbability: itemValue > 0 ? 10 : 15
+            });
+        }
+    } catch (error) {
+        console.warn("Zero-value order detection error:", error);
     }
 
     return alerts;

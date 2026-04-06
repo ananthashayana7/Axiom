@@ -31,17 +31,24 @@ type SessionUser = {
     role?: string | null;
 };
 
-const adminLinks = [
+const adminPriorityLinks = [
+    { label: "Fraud Alerts", icon: ShieldAlert, href: "/admin/fraud-alerts" },
+    { label: "Telemetry", icon: History, href: "/admin/telemetry" },
+    { label: "Financial Matching", icon: CreditCard, href: "/admin/financial-matching" },
+    { label: "Spend Intelligence", icon: BarChart3, href: "/admin/analytics" },
+    { label: "Risk Intelligence", icon: ShieldAlert, href: "/admin/risk" },
+];
+
+const adminOperationalLinks = [
     { label: "Task Inbox", icon: Inbox, href: "/admin/tasks" },
     { label: "Compliance", icon: ShieldCheck, href: "/admin/compliance" },
     { label: "User Management", icon: UserCog, href: "/admin/users" },
     { label: "Support Tickets", icon: LifeBuoy, href: "/admin/support" },
     { label: "Audit Trail", icon: History, href: "/admin/audit" },
     { label: "Import Data", icon: FileUp, href: "/admin/import" },
-    { label: "Financial Matching", icon: CreditCard, href: "/admin/financial-matching" },
-    { label: "Spend Intelligence", icon: BarChart3, href: "/admin/analytics" },
-    { label: "Risk Intelligence", icon: ShieldAlert, href: "/admin/risk" },
     { label: "Admin Settings", icon: Settings, href: "/admin/settings" },
+    { label: "Scenario Modeling", icon: BarChart3, href: "/admin/scenarios" },
+    { label: "Supplier Ecosystem", icon: Users, href: "/admin/ecosystem" },
 ];
 
 const supplierLinks = [
@@ -58,6 +65,8 @@ const navCls = "flex items-center rounded-md px-3 py-1 text-[13px] font-medium h
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
+    const visiblePriorityLinks = role === 'admin' ? adminPriorityLinks : [];
+    const visibleOperationalLinks = role === 'admin' ? adminOperationalLinks : [];
 
     return (
         <div className={cn("w-56 xl:w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
@@ -159,27 +168,41 @@ export async function Sidebar({ className }: { className?: string }) {
                 </div>
 
                 {/* ── Admin / Intelligence ── */}
-                {(role === 'admin' || role === 'user') && (
+                {role === 'admin' && (
                     <div className="px-3 mt-3 border-t border-border/50 pt-2">
                         <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            {role === 'admin' ? "Admin Control" : "Intelligence & Audit"}
+                            Admin Control
                         </h2>
-                        <div className="space-y-0.5">
-                            {adminLinks
-                                .filter(link => {
-                                    if (role === 'admin') return true;
-                                const userVisiblePaths = ['/admin/audit', '/admin/analytics', '/admin/risk', '/admin/tasks', '/admin/compliance'];
-                                    return userVisiblePaths.includes(link.href);
-                                })
-                                .map((link) => {
+                        <div className="space-y-2">
+                            <div className="space-y-0.5">
+                                {visiblePriorityLinks.map((link) => {
                                     const Icon = link.icon;
                                     return (
-                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-semibold hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
                                             <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
                                             {link.label}
                                         </NavLink>
                                     );
                                 })}
+                            </div>
+                            {visibleOperationalLinks.length > 0 && (
+                                <div className="border-t border-border/50 pt-2">
+                                    <p className="px-3 pb-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">
+                                        Operations
+                                    </p>
+                                    <div className="space-y-0.5">
+                                        {visibleOperationalLinks.map((link) => {
+                                            const Icon = link.icon;
+                                            return (
+                                                <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
+                                                    <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
+                                                    {link.label}
+                                                </NavLink>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

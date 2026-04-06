@@ -23,6 +23,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Enforce 10 MB file size limit to prevent OOM
+        const MAX_FILE_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json(
+                { error: 'File size exceeds the 10 MB limit' },
+                { status: 413 }
+            );
+        }
+
         const model = await getAiModel();
         if (!model) {
             return NextResponse.json({ error: 'AI model not available' }, { status: 503 });

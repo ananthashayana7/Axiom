@@ -18,6 +18,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
+import { RequisitionDialog } from "@/app/sourcing/requisitions/requisition-dialog";
 
 type SessionUser = {
   id?: string;
@@ -29,7 +30,8 @@ export default async function Home() {
   const currentUser = session?.user as SessionUser | undefined;
   const userRole = currentUser?.role;
   const isAdmin = userRole === 'admin';
-  const isAgent = userRole === 'admin' || userRole === 'user';
+  const isStandardUser = userRole === 'user';
+  const isAgent = isAdmin || isStandardUser;
 
   const [
     stats,
@@ -54,6 +56,18 @@ export default async function Home() {
   ]);
 
   const leads = departmentLeads.filter((lead) => lead.id !== currentUser?.id);
+  const activeOrderCount = Number(stats.pendingCount || 0);
+  const moderateRiskSuppliers = supplierAnalytics
+    .filter((supplier) => Number(supplier.riskScore || 0) >= 40 && Number(supplier.riskScore || 0) < 60)
+    .sort((left, right) => Number(right.riskScore || 0) - Number(left.riskScore || 0))
+    .slice(0, 3);
+  const warehouseSubtitle = Number(stats.totalInventory) > 0
+    ? `On-hand units across ${stats.stockedSkuCount} stocked SKUs`
+    : activeOrderCount > 0
+      ? `No on-hand stock yet. ${activeOrderCount} active orders are still upstream of receiving.`
+      : stats.partCount > 0
+        ? `On-hand units across ${stats.stockedSkuCount} stocked SKUs`
+        : "Parts catalog has not been populated yet.";
 
   const roleBadgeClass = isAdmin
     ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -75,12 +89,12 @@ export default async function Home() {
         </div>
         <div className="flex items-center space-x-3">
           <AutoRefresh />
-          <CreateOrderDialog suppliers={suppliers} parts={parts} />
+          {isAdmin ? <CreateOrderDialog suppliers={suppliers} parts={parts} /> : <RequisitionDialog />}
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Spend */}
+        {isAdmin ? (
         <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Enterprise Spend</CardTitle>
@@ -93,7 +107,7 @@ export default async function Home() {
               {formatCurrency(stats.totalSpend)}
             </div>
             <div className="flex items-center gap-1 mt-2">
-              {!stats.isFirstMonth ? (
+              {!stats.isFirstMonth && stats.showMomChange ? (
                 <Badge variant="outline" className={cn(
                   "text-[10px] font-bold px-1.5 py-0",
                   Number(stats.momChange) >= 0 ? "bg-emerald-50/50 text-emerald-700 border-emerald-100" : "bg-red-50/50 text-red-700 border-red-100"
@@ -101,29 +115,58 @@ export default async function Home() {
                   <TrendingUp className={cn("h-3 w-3 mr-1", Number(stats.momChange) < 0 && "rotate-180")} />
                   {Number(stats.momChange) >= 0 ? "+" : ""}{stats.momChange}%
                 </Badge>
+              ) : !stats.isFirstMonth ? (
+                <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
+                  Current month open
+                </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
                   New baseline
                 </Badge>
               )}
-              <span className="text-[10px] text-muted-foreground font-medium uppercase">vs last month</span>
+              <span className="text-[10px] text-muted-foreground font-medium uppercase">{stats.momentumLabel || 'vs last month'}</span>
             </div>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-              <Link href={isAgent ? "/admin/analytics" : "/sourcing/orders"} className="flex-1">
+              <Link href="/admin/analytics" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
                   View Analytics
                 </Button>
               </Link>
-              {isAdmin && (
-                <Link href="/sourcing/orders">
-                  <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white">
-                    New Order
-                  </Button>
-                </Link>
-              )}
+              <Link href="/sourcing/orders">
+                <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white">
+                  New Order
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
+        ) : (
+        <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Purchase Requests</CardTitle>
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+              <CreditCard className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-foreground tracking-tighter">Request</div>
+            <div className="flex items-center gap-1 mt-2">
+              <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
+                Internal workflow
+              </Badge>
+              <span className="text-[10px] text-muted-foreground font-medium uppercase">Submit for approval</span>
+            </div>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+              <Link href="/sourcing/requisitions" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
+                  View Requisitions
+                </Button>
+              </Link>
+              <RequisitionDialog />
+            </div>
+          </CardContent>
+        </Card>
+        )}
 
         {/* Active Suppliers */}
         <Card className="glass-card border-l-4 border-l-emerald-500 shadow-lg hover:shadow-emerald-500/20 transition-all h-full">
@@ -192,7 +235,7 @@ export default async function Home() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-foreground tracking-tighter">{Number(stats.totalInventory).toLocaleString('en-IN')}</div>
-            <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase">Units across {stats.partCount} SKUs</p>
+            <p className="text-[10px] text-muted-foreground mt-2 font-medium uppercase">{warehouseSubtitle}</p>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/sourcing/parts" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
@@ -209,21 +252,45 @@ export default async function Home() {
         </Card>
       </div>
 
-      <InsightInfographics
-        monthlyData={monthlySpend}
-        categoryData={categorySpend}
-        supplierData={supplierAnalytics}
-        riskySuppliers={riskySuppliers}
-        stats={stats}
-      />
+      {isAdmin && (
+        <InsightInfographics
+          monthlyData={monthlySpend}
+          categoryData={categorySpend}
+          supplierData={supplierAnalytics}
+          riskySuppliers={riskySuppliers}
+          stats={stats}
+        />
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
-          <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
+          {isAdmin ? (
+            <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
+          ) : (
+            <Card className="shadow-lg border-accent/50 overflow-hidden">
+              <CardHeader className="border-b bg-muted/20">
+                <CardTitle className="text-lg">Operational Workspace</CardTitle>
+                <CardDescription>Use requisitions for internal purchasing and the shared support center for help.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link href="/sourcing/requisitions" className="flex-1">
+                    <Button variant="outline" className="w-full">Open Requisitions</Button>
+                  </Link>
+                  <Link href="/support" className="flex-1">
+                    <Button className="w-full">Help & Support</Button>
+                  </Link>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Enterprise spend analytics, telemetry, and supplier risk monitoring remain limited to admin sessions.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
         <div className="col-span-3 space-y-6">
-          <CommunicationHub leads={leads} />
-          <Card className="shadow-lg border-accent/50 overflow-hidden">
+          {isAdmin ? <CommunicationHub leads={leads} /> : null}
+          {isAdmin ? <Card className="shadow-lg border-accent/50 overflow-hidden">
             <CardHeader className="border-b bg-muted/20">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Activity className="h-5 w-5 text-primary" />
@@ -236,9 +303,9 @@ export default async function Home() {
             <CardContent className="pt-6">
               <RecentProcurements orders={recentOrders} />
             </CardContent>
-          </Card>
+          </Card> : null}
 
-          {isAgent && (
+          {isAdmin && (
             <Card className="shadow-lg border-destructive/20 overflow-hidden">
               <CardHeader className="border-b bg-destructive/10 border-destructive/20">
                 <CardTitle className="flex items-center gap-2 text-lg text-destructive font-black uppercase tracking-widest">
@@ -251,7 +318,7 @@ export default async function Home() {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-3">
-                  {riskySuppliers.map((s) => (
+                  {riskySuppliers.length > 0 ? riskySuppliers.map((s) => (
                     <Link key={s.id} href={`/suppliers/${s.id}`} className="block group">
                       <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-destructive/10 group-hover:border-destructive/30 group-hover:shadow-md transition-all">
                         <div>
@@ -266,8 +333,22 @@ export default async function Home() {
                         </div>
                       </div>
                     </Link>
-                  ))}
-                  {riskySuppliers.length === 0 && (
+                  )) : moderateRiskSuppliers.length > 0 ? moderateRiskSuppliers.map((supplier) => (
+                    <Link key={supplier.name} href="/suppliers" className="block group">
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/60 group-hover:border-amber-400 group-hover:shadow-md transition-all">
+                        <div>
+                          <p className="font-bold text-foreground group-hover:text-amber-700 transition-colors">{supplier.name}</p>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase">Warning range</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-amber-500 text-white hover:bg-amber-500 font-black text-[12px] px-2 py-0.5">
+                            {supplier.riskScore}
+                          </Badge>
+                          <p className="text-[8px] text-muted-foreground font-black uppercase tracking-tighter mt-1">Monitor closely</p>
+                        </div>
+                      </div>
+                    </Link>
+                  )) : (
                     <p className="text-sm text-muted-foreground text-center py-4">All suppliers within safe risk limits.</p>
                   )}
                 </div>

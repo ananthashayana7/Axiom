@@ -8,6 +8,8 @@ import { eq, ilike } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { TotpService } from "@/lib/totp";
+import QRCode from "qrcode";
+import { authLimiter } from "@/lib/rate-limit";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
@@ -19,6 +21,12 @@ export async function authenticate(
         const identifier = formData.get('identifier') as string;
         const password = formData.get('password') as string;
         const code = formData.get('code') as string;
+
+        // Rate limit login attempts by identifier
+        const rateCheck = authLimiter.consume(identifier.toLowerCase());
+        if (!rateCheck.allowed) {
+            return 'Too many login attempts. Please try again later.';
+        }
 
         // Determine post-login redirect based on user's role
         let redirectTo = '/';
@@ -114,9 +122,10 @@ async function setupTwoFactorForLogin(identifier: string) {
                 .where(eq(users.id, user.id));
         }
 
+        const qrCodeUrl = await QRCode.toDataURL(otpauthUrl, { width: 200 });
         return {
             success: true as const,
-            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`,
+            qrCodeUrl,
             secret,
         };
     } catch (error) {
@@ -154,10 +163,11 @@ export async function setupTwoFactor() {
                 .where(eq(users.id, session.user.id));
         }
 
+        const qrCodeUrl = await QRCode.toDataURL(otpauthUrl, { width: 200 });
         return {
             success: true,
             secret,
-            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`
+            qrCodeUrl,
         };
     } catch (error) {
         console.error("Failed to setup 2FA:", error);

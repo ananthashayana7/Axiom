@@ -150,6 +150,10 @@ export function InsightInfographics({
         () => [...supplierData].sort((a, b) => b.spend - a.spend).slice(0, 4),
         [supplierData],
     );
+    const highestRiskSupplier = useMemo(
+        () => [...supplierData].sort((a, b) => Number(b.riskScore ?? 0) - Number(a.riskScore ?? 0))[0] ?? null,
+        [supplierData],
+    );
 
     const formatCompactValue = (value: number) => formatLocalCurrencyCompact(value, geoLocale);
     const formatValue = (value: number) => formatLocalCurrency(value, geoLocale);
@@ -313,7 +317,7 @@ export function InsightInfographics({
                                             <div>
                                                 <p className="text-sm font-bold text-foreground">{supplier.name}</p>
                                                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                                    {supplier.orders} orders · {supplier.reliability}% reliability
+                                                    {supplier.orders} orders · Perf {supplier.reliability}% · Risk {Number(supplier.riskScore ?? 0)}
                                                 </p>
                                             </div>
                                             <p className="text-sm font-black text-foreground">{formatCompactValue(supplier.spend)}</p>
@@ -348,7 +352,11 @@ export function InsightInfographics({
                                         <span className="font-black text-red-700">Risk {supplier.riskScore ?? 0}</span>
                                     </div>
                                 )) : (
-                                    <p className="text-sm text-red-800/80">No suppliers currently exceed the risk threshold.</p>
+                                    <p className="text-sm text-red-800/80">
+                                        {highestRiskSupplier && Number(highestRiskSupplier.riskScore ?? 0) > 0
+                                            ? `No suppliers currently exceed the critical threshold. Highest current risk: ${highestRiskSupplier.name} at ${Number(highestRiskSupplier.riskScore ?? 0)}.`
+                                            : "No suppliers currently exceed the risk threshold."}
+                                    </p>
                                 )}
                             </div>
                         </div>

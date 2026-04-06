@@ -29,6 +29,7 @@ const entityRoutes: Record<string, string> = {
 
 const alertTypeLabels: Record<string, string> = {
     'duplicate_invoice': 'Duplicate Invoice',
+    'zero_value_order': 'Zero-Value Order',
     'unusual_amount': 'Unusual Amount',
     'new_vendor_high_value': 'New Vendor High-Value',
     'round_number_pattern': 'Round Number Pattern',

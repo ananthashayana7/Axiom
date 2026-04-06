@@ -10,8 +10,16 @@ export function SearchTrigger() {
         setMounted(true)
     }, [])
 
+    const openPalette = React.useCallback(() => {
+        window.dispatchEvent(new CustomEvent("axiom:command-palette-toggle", { detail: { open: true } }))
+    }, [])
+
     return (
-        <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 border border-border rounded-md hover:bg-muted transition-colors w-64 text-left">
+        <button
+            type="button"
+            onClick={openPalette}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 border border-border rounded-md hover:bg-muted transition-colors w-64 text-left"
+        >
             <Search className="h-3 w-3" />
             Search Suppliers, RFQs, Orders...
             {mounted && (

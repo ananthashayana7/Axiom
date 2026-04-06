@@ -1,13 +1,31 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections } from "@/db/schema";
-import { eq, and, lte, gte, inArray } from "drizzle-orm";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts } from "@/db/schema";
+import { eq, and, lte, gte, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import { calculateThreeWayMatchStatus } from "@/lib/utils/three-way-match";
+
+const orderItemTotals = db.select({
+    orderId: orderItems.orderId,
+    lineTotal: sql<string>`COALESCE(SUM(${orderItems.quantity} * CAST(${orderItems.unitPrice} AS numeric)), 0)`.as('line_total')
+}).from(orderItems).groupBy(orderItems.orderId).as('order_action_item_totals');
+
+const effectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${orderItemTotals.lineTotal} AS numeric), 0)`;
+
+async function incrementInventoryForOrder(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], orderId: string) {
+    const items = await tx.select({
+        partId: orderItems.partId,
+        quantity: orderItems.quantity,
+    }).from(orderItems).where(eq(orderItems.orderId, orderId));
+
+    await Promise.all(items.map((item) => tx.update(parts)
+        .set({ stockLevel: sql`${parts.stockLevel} + ${item.quantity}` })
+        .where(eq(parts.id, item.partId))));
+}
 
 export async function getOrders() {
     const session = await auth();
@@ -22,11 +40,12 @@ export async function getOrders() {
                 id: procurementOrders.id,
                 supplierId: procurementOrders.supplierId,
                 status: procurementOrders.status,
-                totalAmount: procurementOrders.totalAmount,
+                totalAmount: effectiveOrderTotal,
                 createdAt: procurementOrders.createdAt,
                 supplierName: suppliers.name,
             })
             .from(procurementOrders)
+            .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
             .where(role === 'supplier' ? eq(procurementOrders.supplierId, supplierId) : undefined);
 
@@ -129,39 +148,41 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
     const userSupplierId = session.user.supplierId;
 
     try {
-        // Fetch current order to validate transition
-        const [currentOrder] = await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
-        if (!currentOrder) return { success: false, error: "Order not found" };
+        return await db.transaction(async (tx) => {
+            // Fetch current order inside transaction to prevent TOCTOU race
+            const [currentOrder] = await tx.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
+            if (!currentOrder) return { success: false, error: "Order not found" };
 
-        // Permission Checks
-        if (role === 'supplier') {
-            // Suppliers can only update their own orders
-            if (currentOrder.supplierId !== userSupplierId) return { success: false, error: "Unauthorized" };
+            // Permission Checks
+            if (role === 'supplier') {
+                // Suppliers can only update their own orders
+                if (currentOrder.supplierId !== userSupplierId) return { success: false, error: "Unauthorized" };
 
-            // Suppliers can typically only mark as fulfilled or cancelled (if allowed)
-            // preventing them from approving their own orders
-            if (['approved', 'sent'].includes(status)) {
-                return { success: false, error: "Unauthorized status change" };
+                // Suppliers can typically only mark as fulfilled or cancelled (if allowed)
+                // preventing them from approving their own orders
+                if (['approved', 'sent'].includes(status)) {
+                    return { success: false, error: "Unauthorized status change" };
+                }
             }
-        }
 
-        // Admin/User checks for specific status transitions
-        if (status === 'approved' || status === 'rejected') {
-            if (role !== 'admin') {
-                return { success: false, error: "Only admins can approve/reject orders" };
+            // Admin/User checks for specific status transitions
+            if (status === 'approved' || status === 'rejected') {
+                if (role !== 'admin') {
+                    return { success: false, error: "Only admins can approve/reject orders" };
+                }
             }
-        }
 
-        await db.update(procurementOrders)
-            .set({ status })
-            .where(eq(procurementOrders.id, orderId));
+            await tx.update(procurementOrders)
+                .set({ status })
+                .where(eq(procurementOrders.id, orderId));
 
-        await logActivity('UPDATE', 'order', orderId, `Order status updated to ${status.toUpperCase().replace('_', ' ')}`);
+            await logActivity('UPDATE', 'order', orderId, `Order status updated to ${status.toUpperCase().replace('_', ' ')}`);
 
-        revalidatePath("/sourcing/orders");
-        revalidatePath(`/sourcing/orders/${orderId}`);
-        revalidatePath("/portal/orders");
-        return { success: true };
+            revalidatePath("/sourcing/orders");
+            revalidatePath(`/sourcing/orders/${orderId}`);
+            revalidatePath("/portal/orders");
+            return { success: true };
+        });
     } catch (error) {
         console.error("Failed to update order status:", error);
         return { success: false, error: "Failed to update status" };
@@ -175,6 +196,28 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     try {
         return await db.transaction(async (tx) => {
             return await TelemetryService.time("OrderManagement", "convertRFQToOrder", async () => {
+                await tx.execute(sql`select ${rfqs.id} from ${rfqs} where ${rfqs.id} = ${rfqId} for update`);
+
+                const [rfq] = await tx.select({
+                    id: rfqs.id,
+                    status: rfqs.status,
+                })
+                    .from(rfqs)
+                    .where(eq(rfqs.id, rfqId))
+                    .limit(1);
+
+                if (!rfq) {
+                    throw new Error("RFQ not found");
+                }
+
+                if (rfq.status === 'closed') {
+                    return { success: false, error: "RFQ already converted to an order." };
+                }
+
+                if (rfq.status === 'cancelled') {
+                    return { success: false, error: "Cancelled RFQs cannot be converted." };
+                }
+
                 // 1. Fetch winning quote and RFQ data
                 const [quote] = await tx.select()
                     .from(rfqSuppliers)
@@ -191,6 +234,14 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
 
                 // 2. Create Order
                 const totalAmount = parseFloat(quote.quoteAmount || "0");
+                if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+                    return { success: false, error: "Quoted amount must be greater than zero before converting this RFQ." };
+                }
+
+                if (items.length === 0) {
+                    return { success: false, error: "RFQ must contain at least one item before conversion." };
+                }
+
                 const [newOrder] = await tx.insert(procurementOrders).values({
                     supplierId,
                     totalAmount: totalAmount.toFixed(2),
@@ -231,7 +282,7 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     } catch (error) {
         await TelemetryService.trackError("OrderManagement", "rfq_conversion_failed", error, { rfqId, supplierId });
         console.error("Conversion error:", error);
-        return { success: false, error: error.message || "Failed to convert RFQ to Order." };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to convert RFQ to Order." };
     }
 }
 
@@ -246,26 +297,49 @@ export async function recordGoodsReceipt(orderId: string, data: {
 
     try {
         return await db.transaction(async (tx) => {
+            const existingReceipts = await tx.select({ id: goodsReceipts.id })
+                .from(goodsReceipts)
+                .where(eq(goodsReceipts.orderId, orderId));
+
+            const passedInspectionCount = existingReceipts.length > 0
+                ? await tx.select({ count: sql<number>`COUNT(*)::int` })
+                    .from(qcInspections)
+                    .where(and(
+                        inArray(qcInspections.receiptId, existingReceipts.map((receipt) => receipt.id)),
+                        eq(qcInspections.status, 'passed')
+                    ))
+                : [{ count: 0 }];
+
             const [receipt] = await tx.insert(goodsReceipts).values({
                 orderId,
                 receivedById: session.user.id,
-                notes: data.notes
+                notes: data.notes,
+                inspectionStatus: data.visualInspectionPassed && data.quantityVerified && data.documentMatch ? 'passed' : 'failed',
+                inspectionNotes: data.notes,
             }).returning();
 
             // 2. Create QC Inspection Record
+            const qcPassed = data.visualInspectionPassed && data.quantityVerified && data.documentMatch;
             await tx.insert(qcInspections).values({
                 receiptId: receipt.id,
                 inspectorId: session.user.id,
-                status: (data.visualInspectionPassed && data.quantityVerified && data.documentMatch) ? 'passed' : 'failed',
+                status: qcPassed ? 'passed' : 'failed',
                 visualInspectionPassed: data.visualInspectionPassed ? 'yes' : 'no',
                 quantityVerified: data.quantityVerified ? 'yes' : 'no',
                 documentMatch: data.documentMatch ? 'yes' : 'no',
                 notes: data.notes,
             });
 
-            await tx.update(procurementOrders)
-                .set({ status: 'fulfilled' })
-                .where(eq(procurementOrders.id, orderId));
+            // Only mark as fulfilled if all QC checks pass
+            if (qcPassed) {
+                if ((passedInspectionCount[0]?.count || 0) === 0) {
+                    await incrementInventoryForOrder(tx, orderId);
+                }
+
+                await tx.update(procurementOrders)
+                    .set({ status: 'fulfilled' })
+                    .where(eq(procurementOrders.id, orderId));
+            }
 
             // Re-evaluate financial match state whenever GRN/QC changes.
             await validateThreeWayMatch(orderId);
@@ -357,7 +431,13 @@ export async function validateThreeWayMatch(orderId: string) {
 
             // 3. Check for Invoices
             const orderInvoices = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
-            const poAmount = parseFloat(po.totalAmount || "0");
+            const [itemTotalRow] = await db.select({
+                total: sql<string>`COALESCE(SUM(${orderItems.quantity} * CAST(${orderItems.unitPrice} AS numeric)), 0)`
+            }).from(orderItems).where(eq(orderItems.orderId, orderId));
+
+            const headerAmount = parseFloat(po.totalAmount || "0");
+            const lineItemAmount = parseFloat(itemTotalRow?.total || "0");
+            const poAmount = headerAmount > 0 ? headerAmount : lineItemAmount;
             const matchStatus = calculateThreeWayMatchStatus({
                 poAmount,
                 invoiceAmounts: orderInvoices.map((invoice) => parseFloat(invoice.amount)),
@@ -417,13 +497,17 @@ export async function getOrderFinanceDetails(orderId: string) {
             totalAmount: procurementOrders.totalAmount,
         }).from(procurementOrders).where(eq(procurementOrders.id, orderId)).limit(1);
 
+        const [itemTotalRow] = await db.select({
+            total: sql<string>`COALESCE(SUM(${orderItems.quantity} * CAST(${orderItems.unitPrice} AS numeric)), 0)`
+        }).from(orderItems).where(eq(orderItems.orderId, orderId));
+
         const receiptIds = receipts.map((receipt) => receipt.id);
         const inspections = receiptIds.length > 0
             ? await db.select().from(qcInspections).where(inArray(qcInspections.receiptId, receiptIds))
             : [];
         const qcPassed = inspections.some((inspection) => inspection.status === 'passed');
         const matchStatus = calculateThreeWayMatchStatus({
-            poAmount: parseFloat(order?.totalAmount || "0"),
+            poAmount: parseFloat(order?.totalAmount || "0") > 0 ? parseFloat(order?.totalAmount || "0") : parseFloat(itemTotalRow?.total || "0"),
             invoiceAmounts: orderInvoices.map((invoice) => parseFloat(invoice.amount)),
             hasReceipt: receipts.length > 0,
             qcPassed,

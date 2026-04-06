@@ -5,6 +5,11 @@ export const authConfig = {
     pages: {
         signIn: '/login',
     },
+    session: {
+        strategy: 'jwt' as const,
+        maxAge: 30 * 60,      // 30 minutes — hard server-side ceiling
+        updateAge: 5 * 60,    // refresh token every 5 minutes of activity
+    },
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
             const allowBypass = process.env.ALLOW_DEMO_BYPASS === 'true';
@@ -37,9 +42,15 @@ export const authConfig = {
 
             const userRole = auth.user?.role;
 
-            // Redirect suppliers to portal if they land on admin or procurement pages
+            // Redirect suppliers to portal — only /portal/* and public resources are allowed
             if (userRole === 'supplier') {
-                if (isOnAdminPage || isOnSuppliersPage || isOnSourcingPage || nextUrl.pathname === '/') {
+                const isSupplierAllowed =
+                    isOnPortalPage ||
+                    nextUrl.pathname === '/copilot' ||
+                    nextUrl.pathname === '/support' ||
+                    nextUrl.pathname === '/profile' ||
+                    nextUrl.pathname.startsWith('/api/');
+                if (!isSupplierAllowed) {
                     return Response.redirect(new URL('/portal', nextUrl));
                 }
             }
@@ -57,7 +68,9 @@ export const authConfig = {
                     const isAllowedAdminPage =
                         nextUrl.pathname.startsWith('/admin/audit') ||
                         nextUrl.pathname.startsWith('/admin/analytics') ||
-                        nextUrl.pathname.startsWith('/admin/risk');
+                        nextUrl.pathname.startsWith('/admin/risk') ||
+                        nextUrl.pathname.startsWith('/admin/tasks') ||
+                        nextUrl.pathname.startsWith('/admin/compliance');
 
                     if (isAllowedAdminPage) return true;
                 }
