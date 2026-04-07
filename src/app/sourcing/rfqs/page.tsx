@@ -6,18 +6,19 @@ import { auth } from "@/auth";
 
 export const dynamic = 'force-dynamic';
 
-export default async function RFQsPage() {
+export default async function RFQsPage({ searchParams }: { searchParams?: Promise<{ action?: string }> }) {
     const rfqs = await getRFQs();
     const parts = await getParts();
     const session = await auth();
     const isAdmin = (session?.user as any)?.role === 'admin';
+    const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <RFQsListClient
                 rfqs={rfqs as any}
                 isAdmin={isAdmin}
-                createAction={isAdmin ? <CreateRFQModal parts={parts} /> : null}
+                createAction={isAdmin ? <CreateRFQModal parts={parts} defaultOpen={resolvedSearchParams?.action === 'new'} /> : null}
             />
         </div>
     );

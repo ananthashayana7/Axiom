@@ -32,8 +32,8 @@ const entityLinks: Record<string, (id?: string) => string> = {
     agent_recommendation: () => `/admin/agents`,
 };
 
-type TaskData = { status: string; title: string }[];
-type TaskSummary = { byStatus: Record<string, number>; overdueCount: number };
+type TaskData = Awaited<ReturnType<typeof getAllTasks>>;
+type TaskSummary = Awaited<ReturnType<typeof getTaskSummary>>;
 
 export default async function TaskInboxPage() {
     const session = await auth();

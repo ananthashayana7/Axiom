@@ -1,0 +1,32 @@
+﻿git : warning: in the working copy of '.gitignore', LF will be replaced by 
+CRLF the next time Git touches it
+At line:1 char:1
++ git add -A 2>&1 | Out-File -FilePath '_git_add_result.txt' -Encoding  ...
++ ~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... Git touches it 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: in the working copy of 'src/app/actions/budgets.ts', LF will be 
+replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/actions/bulk.ts', LF will be replaced 
+by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/actions/webhooks.ts', LF will be 
+replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/audit/export/route.ts', LF will 
+be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/cron/commodity-prices/route.ts', 
+LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/cron/contracts/route.ts', LF will 
+be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/cron/demand-forecast/route.ts', 
+LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/cron/fx-rates/route.ts', LF will 
+be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/cron/webhooks/route.ts', LF will 
+be replaced by CRLF the next time Git touches it
+warning: in the working copy of 
+'src/app/api/reports/esg/[supplierId]/route.ts', LF will be replaced by CRLF 
+the next time Git touches it
+warning: in the working copy of 'src/app/api/upload/route.ts', LF will be 
+replaced by CRLF the next time Git touches it

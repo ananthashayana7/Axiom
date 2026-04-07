@@ -2,13 +2,14 @@
 
 import { db } from "@/db";
 import { workflowTasks, users, notifications } from "@/db/schema";
-import { eq, and, desc, asc, lte, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, and, desc, asc, lte, sql, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 
 type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled' | 'escalated';
 type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 type TaskEntityType = 'requisition' | 'rfq' | 'order' | 'invoice' | 'contract' | 'supplier' | 'compliance_obligation' | 'agent_recommendation';
+type TaskCondition = ReturnType<typeof eq>;
 
 // ============================================================================
 // WORKFLOW TASK ENGINE - First-class tasks across procurement objects
@@ -67,7 +68,7 @@ export async function getInboxTasks(filters?: {
     entityType?: string;
 }) {
     const user = await requireAuth();
-    const conditions: SQL[] = [eq(workflowTasks.assigneeId, user.id as string)];
+    const conditions: TaskCondition[] = [eq(workflowTasks.assigneeId, user.id as string)];
 
     const statusValues: TaskStatus[] = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'escalated'];
     const priorityValues: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
@@ -116,7 +117,7 @@ export async function getAllTasks(filters?: {
     const user = await requireAuth();
     if (user.role !== 'admin') throw new Error('Admin access required');
 
-    const conditions: SQL[] = [];
+    const conditions: TaskCondition[] = [];
 
     const statusValues: TaskStatus[] = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'escalated'];
     const priorityValues: TaskPriority[] = ['low', 'medium', 'high', 'critical'];

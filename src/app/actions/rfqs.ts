@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents } from "@/db/schema";
+import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents, notifications, sourcingEvents } from "@/db/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -16,6 +16,16 @@ const HEURISTIC_CONFIDENCE_DEFAULT = 35; // base confidence when only structural
 type SupplierRecommendation = typeof suppliers.$inferSelect & {
     matchScore: number;
     matchReasons: string[];
+};
+
+type QuoteAnalysis = {
+    totalAmount: number;
+    deliveryWeeks: number;
+    terms: string;
+    highlights: string[];
+    aiConfidence: number;
+    notes?: string;
+    submissionSource?: string;
 };
 
 function heuristicQuotationSummary(quoteText: string) {
@@ -183,6 +193,34 @@ export async function getRFQById(id: string) {
     }
 }
 
+export async function getCurrentSupplierRFQInvitation(rfqId: string) {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role !== 'supplier' || !session.user.supplierId) {
+        return null;
+    }
+
+    try {
+        const [invitation] = await db.select({
+            id: rfqSuppliers.id,
+            rfqId: rfqSuppliers.rfqId,
+            supplierId: rfqSuppliers.supplierId,
+            status: rfqSuppliers.status,
+            quoteAmount: rfqSuppliers.quoteAmount,
+            aiAnalysis: rfqSuppliers.aiAnalysis,
+        }).from(rfqSuppliers)
+          .where(and(
+              eq(rfqSuppliers.rfqId, rfqId),
+              eq(rfqSuppliers.supplierId, session.user.supplierId)
+          ))
+          .limit(1);
+
+        return invitation || null;
+    } catch (error) {
+        console.error("Failed to fetch supplier invitation:", error);
+        return null;
+    }
+}
+
 /**
  * AI-Powered Automated Supplier Selection
  * Ranks suppliers based on category match, performance, and risk.
@@ -324,6 +362,187 @@ export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
     }
 }
 
+async function notifyAdminsOfQuoteSubmission(
+    rfqId: string,
+    supplierId: string,
+    amount: number,
+    title: string,
+    messagePrefix: string,
+) {
+    const admins = await db.select().from(usersTable).where(eq(usersTable.role, 'admin'));
+    const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rfqId));
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
+
+    if (!rfq || !supplier) {
+        return;
+    }
+
+    for (const admin of admins) {
+        await createNotification({
+            userId: admin.id,
+            title,
+            message: `${supplier.name} ${messagePrefix} "${rfq.title}". Amount: Rs ${amount.toLocaleString()}`,
+            type: 'info',
+            link: `/sourcing/rfqs/${rfqId}`
+        });
+    }
+}
+
+export async function launchRFQSourcingEvent(rfqId: string) {
+    const session = await auth();
+    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+
+    try {
+        return await db.transaction(async (tx) => {
+            const [rfq] = await tx.select().from(rfqs).where(eq(rfqs.id, rfqId)).limit(1);
+            if (!rfq) {
+                return { success: false, error: "RFQ not found" };
+            }
+
+            const [existingEvent] = await tx.select()
+                .from(sourcingEvents)
+                .where(eq(sourcingEvents.rfqId, rfqId))
+                .orderBy(desc(sourcingEvents.createdAt))
+                .limit(1);
+
+            const bidDeadline = rfq.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+            if (existingEvent) {
+                await tx.update(sourcingEvents)
+                    .set({
+                        status: 'launched',
+                        launchedAt: new Date(),
+                        bidDeadline,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(sourcingEvents.id, existingEvent.id));
+            } else {
+                await tx.insert(sourcingEvents).values({
+                    rfqId,
+                    status: 'launched',
+                    launchedAt: new Date(),
+                    bidDeadline,
+                    ownerId: session.user.id,
+                });
+            }
+
+            await tx.update(rfqs)
+                .set({ status: 'open' })
+                .where(eq(rfqs.id, rfqId));
+
+            const invitedSuppliers = await tx.select({
+                supplierId: rfqSuppliers.supplierId,
+            }).from(rfqSuppliers).where(eq(rfqSuppliers.rfqId, rfqId));
+
+            for (const invitedSupplier of invitedSuppliers) {
+                const supplierUsers = await tx.select({ id: usersTable.id })
+                    .from(usersTable)
+                    .where(eq(usersTable.supplierId, invitedSupplier.supplierId));
+
+                for (const supplierUser of supplierUsers) {
+                    await tx.insert(notifications).values({
+                        userId: supplierUser.id,
+                        title: 'Sourcing Event Launched',
+                        message: `A new sourcing event is now open for bidding. Please submit your quote by ${bidDeadline.toISOString().split('T')[0]}.`,
+                        type: 'info',
+                        link: `/portal/rfqs/${rfqId}`,
+                    });
+                }
+            }
+
+            await logActivity('UPDATE', 'rfq', rfqId, `RFQ launched for supplier bidding. Deadline: ${bidDeadline.toISOString().split('T')[0]}.`);
+
+            revalidatePath("/sourcing/rfqs");
+            revalidatePath(`/sourcing/rfqs/${rfqId}`);
+            revalidatePath("/portal/rfqs");
+            revalidatePath(`/portal/rfqs/${rfqId}`);
+
+            return { success: true };
+        });
+    } catch (error) {
+        console.error("Failed to launch sourcing event:", error);
+        return { success: false, error: "Failed to launch sourcing event" };
+    }
+}
+
+export async function submitSupplierQuote(data: {
+    rfqSupplierId: string;
+    totalAmount: number;
+    leadTimeWeeks: number;
+    paymentTerms?: string;
+    notes?: string;
+}) {
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
+
+    try {
+        const [rfqSupplier] = await db.select()
+            .from(rfqSuppliers)
+            .where(eq(rfqSuppliers.id, data.rfqSupplierId))
+            .limit(1);
+
+        if (!rfqSupplier) {
+            return { success: false, error: "Invitation not found" };
+        }
+
+        if (session.user.role === 'supplier' && session.user.supplierId !== rfqSupplier.supplierId) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        if (!Number.isFinite(data.totalAmount) || data.totalAmount <= 0) {
+            return { success: false, error: "Quote amount must be greater than zero" };
+        }
+
+        if (!Number.isFinite(data.leadTimeWeeks) || data.leadTimeWeeks <= 0) {
+            return { success: false, error: "Lead time must be at least one week" };
+        }
+
+        const trimmedNotes = data.notes?.trim();
+        const paymentTerms = data.paymentTerms?.trim() || "Standard terms - please confirm with supplier.";
+        const analysis: QuoteAnalysis = {
+            totalAmount: Number(data.totalAmount.toFixed(2)),
+            deliveryWeeks: Math.round(data.leadTimeWeeks),
+            terms: paymentTerms,
+            highlights: [
+                `Supplier committed delivery in ${Math.round(data.leadTimeWeeks)} week(s).`,
+                trimmedNotes ? `Supplier note: ${trimmedNotes}` : "Structured quote submitted through supplier portal.",
+            ],
+            aiConfidence: 100,
+            notes: trimmedNotes,
+            submissionSource: 'supplier_portal',
+        };
+
+        await db.transaction(async (tx) => {
+            await tx.update(rfqSuppliers)
+                .set({
+                    aiAnalysis: JSON.stringify(analysis),
+                    quoteAmount: analysis.totalAmount.toString(),
+                    status: 'quoted',
+                })
+                .where(eq(rfqSuppliers.id, data.rfqSupplierId));
+
+            await tx.update(sourcingEvents)
+                .set({
+                    status: 'bid_submitted',
+                    updatedAt: new Date(),
+                })
+                .where(eq(sourcingEvents.rfqId, rfqSupplier.rfqId));
+        });
+
+        await logActivity('UPDATE', 'rfq_supplier', data.rfqSupplierId, `Supplier quote submitted through portal. Amount: Rs ${analysis.totalAmount.toLocaleString()}`);
+        await notifyAdminsOfQuoteSubmission(rfqSupplier.rfqId, rfqSupplier.supplierId, analysis.totalAmount, "New Quote Received", "has submitted a quote for");
+
+        revalidatePath("/portal/rfqs");
+        revalidatePath(`/portal/rfqs/${rfqSupplier.rfqId}`);
+        revalidatePath(`/sourcing/rfqs/${rfqSupplier.rfqId}`);
+
+        return { success: true, analysis };
+    } catch (error) {
+        console.error("Failed to submit supplier quote:", error);
+        return { success: false, error: "Failed to submit supplier quote" };
+    }
+}
+
 export async function processQuotation(rfqSupplierId: string, quoteText: string) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
@@ -338,7 +557,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
         }
 
         // Use AI to parse the quotation
-        let analysis;
+        let analysis: QuoteAnalysis;
         try {
             // Use the centralized AI provider
             const { getAiModel } = await import("@/lib/ai-provider");
@@ -376,15 +595,23 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
         }
 
         const analysisString = JSON.stringify(analysis);
+        const parsedAmount = Number(analysis.totalAmount || 0);
 
         return await db.transaction(async (tx) => {
             await tx.update(rfqSuppliers)
                 .set({
                     aiAnalysis: analysisString,
-                    quoteAmount: (analysis.totalAmount || 0).toString(),
+                    quoteAmount: parsedAmount.toString(),
                     status: 'quoted'
                 })
                 .where(eq(rfqSuppliers.id, rfqSupplierId));
+
+            await tx.update(sourcingEvents)
+                .set({
+                    status: 'bid_submitted',
+                    updatedAt: new Date(),
+                })
+                .where(eq(sourcingEvents.rfqId, rs.rfqId));
 
             revalidatePath(`/sourcing/rfqs/${rs.rfqId}`);
             revalidatePath(`/portal/rfqs/${rs.rfqId}`);
@@ -404,7 +631,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
                         title: "New Quote Received",
                         message: `${supplier.name} has submitted a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
                         type: 'info',
-                        link: `/sourcing/rfqs?id=${rs.rfqId}`
+                        link: `/sourcing/rfqs/${rs.rfqId}`
                     });
                 }
             }
@@ -439,14 +666,22 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
         };
 
         const analysisString = JSON.stringify(analysis);
+        const parsedAmount = Number(analysis.totalAmount || 0);
 
         await db.update(rfqSuppliers)
             .set({
                 aiAnalysis: analysisString,
-                quoteAmount: (analysis.totalAmount || 0).toString(),
+                quoteAmount: parsedAmount.toString(),
                 status: 'quoted'
             })
             .where(eq(rfqSuppliers.id, rfqSupplierId));
+
+        await db.update(sourcingEvents)
+            .set({
+                status: 'bid_submitted',
+                updatedAt: new Date(),
+            })
+            .where(eq(sourcingEvents.rfqId, rs.rfqId));
 
         revalidatePath(`/sourcing/rfqs/${rs.rfqId}`);
         revalidatePath("/portal/rfqs");
@@ -465,7 +700,7 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
                     title: "New Quote File Received",
                     message: `${supplier.name} uploaded a quote for "${rfq.title}". Amount: ₹${(analysis.totalAmount || 0).toLocaleString()}`,
                     type: 'info',
-                    link: `/sourcing/rfqs?id=${rs.rfqId}`
+                    link: `/sourcing/rfqs/${rs.rfqId}`
                 });
             }
         }

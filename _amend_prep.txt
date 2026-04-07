@@ -1,0 +1,4 @@
+﻿rm '_cleanup_result.txt'
+rm '_git_add_result.txt'
+rm '_git_info.txt'
+rm '_git_status.txt'

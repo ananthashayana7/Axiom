@@ -1,0 +1,119 @@
+﻿ M .dockerignore
+ M .github/workflows/ci-cd.yml
+ M .gitignore
+D  .idea/workspace.xml
+D  .vscode/mcp.json
+ M README.md
+ M SECURITY.md
+D  build-output.txt
+D  build.log
+D  debug-db.ts
+D  docker-build.txt
+ M docker-compose.prod.yml
+D  dump-all-users.js
+D  dump-users-detail.js
+D  dump-users.js
+D  dump-users.ts
+D  fix-db.js
+ M package-lock.json
+ M package.json
+ M src/app/actions/activity.ts
+ M src/app/actions/ai-recommendations.ts
+ M src/app/actions/analytics.ts
+ M src/app/actions/approval-policies.ts
+ M src/app/actions/auth.ts
+ M src/app/actions/budgets.ts
+ M src/app/actions/bulk.ts
+ M src/app/actions/compliance.ts
+ M src/app/actions/contacts.ts
+ M src/app/actions/contracts.ts
+ M src/app/actions/cost-intelligence.ts
+ M src/app/actions/goods-receipts.ts
+ M src/app/actions/import.ts
+ M src/app/actions/invoices.ts
+ M src/app/actions/orders.ts
+ M src/app/actions/parts.ts
+ M src/app/actions/portal.ts
+ M src/app/actions/requisitions.ts
+ M src/app/actions/rfqs.ts
+ M src/app/actions/risk.ts
+ M src/app/actions/search.ts
+ M src/app/actions/sourcing-events.ts
+ M src/app/actions/supplier-intelligence.ts
+ M src/app/actions/suppliers.ts
+ M src/app/actions/system.ts
+ M src/app/actions/telemetry.ts
+ M src/app/actions/users.ts
+ M src/app/actions/webhooks.ts
+ M src/app/actions/workflow-tasks.ts
+ M src/app/admin/analytics/page.tsx
+ M src/app/admin/audit/page.tsx
+ M src/app/admin/compliance/page.tsx
+ M src/app/admin/ecosystem/page.tsx
+ M src/app/admin/financial-matching/page.tsx
+ M src/app/admin/import/page.tsx
+ M src/app/admin/risk/page.tsx
+ M src/app/admin/scenarios/page.tsx
+ M src/app/admin/support/page.tsx
+ M src/app/admin/tasks/page.tsx
+ M src/app/admin/users/page.tsx
+ M src/app/api/audit/export/route.ts
+ M src/app/api/contracts/route.ts
+ M src/app/api/cron/commodity-prices/route.ts
+ M src/app/api/cron/contracts/route.ts
+ M src/app/api/cron/demand-forecast/route.ts
+ M src/app/api/cron/fx-rates/route.ts
+ M src/app/api/cron/webhooks/route.ts
+ M src/app/api/reports/esg/[supplierId]/route.ts
+ M src/app/api/sap/route.ts
+ M src/app/api/suppliers/[id]/score/route.ts
+ M src/app/api/upload/route.ts
+ M src/app/contacts/page.tsx
+ M src/app/docs/page.tsx
+ M src/app/portal/orders/page.tsx
+ M src/app/portal/requests/page.tsx
+ M src/app/portal/rfqs/[id]/page.tsx
+ M src/app/savings/page.tsx
+ M src/app/sourcing/contracts/page.tsx
+ M src/app/sourcing/goods-receipts/page.tsx
+ M src/app/sourcing/invoices/page.tsx
+ M src/app/sourcing/orders/page.tsx
+ M src/app/sourcing/parts/page.tsx
+ M src/app/sourcing/rfqs/[id]/page.tsx
+ M src/app/sourcing/rfqs/page.tsx
+ M src/app/suppliers/[id]/page.tsx
+ M src/app/transactions/page.tsx
+ M src/auth.config.ts
+ M src/auth.ts
+ M src/components/admin/audit-log-view.tsx
+ M src/components/admin/geo-risk-map.tsx
+ M src/components/admin/risk-intelligence-view.tsx
+ M src/components/dashboard/command-center.tsx
+ M src/components/dashboard/data-explorer.tsx
+ M src/components/parts/part-menu-actions.tsx
+ M src/components/sourcing/compliance-status.tsx
+ M src/components/sourcing/cost-intelligence.tsx
+ M src/components/sourcing/create-contract-dialog.tsx
+ M src/db/apply-migration.ts
+ M src/db/check-parts.ts
+ M src/db/schema.ts
+ M src/db/verify-schema.ts
+ M src/lib/queue.ts
+ M src/lib/utils/geo-currency.ts
+D  test-db.js
+D  test-email-lookup.ts
+D  test-profile.js
+D  verify-login.js
+D  verify-login.ts
+?? .env.outlook.example
+?? .env.production.example
+?? AZURE-GO-LIVE-CHECKLIST.md
+?? _cleanup_result.txt
+?? _git_info.txt
+?? _git_status.txt
+?? azure-pipelines.yml
+?? src/app/api/health/
+?? src/app/api/ready/
+?? src/lib/api-rate-limit.ts
+?? src/types/next-auth.d.ts
+?? src/workers/

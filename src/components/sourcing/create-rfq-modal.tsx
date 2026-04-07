@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -33,14 +34,22 @@ interface Part {
 
 interface CreateRFQModalProps {
     parts: Part[];
+    defaultOpen?: boolean;
 }
 
-export function CreateRFQModal({ parts }: CreateRFQModalProps) {
-    const [open, setOpen] = useState(false);
+export function CreateRFQModal({ parts, defaultOpen = false }: CreateRFQModalProps) {
+    const router = useRouter();
+    const [open, setOpen] = useState(defaultOpen);
     const [isPending, startTransition] = useTransition();
     const [items, setItems] = useState<{ partId: string; quantity: number }[]>([
         { partId: "", quantity: 1 }
     ]);
+
+    useEffect(() => {
+        if (defaultOpen) {
+            setOpen(true);
+        }
+    }, [defaultOpen]);
 
     const handleAddItem = () => {
         setItems([...items, { partId: "", quantity: 1 }]);
@@ -74,6 +83,10 @@ export function CreateRFQModal({ parts }: CreateRFQModalProps) {
                 toast.success("RFQ created! AI has selected the best suppliers.");
                 setOpen(false);
                 setItems([{ partId: "", quantity: 1 }]);
+                if ('rfqId' in result && result.rfqId) {
+                    router.push(`/sourcing/rfqs/${result.rfqId}`);
+                    router.refresh();
+                }
             } else {
                 toast.error('error' in result ? result.error : "Failed to create RFQ");
             }

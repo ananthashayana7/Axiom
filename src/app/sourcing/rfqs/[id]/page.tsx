@@ -329,7 +329,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         </CardContent>
                     </Card>
 
-                    <Card className="border-accent/30 shadow-sm">
+                    <Card id="rfq-cost-insights" className="border-accent/30 shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg">Sourcing Intelligence Insights</CardTitle>
                         </CardHeader>

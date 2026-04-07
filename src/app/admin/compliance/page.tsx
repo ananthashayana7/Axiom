@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getComplianceObligations, getComplianceDashboard } from "@/app/actions/compliance";
+import { getSuppliers } from "@/app/actions/suppliers";
+import { CreateComplianceObligationDialog } from "@/components/admin/create-compliance-obligation-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, AlertTriangle, FileX, Clock } from "lucide-react";
@@ -21,24 +23,31 @@ export default async function CompliancePage() {
 
     let obligations: any[] = [];
     let dashboard = { expiringSoon: 0, expired: 0, missingEvidence: 0, byCategory: [] as any[], byPolicyPack: [] as any[] };
+    let suppliers: Array<{ id: string; name: string }> = [];
 
     try {
-        obligations = await getComplianceObligations();
-        dashboard = await getComplianceDashboard();
+        [obligations, dashboard, suppliers] = await Promise.all([
+            getComplianceObligations(),
+            getComplianceDashboard(),
+            getSuppliers(),
+        ]);
     } catch {
         // Tables may not exist yet
     }
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <ShieldCheck className="h-6 w-6 text-primary" />
-                    Compliance Intelligence
-                </h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    Deadline-driven compliance obligations, evidence tracking, and supplier attestations
-                </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <ShieldCheck className="h-6 w-6 text-primary" />
+                        Compliance Intelligence
+                    </h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                        Deadline-driven compliance obligations, evidence tracking, and supplier attestations
+                    </p>
+                </div>
+                {session.user.role === 'admin' ? <CreateComplianceObligationDialog suppliers={suppliers} /> : null}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

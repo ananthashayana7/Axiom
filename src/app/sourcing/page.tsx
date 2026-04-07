@@ -86,7 +86,7 @@ export default async function SourcingIntelligencePage() {
                                 Axiom recommends transitioning from Spot buys to Framework Agreements for <strong>Passive Components</strong>.
                             </p>
                             <div className="flex gap-2">
-                                <Link href="/sourcing/rfqs/new" className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1">
+                                <Link href="/sourcing/rfqs?action=new" className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1">
                                     Initiate Framework RFQ <ArrowUpRight size={14} />
                                 </Link>
                             </div>

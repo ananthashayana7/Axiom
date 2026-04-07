@@ -1,0 +1,29 @@
+﻿[main e5a1de8] chore: prepare for Azure DevOps - pipeline, lint cleanup, security hardening
+ 118 files changed, 2066 insertions(+), 1275 deletions(-)
+ create mode 100644 .env.outlook.example
+ create mode 100644 .env.production.example
+ delete mode 100644 .idea/workspace.xml
+ delete mode 100644 .vscode/mcp.json
+ create mode 100644 AZURE-GO-LIVE-CHECKLIST.md
+ rename test-db.js => _cleanup_result.txt (100%)
+ rename test-profile.js => _git_add_result.txt (100%)
+ create mode 100644 _git_info.txt
+ create mode 100644 _git_status.txt
+ create mode 100644 azure-pipelines.yml
+ delete mode 100644 build-output.txt
+ delete mode 100644 build.log
+ delete mode 100644 debug-db.ts
+ delete mode 100644 docker-build.txt
+ delete mode 100644 dump-all-users.js
+ delete mode 100644 dump-users-detail.js
+ delete mode 100644 dump-users.js
+ delete mode 100644 dump-users.ts
+ delete mode 100644 fix-db.js
+ create mode 100644 src/app/api/health/route.ts
+ create mode 100644 src/app/api/ready/route.ts
+ create mode 100644 src/lib/api-rate-limit.ts
+ create mode 100644 src/types/next-auth.d.ts
+ create mode 100644 src/workers/supplier-score-worker.ts
+ delete mode 100644 test-email-lookup.ts
+ delete mode 100644 verify-login.js
+ delete mode 100644 verify-login.ts

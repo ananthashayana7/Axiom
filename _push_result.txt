@@ -1,0 +1,9 @@
+﻿git : To https://github.com/ananthashayana7/Axiom.git
+At line:1 char:1
++ git push origin main 2>&1 | Out-File -FilePath '_push_result.txt' -En ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://gith...yana7/Axiom.git 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   3388b4c..8589837  main -> main
