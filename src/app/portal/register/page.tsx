@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Building2, Mail, Phone, Globe, MapPin, Shield, CheckCircle2, Loader2 } from "lucide-react";
 
 const CATEGORY_OPTIONS = [
@@ -42,6 +43,8 @@ export default function SupplierRegistrationPage() {
             city: formData.get('city') as string || undefined,
             country: formData.get('country') as string || undefined,
             countryCode: formData.get('countryCode') as string || undefined,
+            website: formData.get('website') as string || undefined,
+            description: formData.get('description') as string || undefined,
             categories: selectedCategories.length > 0 ? selectedCategories : undefined,
             certifications: selectedCerts.length > 0 ? selectedCerts : undefined,
         });
@@ -64,11 +67,11 @@ export default function SupplierRegistrationPage() {
                         </div>
                         <h2 className="text-2xl font-bold">Registration Submitted!</h2>
                         <p className="text-muted-foreground">
-                            Thank you for registering. An Axiom administrator will review your application
-                            and you will be notified once approved.
+                            Thank you for registering. An Axiom administrator and onboarding workflow
+                            will review your application and guide the next evidence requests.
                         </p>
                         <p className="text-xs text-muted-foreground/60">
-                            Typical review time: 1–2 business days
+                            Typical review time: 1-2 business days
                         </p>
                     </CardContent>
                 </Card>
@@ -115,7 +118,7 @@ export default function SupplierRegistrationPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="contactPhone" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
                                     <Phone className="h-3 w-3" /> Phone
@@ -134,9 +137,33 @@ export default function SupplierRegistrationPage() {
                                 </Label>
                                 <Input id="country" name="country" placeholder="Germany" />
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="countryCode" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                                    <Globe className="h-3 w-3" /> ISO Code
+                                </Label>
+                                <Input id="countryCode" name="countryCode" placeholder="DE" maxLength={2} className="uppercase" />
+                            </div>
                         </div>
 
-                        <input type="hidden" name="countryCode" value="" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="website" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                                    <Globe className="h-3 w-3" /> Website
+                                </Label>
+                                <Input id="website" name="website" type="url" placeholder="https://www.acme.com" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="description" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                                    <Building2 className="h-3 w-3" /> Company Profile
+                                </Label>
+                                <Textarea
+                                    id="description"
+                                    name="description"
+                                    placeholder="Describe your capabilities, production footprint, and what you supply."
+                                    className="min-h-[102px]"
+                                />
+                            </div>
+                        </div>
 
                         {/* Categories */}
                         <div className="space-y-3">
@@ -185,7 +212,7 @@ export default function SupplierRegistrationPage() {
 
                     <CardFooter className="px-6 py-4 border-t bg-muted/10 flex justify-between items-center">
                         <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">
-                            All registrations are reviewed by an Axiom administrator
+                            Every submission opens an onboarding pack with workflow and compliance checks
                         </p>
                         <Button type="submit" disabled={loading} className="min-w-[140px]">
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit Registration'}

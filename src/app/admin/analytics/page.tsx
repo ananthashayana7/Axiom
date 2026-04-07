@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EnterpriseReadinessPanel } from '@/components/admin/enterprise-readiness-panel';
 import { toast } from 'sonner';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -337,6 +338,8 @@ export default function AnalyticsPage() {
             </div>
 
             {/* ─── Filter Panel ─── */}
+            <EnterpriseReadinessPanel />
+
             {filtersOpen && (
                 <Card className="border-primary/20 bg-primary/[0.02]">
                     <CardContent className="p-4">

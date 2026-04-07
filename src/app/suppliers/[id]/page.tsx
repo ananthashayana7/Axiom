@@ -17,6 +17,8 @@ import { SupplierScorecard } from "@/components/suppliers/supplier-scorecard";
 import { RecordPerformanceModal } from "@/components/suppliers/record-performance-modal";
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
+import { getSupplierEnterpriseReadiness } from "@/app/actions/enterprise-readiness";
+import { SupplierEnterpriseReadiness } from "@/components/suppliers/supplier-enterprise-readiness";
 
 type LifecycleStatus = 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated';
 type SupplierMetrics = {
@@ -40,22 +42,35 @@ type SupplierDocument = {
     createdAt: Date | null;
 };
 
+function formatInr(value: number) {
+    return `INR ${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
+function formatInrPrecise(value: number) {
+    return `INR ${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export default async function SupplierPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
 
-    const supplier = await getSupplierById(id);
-    const orders = await getSupplierOrders(id);
-    const docs = await getDocuments('supplier', id);
-    const initialComments = await getComments('supplier', id);
-    const auditLogs = isAdmin ? await getAuditLogs('supplier', id) : [];
-
-    const performanceData = await getSupplierPerformanceMetrics(id);
+    const [supplier, orders, docs, initialComments, auditLogs, performanceData, readinessSnapshot] = await Promise.all([
+        getSupplierById(id),
+        getSupplierOrders(id),
+        getDocuments('supplier', id),
+        getComments('supplier', id),
+        isAdmin ? getAuditLogs('supplier', id) : Promise.resolve([]),
+        getSupplierPerformanceMetrics(id),
+        getSupplierEnterpriseReadiness(id),
+    ]);
 
     if (!supplier) {
         return <div className="p-8">Supplier not found.</div>;
     }
+
+    const totalSpend = orders.reduce((sum: number, order) => sum + parseFloat(order.totalAmount || '0'), 0);
+    const averageOrderValue = orders.length > 0 ? totalSpend / orders.length : 0;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
@@ -103,6 +118,11 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         supplierId={id}
                         currentStatus={supplier.lifecycleStatus as LifecycleStatus}
                         isAdmin={isAdmin}
+                        approvalReadiness={readinessSnapshot ? {
+                            canApprove: readinessSnapshot.readiness.canApprove,
+                            blockers: readinessSnapshot.readiness.blockers,
+                            score: readinessSnapshot.readiness.score,
+                        } : undefined}
                     />
                 </Card>
             </div>
@@ -120,6 +140,14 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 </div>
 
                 <div className="space-y-6">
+                    {readinessSnapshot && (
+                        <SupplierEnterpriseReadiness
+                            supplierId={id}
+                            snapshot={readinessSnapshot}
+                            isAdmin={isAdmin}
+                        />
+                    )}
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Total Spend</CardTitle>
@@ -127,7 +155,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-bold">
-                                ₹{orders.reduce((sum: number, o) => sum + parseFloat(o.totalAmount || '0'), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                {formatInr(totalSpend)}
                             </div>
                             <p className="text-[10px] text-muted-foreground mt-2 italic">Across {orders.length} orders</p>
                         </CardContent>
@@ -246,7 +274,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     <CardContent className="pt-4 pb-3">
                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide">Avg Order Value</p>
                         <p className="text-2xl font-black text-amber-600">
-                            ₹{orders.length > 0 ? (orders.reduce((sum: number, o) => sum + parseFloat(o.totalAmount || '0'), 0) / orders.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'}
+                            {formatInr(averageOrderValue)}
                         </p>
                     </CardContent>
                 </Card>
@@ -278,7 +306,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                                                     {formatPmaId(order.id, 'order', order.createdAt)}
                                                 </Link>
                                             </td>
-                                            <td className="p-4 align-middle font-medium">₹{parseFloat(order.totalAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                            <td className="p-4 align-middle font-medium">{formatInrPrecise(parseFloat(order.totalAmount || '0'))}</td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex flex-col gap-1">
                                                     {order.incoterms && <span className="text-[10px] font-semibold text-primary">{order.incoterms}</span>}

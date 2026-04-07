@@ -54,7 +54,7 @@ export async function createApprovalPolicy(data: {
 export async function getApprovalPolicies(entityType?: string) {
     await requireAdmin();
 
-    const conditions: (typeof eq<any, any>)[] = [eq(approvalPolicies.isActive, 'yes')];
+    const conditions = [eq(approvalPolicies.isActive, 'yes')];
     if (entityType) conditions.push(eq(approvalPolicies.entityType, entityType));
 
     const policies = await db.select()

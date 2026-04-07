@@ -13,6 +13,11 @@ interface SupplierLifecycleStepperProps {
     supplierId: string;
     currentStatus: LifecycleStatus;
     isAdmin: boolean;
+    approvalReadiness?: {
+        canApprove: boolean;
+        blockers: string[];
+        score: number;
+    };
 }
 
 const steps: { status: LifecycleStatus; label: string; icon: any }[] = [
@@ -21,8 +26,9 @@ const steps: { status: LifecycleStatus; label: string; icon: any }[] = [
     { status: 'active', label: 'Active', icon: Check },
 ];
 
-export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }: SupplierLifecycleStepperProps) {
+export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin, approvalReadiness }: SupplierLifecycleStepperProps) {
     const [isPending, startTransition] = useTransition();
+    const canApprove = approvalReadiness?.canApprove ?? true;
     const nextStepGuidance: Record<LifecycleStatus, string> = {
         prospect: "Capture contact, compliance, and location details before moving the supplier into onboarding.",
         onboarding: "Validate certifications, performance baselines, and supporting documents before approval.",
@@ -112,6 +118,13 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
                 <span className="font-semibold text-foreground">Next step:</span> {nextStepGuidance[currentStatus]}
             </div>
 
+            {currentStatus === 'onboarding' && approvalReadiness && !approvalReadiness.canApprove && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                    <span className="font-semibold">Approval locked:</span> readiness is {approvalReadiness.score}%.
+                    {approvalReadiness.blockers.length > 0 ? ` ${approvalReadiness.blockers.slice(0, 2).join(' ')}` : ''}
+                </div>
+            )}
+
             {isAdmin && currentStatus !== 'active' && (
                 <div className="flex gap-2 justify-end">
                     {currentStatus === 'prospect' && (
@@ -128,7 +141,7 @@ export function SupplierLifecycleStepper({ supplierId, currentStatus, isAdmin }:
                         <Button
                             size="sm"
                             onClick={() => handleStatusUpdate('active')}
-                            disabled={isPending}
+                            disabled={isPending || !canApprove}
                         >
                             Approve Supplier
                         </Button>
