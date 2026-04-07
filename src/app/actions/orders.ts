@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts } from "@/db/schema";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents } from "@/db/schema";
 import { eq, and, lte, gte, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -15,6 +15,15 @@ const orderItemTotals = db.select({
 }).from(orderItems).groupBy(orderItems.orderId).as('order_action_item_totals');
 
 const effectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${orderItemTotals.lineTotal} AS numeric), 0)`;
+
+function toNumber(value: string | number | null | undefined) {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundCurrency(value: number) {
+    return Math.round(value * 100) / 100;
+}
 
 async function incrementInventoryForOrder(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], orderId: string) {
     const items = await tx.select({
@@ -130,7 +139,7 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
                 );
             }
 
-            await logActivity('CREATE', 'order', orderId, `New order created for total amount ₹${totalAmount.toLocaleString()}`);
+            await logActivity('CREATE', 'order', orderId, `New order created for total amount INR ${totalAmount.toLocaleString()}`);
 
             revalidatePath("/sourcing/orders");
             return { success: true };
@@ -225,12 +234,25 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
 
                 if (!quote) throw new Error("Quotation not found");
 
-                const items = await tx.query.rfqItems.findMany({
-                    where: eq(rfqItems.rfqId, rfqId),
-                    with: {
-                        part: true
-                    }
-                });
+                const allQuotes = await tx.select({
+                    supplierId: rfqSuppliers.supplierId,
+                    quoteAmount: rfqSuppliers.quoteAmount,
+                }).from(rfqSuppliers)
+                  .where(and(
+                      eq(rfqSuppliers.rfqId, rfqId),
+                      sql`${rfqSuppliers.quoteAmount} IS NOT NULL`
+                  ));
+
+                const items = await tx.select({
+                    partId: rfqItems.partId,
+                    quantity: rfqItems.quantity,
+                    partSku: parts.sku,
+                    partName: parts.name,
+                    partCategory: parts.category,
+                    partPrice: parts.price,
+                }).from(rfqItems)
+                  .innerJoin(parts, eq(rfqItems.partId, parts.id))
+                  .where(eq(rfqItems.rfqId, rfqId));
 
                 // 2. Create Order
                 const totalAmount = parseFloat(quote.quoteAmount || "0");
@@ -242,10 +264,80 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                     return { success: false, error: "RFQ must contain at least one item before conversion." };
                 }
 
+                const quoteAmounts = allQuotes.map((entry) => toNumber(entry.quoteAmount)).filter((amount) => amount > 0);
+                const averageQuotedAmount = quoteAmounts.length > 0
+                    ? quoteAmounts.reduce((sum, amount) => sum + amount, 0) / quoteAmounts.length
+                    : totalAmount;
+                const competitiveBaseline = Math.max(totalAmount, averageQuotedAmount);
+                const competitiveSavings = roundCurrency(Math.max(competitiveBaseline - totalAmount, 0));
+
+                const categories = Array.from(new Set(items.map((item) => item.partCategory)));
+                const partIds = items.map((item) => item.partId);
+
+                const historicalRows = partIds.length > 0
+                    ? await tx.select({
+                        partId: orderItems.partId,
+                        averagePrice: sql<string>`avg(cast(${orderItems.unitPrice} as numeric))`,
+                    }).from(orderItems)
+                      .innerJoin(procurementOrders, eq(orderItems.orderId, procurementOrders.id))
+                      .where(inArray(orderItems.partId, partIds))
+                      .groupBy(orderItems.partId)
+                    : [];
+
+                const historicalMap = new Map<string, number>();
+                for (const row of historicalRows) {
+                    historicalMap.set(row.partId, toNumber(row.averagePrice));
+                }
+
+                const benchmarkRows = categories.length > 0
+                    ? await tx.select({
+                        partCategory: marketPriceIndex.partCategory,
+                        benchmarkPrice: marketPriceIndex.benchmarkPrice,
+                        createdAt: marketPriceIndex.createdAt,
+                    }).from(marketPriceIndex)
+                      .where(inArray(marketPriceIndex.partCategory, categories))
+                      .orderBy(sql`${marketPriceIndex.partCategory} asc`, sql`${marketPriceIndex.createdAt} desc`)
+                    : [];
+
+                const benchmarkMap = new Map<string, number>();
+                for (const row of benchmarkRows) {
+                    if (!benchmarkMap.has(row.partCategory)) {
+                        benchmarkMap.set(row.partCategory, toNumber(row.benchmarkPrice));
+                    }
+                }
+
+                const shouldCostTotal = roundCurrency(items.reduce((sum, item) => {
+                    const currentUnitPrice = toNumber(item.partPrice);
+                    const benchmarkUnitPrice = benchmarkMap.get(item.partCategory) ?? null;
+                    const historicalUnitPrice = historicalMap.get(item.partId) ?? null;
+                    const weightedSignals = [
+                        benchmarkUnitPrice !== null ? benchmarkUnitPrice * 3 : 0,
+                        historicalUnitPrice !== null ? historicalUnitPrice * 2 : 0,
+                        currentUnitPrice > 0 ? currentUnitPrice : 0,
+                    ];
+                    const totalWeight = [
+                        benchmarkUnitPrice !== null ? 3 : 0,
+                        historicalUnitPrice !== null ? 2 : 0,
+                        currentUnitPrice > 0 ? 1 : 0,
+                    ].reduce((weightSum, weight) => weightSum + weight, 0);
+                    const shouldCostUnitPrice = totalWeight > 0
+                        ? weightedSignals.reduce((valueSum, value) => valueSum + value, 0) / totalWeight
+                        : currentUnitPrice;
+
+                    return sum + (shouldCostUnitPrice * item.quantity);
+                }, 0));
+
+                const shouldCostSavings = roundCurrency(Math.max(shouldCostTotal - totalAmount, 0));
+                const orderSavingsAmount = competitiveSavings > 0 ? competitiveSavings : shouldCostSavings;
+                const orderSavingsType = competitiveSavings > 0 ? 'negotiated' : shouldCostSavings > 0 ? 'should_cost' : null;
+
                 const [newOrder] = await tx.insert(procurementOrders).values({
                     supplierId,
                     totalAmount: totalAmount.toFixed(2),
-                    status: 'sent'
+                    status: 'sent',
+                    initialQuoteAmount: competitiveBaseline.toFixed(2),
+                    savingsAmount: orderSavingsAmount.toFixed(2),
+                    savingsType: orderSavingsType,
                 }).returning({ insertedId: procurementOrders.id });
 
                 const orderId = newOrder.insertedId;
@@ -266,9 +358,49 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                 // 4. Update RFQ Status to closed
                 await tx.update(rfqs).set({ status: 'closed' }).where(eq(rfqs.id, rfqId));
 
-                await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT.`);
+                await tx.update(sourcingEvents)
+                    .set({
+                        status: 'awarded',
+                        awardedSupplierId: supplierId,
+                        awardedAt: new Date(),
+                        awardJustification: `Converted to order ${orderId.split('-')[0].toUpperCase()} from RFQ workflow.`,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(sourcingEvents.rfqId, rfqId));
+
+                if (competitiveSavings > 0) {
+                    await tx.insert(savingsRecords).values({
+                        entityType: 'order',
+                        entityId: orderId,
+                        category: 'negotiated',
+                        trackingStatus: 'realized',
+                        forecastAmount: competitiveSavings.toFixed(2),
+                        realizedAmount: competitiveSavings.toFixed(2),
+                        baselineAmount: competitiveBaseline.toFixed(2),
+                        currency: 'INR',
+                        notes: `Awarded supplier ${supplierId} closed ${competitiveSavings.toFixed(2)} below the average quoted baseline for RFQ ${rfqId}.`,
+                    });
+                }
+
+                if (shouldCostSavings > 0) {
+                    await tx.insert(savingsRecords).values({
+                        entityType: 'order',
+                        entityId: orderId,
+                        category: 'should_cost',
+                        trackingStatus: 'realized',
+                        forecastAmount: shouldCostSavings.toFixed(2),
+                        realizedAmount: shouldCostSavings.toFixed(2),
+                        baselineAmount: shouldCostTotal.toFixed(2),
+                        currency: 'INR',
+                        notes: `Awarded supplier ${supplierId} landed below modeled should-cost for RFQ ${rfqId}.`,
+                    });
+                }
+
+                await logActivity('CREATE', 'order', orderId, `Converted from RFQ ${rfqId.split('-')[0].toUpperCase()}. Status: SENT. Competitive savings ${competitiveSavings.toFixed(2)}, should-cost delta ${shouldCostSavings.toFixed(2)}.`);
 
                 await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_value", totalAmount, { rfqId, orderId });
+                await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_competitive_savings", competitiveSavings, { rfqId, orderId });
+                await TelemetryService.trackMetric("OrderManagement", "rfq_conversion_should_cost_savings", shouldCostSavings, { rfqId, orderId });
                 await TelemetryService.trackEvent("OrderManagement", "rfq_converted_successfully", { orderId });
 
                 revalidatePath("/sourcing/rfqs");

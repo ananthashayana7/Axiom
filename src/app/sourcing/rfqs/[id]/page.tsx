@@ -21,9 +21,10 @@ import { ComplianceStatus } from "@/components/sourcing/compliance-status";
 import { CostIntelligence } from "@/components/sourcing/cost-intelligence";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { ManualInviteDialog } from "@/components/sourcing/manual-invite-dialog";
+import { getRFQNegotiationWorkbench } from "@/app/actions/cost-intelligence";
 import Link from "next/link";
 import type { Supplier, Part } from "@/db/schema";
-import { LaunchSourcingButton, ComparePricesButton } from "@/components/sourcing/rfq-action-buttons";
+import { LaunchSourcingButton, ComparePricesButton, PrepareNegotiationButton } from "@/components/sourcing/rfq-action-buttons";
 
 export const dynamic = 'force-dynamic';
 
@@ -58,10 +59,56 @@ type RFQWithRelations = {
     documents?: unknown[];
 };
 
+type ParsedSupplierAnalysis = {
+    deliveryWeeks: number | null;
+    terms: string | null;
+    highlights: string[];
+};
+
+function parseSupplierAnalysis(value: string | null): ParsedSupplierAnalysis {
+    if (!value) {
+        return { deliveryWeeks: null, terms: null, highlights: [] };
+    }
+
+    try {
+        const parsed = JSON.parse(value) as {
+            deliveryWeeks?: number;
+            deliveryLeadTime?: string;
+            leadTimeWeeks?: number;
+            terms?: string;
+            paymentTerms?: string;
+            highlights?: string[];
+        };
+
+        const deliveryMatch = typeof parsed.deliveryLeadTime === 'string'
+            ? parsed.deliveryLeadTime.match(/(\d+)/)
+            : null;
+
+        return {
+            deliveryWeeks: typeof parsed.deliveryWeeks === 'number'
+                ? parsed.deliveryWeeks
+                : typeof parsed.leadTimeWeeks === 'number'
+                    ? parsed.leadTimeWeeks
+                    : deliveryMatch
+                        ? Number(deliveryMatch[1])
+                        : null,
+            terms: parsed.terms || parsed.paymentTerms || null,
+            highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
+        };
+    } catch {
+        return { deliveryWeeks: null, terms: null, highlights: [] };
+    }
+}
+
+function formatCurrency(value: number | string | null | undefined) {
+    return `INR ${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
 export default async function RFQDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
+    const canManageRfqs = Boolean(session?.user && session.user.role !== 'supplier');
 
     const rfq = await getRFQById(id) as RFQWithRelations | null;
 
@@ -76,8 +123,16 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
     });
     const topSupplierId = sortedSuppliers[0]?.id;
     const quotedSuppliers = sortedSuppliers.filter((s) => s.aiAnalysis);
+    const fastestQuotedSupplier = quotedSuppliers
+        .map((supplier) => ({
+            supplier,
+            analysis: parseSupplierAnalysis(supplier.aiAnalysis),
+        }))
+        .filter((entry) => entry.analysis.deliveryWeeks !== null)
+        .sort((left, right) => (left.analysis.deliveryWeeks || 0) - (right.analysis.deliveryWeeks || 0))[0] || null;
 
     const allSuppliersMaster = await getSuppliers();
+    const negotiationWorkbench = canManageRfqs ? await getRFQNegotiationWorkbench(id).catch(() => null) : null;
 
     const handleStatusChange = async (formData: FormData) => {
         'use server';
@@ -196,7 +251,8 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         </CardHeader>
                         <CardContent className="space-y-8 pt-8 px-8 pb-10">
                             {sortedSuppliers.map((s) => {
-                                const analysis = s.aiAnalysis ? JSON.parse(s.aiAnalysis) : null;
+                                const analysis = parseSupplierAnalysis(s.aiAnalysis);
+                                const hasCommercialAnalysis = analysis.deliveryWeeks !== null || Boolean(analysis.terms) || analysis.highlights.length > 0;
                                 const isTop = s.id === topSupplierId;
                                 const performance = s.supplier.performanceScore || 0;
                                 const risk = s.supplier.riskScore || 0;
@@ -245,27 +301,27 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                             {risk <= 20 ? 'Verified' : risk <= 50 ? 'Moderate' : 'Critical'}
                                                         </div>
                                                     </div>
-                                                    {analysis && (
+                                                    {hasCommercialAnalysis && (
                                                         <>
                                                             <div className="space-y-2">
                                                                 <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Financial Quote</p>
                                                                 <div className="flex items-center gap-2 font-black text-2xl text-primary">
                                                                     <Wallet size={24} />
-                                                                    ₹{parseFloat(s.quoteAmount || '0').toLocaleString()}
+                                                                    {formatCurrency(s.quoteAmount)}
                                                                 </div>
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Fulfillment</p>
                                                                 <div className="flex items-center gap-2 font-black text-2xl text-foreground">
                                                                     <Clock size={24} />
-                                                                    {analysis.deliveryWeeks}w
+                                                                    {analysis.deliveryWeeks !== null ? `${analysis.deliveryWeeks}w` : 'TBD'}
                                                                 </div>
                                                             </div>
                                                         </>
                                                     )}
                                                 </div>
 
-                                                {analysis && (
+                                                {hasCommercialAnalysis && (
                                                     <div className="bg-primary/5 p-5 rounded-2xl border border-primary/10 shadow-inner">
                                                         <p className="text-[10px] font-black text-primary mb-3 flex items-center gap-2 uppercase tracking-widest">
                                                             <Sparkles size={12} />
@@ -283,7 +339,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                             <div className="border-l border-primary/10 pl-4 flex flex-col justify-center">
                                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Commercial Terms</p>
                                                                 <p className="text-xs font-bold text-primary italic leading-relaxed">
-                                                                    &ldquo;{analysis.terms}&rdquo;
+                                                                    {analysis.terms ? `"${analysis.terms}"` : 'Terms pending supplier confirmation.'}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -350,6 +406,189 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         </CardContent>
                     </Card>
 
+                    {negotiationWorkbench && (
+                        <Card className="border-primary/20 shadow-sm bg-background/90">
+                            <CardHeader className="border-b border-primary/10">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                        <CardTitle className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                            <Sparkles className="h-6 w-6 text-primary" />
+                                            Negotiation Workbench
+                                        </CardTitle>
+                                        <CardDescription className="mt-2 max-w-2xl">
+                                            Benchmark-backed negotiation guidance that turns quote variance into action, savings, and award confidence.
+                                        </CardDescription>
+                                    </div>
+                                    {isAdmin && negotiationWorkbench.hasQuotes ? (
+                                        <PrepareNegotiationButton rfqId={rfq.id} />
+                                    ) : null}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-6 pt-6">
+                                {negotiationWorkbench.hasQuotes ? (
+                                    <>
+                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                            <div className="rounded-3xl border bg-primary/5 p-5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Priority</p>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <span className="text-2xl font-black text-foreground">{negotiationWorkbench.negotiationPriority.toUpperCase()}</span>
+                                                    <Badge className={negotiationWorkbench.negotiationPriority === 'critical' ? 'bg-red-600' : negotiationWorkbench.negotiationPriority === 'high' ? 'bg-amber-500' : 'bg-slate-700'}>
+                                                        {negotiationWorkbench.quoteCount} quotes
+                                                    </Badge>
+                                                </div>
+                                                <p className="mt-2 text-xs text-muted-foreground">{negotiationWorkbench.benchmarkCoveragePercent}% of line items are backed by historical or benchmark data.</p>
+                                            </div>
+
+                                            <div className="rounded-3xl border p-5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Should-Cost Target</p>
+                                                <p className="mt-3 text-2xl font-black text-foreground">{formatCurrency(negotiationWorkbench.shouldCostTotal)}</p>
+                                                <p className="mt-2 text-xs text-muted-foreground">Modeled benchmark-backed target across all RFQ lines.</p>
+                                            </div>
+
+                                            <div className="rounded-3xl border p-5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Best Quote</p>
+                                                <p className="mt-3 text-2xl font-black text-foreground">{formatCurrency(negotiationWorkbench.bestQuoteAmount)}</p>
+                                                <p className="mt-2 text-xs text-muted-foreground">Competitive baseline {formatCurrency(negotiationWorkbench.competitiveBaseline)}.</p>
+                                            </div>
+
+                                            <div className="rounded-3xl border p-5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Negotiation Headroom</p>
+                                                <p className="mt-3 text-2xl font-black text-emerald-700">{formatCurrency(negotiationWorkbench.shouldCostGap || negotiationWorkbench.competitiveSavings)}</p>
+                                                <p className="mt-2 text-xs text-muted-foreground">Spread {negotiationWorkbench.spreadPercent}% across quoted suppliers.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-6 xl:grid-cols-2">
+                                            <div className="rounded-[2rem] border p-6 bg-background">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-black tracking-tight">Recommended Award Path</p>
+                                                        <p className="text-xs text-muted-foreground mt-1">Best balance of price, delivery, and supplier quality.</p>
+                                                    </div>
+                                                    {negotiationWorkbench.recommendedSupplier ? (
+                                                        <Badge variant="outline" className="text-[10px] uppercase">
+                                                            Rank #1
+                                                        </Badge>
+                                                    ) : null}
+                                                </div>
+                                                {negotiationWorkbench.recommendedSupplier ? (
+                                                    <div className="mt-5 space-y-4">
+                                                        <div className="rounded-2xl bg-primary text-primary-foreground p-5">
+                                                            <p className="text-xs uppercase tracking-widest opacity-80">Recommended supplier</p>
+                                                            <p className="mt-2 text-2xl font-black">{negotiationWorkbench.recommendedSupplier.supplierName}</p>
+                                                            <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold">
+                                                                <span>Quote: {formatCurrency(negotiationWorkbench.recommendedSupplier.quoteAmount)}</span>
+                                                                <span>Score: {negotiationWorkbench.recommendedSupplier.totalScore}</span>
+                                                                <span>Risk: {negotiationWorkbench.recommendedSupplier.riskScore}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            {negotiationWorkbench.actionPlan.map((action, index) => (
+                                                                <div key={index} className="flex items-start gap-3 rounded-2xl border p-4">
+                                                                    <CheckCircle2 className="h-4 w-4 mt-0.5 text-emerald-600 shrink-0" />
+                                                                    <p className="text-sm font-medium leading-relaxed">{action}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+
+                                            <div className="rounded-[2rem] border p-6 bg-background">
+                                                <div>
+                                                    <p className="text-sm font-black tracking-tight">Supplier Scoreboard</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">Use the ranked field to drive best-and-final negotiation rounds.</p>
+                                                </div>
+                                                <div className="mt-5 space-y-3">
+                                                    {negotiationWorkbench.supplierRankings.map((supplier, index) => (
+                                                        <div key={supplier.supplierId} className="rounded-2xl border p-4">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div>
+                                                                    <p className="font-semibold">{index + 1}. {supplier.supplierName}</p>
+                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                        Quote {formatCurrency(supplier.quoteAmount)} | Delivery {supplier.deliveryWeeks !== null ? `${supplier.deliveryWeeks} weeks` : 'TBD'} | Risk {supplier.riskScore}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-lg font-black">{supplier.totalScore}</p>
+                                                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Weighted score</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {supplier.deltaVsShouldCost !== null ? (
+                                                                    <Badge variant="outline" className="text-[10px]">
+                                                                        Gap vs should-cost: {formatCurrency(supplier.deltaVsShouldCost)}
+                                                                    </Badge>
+                                                                ) : null}
+                                                                <Badge variant="outline" className="text-[10px]">
+                                                                    Delta vs lead: {formatCurrency(supplier.deltaVsBest)}
+                                                                </Badge>
+                                                                {supplier.terms ? (
+                                                                    <Badge variant="outline" className="text-[10px]">
+                                                                        {supplier.terms}
+                                                                    </Badge>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-[2rem] border p-6 bg-muted/20">
+                                            <div className="flex items-center justify-between gap-3 mb-4">
+                                                <div>
+                                                    <p className="text-sm font-black tracking-tight">Should-Cost Backbone</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">Every RFQ line now carries a benchmark trail into negotiation.</p>
+                                                </div>
+                                                <Badge variant="outline" className="text-[10px] uppercase">
+                                                    {negotiationWorkbench.itemBenchmarks.length} lines
+                                                </Badge>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                                {negotiationWorkbench.itemBenchmarks.map((item) => (
+                                                    <div key={item.partId} className="rounded-2xl border bg-background p-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <p className="font-semibold text-sm">{item.partName}</p>
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">{item.sku} | {item.category}</p>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-[10px] uppercase">
+                                                                Qty {item.quantity}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                                            <div>
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Should-cost</p>
+                                                                <p className="font-black">{formatCurrency(item.shouldCostTotal)}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Current ref</p>
+                                                                <p className="font-black">{formatCurrency(item.currentUnitPrice * item.quantity)}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Benchmark unit</p>
+                                                                <p className="font-semibold">{item.benchmarkUnitPrice !== null ? formatCurrency(item.benchmarkUnitPrice) : 'Pending'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Historical unit</p>
+                                                                <p className="font-semibold">{item.historicalUnitPrice !== null ? formatCurrency(item.historicalUnitPrice) : 'Pending'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="rounded-3xl border border-dashed p-8 text-center text-muted-foreground">
+                                        Collect supplier quotes to unlock should-cost targets, negotiation actions, and supplier scorecards.
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {quotedSuppliers.length > 1 && (
                         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-2xl rounded-[2.5rem] overflow-hidden border-2 mt-12">
                             <CardHeader className="pb-8 pt-8 px-10 border-b border-primary/10">
@@ -377,7 +616,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                             <p className="text-2xl font-black text-foreground">
                                                 {[...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.supplier.name}
                                             </p>
-                                            <p className="text-sm font-black text-green-700 mt-1 uppercase tracking-widest">₹{parseFloat([...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.quoteAmount || '0').toLocaleString()}</p>
+                                            <p className="text-sm font-black text-green-700 mt-1 uppercase tracking-widest">{formatCurrency([...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.quoteAmount || '0')}</p>
                                         </div>
                                     </div>
 
@@ -393,17 +632,9 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-blue-50">
                                             <p className="text-2xl font-black text-foreground">
-                                                {(() => {
-                                                    const sorted = [...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks));
-                                                    const fastest = sorted[0];
-                                                    return fastest?.supplier.name;
-                                                })()}
+                                                {fastestQuotedSupplier?.supplier.supplier.name || 'No lead-time data'}
                                             </p>
-                                            <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{(() => {
-                                                const sorted = [...quotedSuppliers].sort((a, b) => (JSON.parse(a.aiAnalysis!).deliveryWeeks) - (JSON.parse(b.aiAnalysis!).deliveryWeeks));
-                                                const fastest = sorted[0];
-                                                return fastest?.aiAnalysis ? JSON.parse(fastest.aiAnalysis).deliveryWeeks : 'N/A';
-                                            })()} Weeks Arrival</p>
+                                            <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{fastestQuotedSupplier?.analysis.deliveryWeeks || 'N/A'} Weeks Arrival</p>
                                         </div>
                                     </div>
 
@@ -421,7 +652,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                             </div>
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-white/20 relative z-10">
-                                            <p className="text-3xl font-black">{sortedSuppliers[0]?.supplier.name}</p>
+                                            <p className="text-3xl font-black">{negotiationWorkbench?.recommendedSupplier?.supplierName || sortedSuppliers[0]?.supplier.name}</p>
                                             <p className="text-sm font-bold opacity-80 mt-1 italic italic">AI Recommended Outcome</p>
                                         </div>
                                     </div>

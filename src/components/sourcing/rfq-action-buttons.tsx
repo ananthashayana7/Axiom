@@ -3,8 +3,9 @@
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Sparkles, BarChart3, Loader2 } from "lucide-react";
+import { Sparkles, BarChart3, Loader2, Zap } from "lucide-react";
 import { launchRFQSourcingEvent } from "@/app/actions/rfqs";
+import { prepareRFQNegotiation } from "@/app/actions/sourcing-events";
 import { toast } from "sonner";
 
 export function LaunchSourcingButton({ rfqId }: { rfqId: string }) {
@@ -52,6 +53,44 @@ export function ComparePricesButton() {
         >
             <BarChart3 className="h-3 w-3 mr-1" />
             Compare
+        </Button>
+    );
+}
+
+export function PrepareNegotiationButton({ rfqId, disabled = false }: { rfqId: string; disabled?: boolean }) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+
+    const handlePrepare = () => {
+        startTransition(async () => {
+            try {
+                const result = await prepareRFQNegotiation(rfqId);
+                if (result.success) {
+                    toast.success("Negotiation workbench prepared", {
+                        description: `Workflow task created with ${result.shouldCostGap.toLocaleString()} still open against should-cost.`
+                    });
+                    router.refresh();
+                    return;
+                }
+
+                const errorMessage = 'error' in result ? result.error : "Unable to prepare the negotiation workflow";
+                toast.error(errorMessage);
+            } catch {
+                toast.error("Unable to prepare the negotiation workflow");
+            }
+        });
+    };
+
+    return (
+        <Button
+            size="sm"
+            variant="secondary"
+            className="w-full gap-2 font-bold"
+            onClick={handlePrepare}
+            disabled={disabled || isPending}
+        >
+            {isPending ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+            {isPending ? "Preparing..." : "Prep Negotiation"}
         </Button>
     );
 }

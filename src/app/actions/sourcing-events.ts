@@ -5,6 +5,7 @@ import { sourcingEvents, sourcingMessages, rfqs, rfqSuppliers, suppliers, users,
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+import { getRFQNegotiationWorkbench } from "./cost-intelligence";
 
 // ============================================================================
 // SOURCING EVENT ORCHESTRATION - Full event management for RFQs
@@ -147,6 +148,163 @@ export async function getSourcingEvent(rfqId: string) {
       .limit(1);
 
     return events[0] || null;
+}
+
+export async function prepareRFQNegotiation(rfqId: string) {
+    const user = await requireAuth();
+    if (user.role === 'supplier') throw new Error('Access denied');
+
+    const workbench = await getRFQNegotiationWorkbench(rfqId);
+    if (!workbench.hasQuotes || !workbench.recommendedSupplier) {
+        return { success: false as const, error: 'At least one submitted quote is required before negotiation can start.' };
+    }
+
+    const dueDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const scenarioComparison = workbench.supplierRankings.map((supplier) => ({
+        name: supplier.supplierName,
+        supplierId: supplier.supplierId,
+        supplierName: supplier.supplierName,
+        totalScore: supplier.totalScore,
+        breakdown: {
+            price: supplier.priceScore,
+            delivery: supplier.deliveryScore,
+            performance: supplier.performanceScore,
+            risk: 100 - supplier.riskScore,
+        },
+        totalCost: supplier.quoteAmount,
+        deliveryWeeks: supplier.deliveryWeeks || 0,
+        riskScore: supplier.riskScore,
+    }));
+
+    return await db.transaction(async (tx) => {
+        const [existingEvent] = await tx.select({
+            id: sourcingEvents.id,
+            ownerId: sourcingEvents.ownerId,
+            launchedAt: sourcingEvents.launchedAt,
+        }).from(sourcingEvents)
+          .where(eq(sourcingEvents.rfqId, rfqId))
+          .limit(1);
+
+        let eventId = existingEvent?.id || null;
+
+        if (existingEvent) {
+            const [updated] = await tx.update(sourcingEvents)
+                .set({
+                    status: 'negotiation',
+                    launchedAt: existingEvent.launchedAt || new Date(),
+                    evaluationDeadline: dueDate,
+                    scoringModel: JSON.stringify({ price: 45, delivery: 15, performance: 20, risk: 12, collaboration: 8 }),
+                    scenarioComparison: JSON.stringify(scenarioComparison),
+                    ownerId: existingEvent.ownerId || (user.id as string),
+                    updatedAt: new Date(),
+                })
+                .where(eq(sourcingEvents.id, existingEvent.id))
+                .returning({ id: sourcingEvents.id });
+
+            eventId = updated.id;
+        } else {
+            const [created] = await tx.insert(sourcingEvents).values({
+                rfqId,
+                status: 'negotiation',
+                launchedAt: new Date(),
+                evaluationDeadline: dueDate,
+                scoringModel: JSON.stringify({ price: 45, delivery: 15, performance: 20, risk: 12, collaboration: 8 }),
+                scenarioComparison: JSON.stringify(scenarioComparison),
+                ownerId: user.id as string,
+            }).returning({ id: sourcingEvents.id });
+
+            eventId = created.id;
+        }
+
+        await tx.update(rfqs)
+            .set({ status: 'open' })
+            .where(eq(rfqs.id, rfqId));
+
+        const [existingTask] = await tx.select({
+            id: workflowTasks.id,
+            status: workflowTasks.status,
+            title: workflowTasks.title,
+        }).from(workflowTasks)
+          .where(and(
+              eq(workflowTasks.entityType, 'rfq'),
+              eq(workflowTasks.entityId, rfqId)
+          ))
+          .orderBy(desc(workflowTasks.createdAt))
+          .limit(1);
+
+        const taskDescription = [
+            `Priority: ${workbench.negotiationPriority.toUpperCase()}.`,
+            `Recommended supplier: ${workbench.recommendedSupplier.supplierName} (${workbench.recommendedSupplier.quoteAmount.toLocaleString()}).`,
+            `Modeled should-cost gap: ${workbench.shouldCostGap.toLocaleString()}. Competitive leverage available: ${workbench.competitiveSavings.toLocaleString()}.`,
+            ...workbench.actionPlan,
+        ].join(' ');
+
+        let taskId = existingTask?.id || null;
+        if (existingTask && existingTask.status !== 'completed' && existingTask.status !== 'cancelled') {
+            const [updatedTask] = await tx.update(workflowTasks)
+                .set({
+                    title: `Negotiate RFQ: ${workbench.rfqTitle}`,
+                    description: taskDescription,
+                    status: 'open',
+                    priority: workbench.negotiationPriority === 'critical'
+                        ? 'critical'
+                        : workbench.negotiationPriority === 'high'
+                            ? 'high'
+                            : 'medium',
+                    assigneeId: user.id as string,
+                    dueDate,
+                })
+                .where(eq(workflowTasks.id, existingTask.id))
+                .returning({ id: workflowTasks.id });
+
+            taskId = updatedTask.id;
+        } else {
+            const [createdTask] = await tx.insert(workflowTasks).values({
+                title: `Negotiate RFQ: ${workbench.rfqTitle}`,
+                description: taskDescription,
+                entityType: 'rfq',
+                entityId: rfqId,
+                status: 'open',
+                priority: workbench.negotiationPriority === 'critical'
+                    ? 'critical'
+                    : workbench.negotiationPriority === 'high'
+                        ? 'high'
+                        : 'medium',
+                assigneeId: user.id as string,
+                createdById: user.id as string,
+                dueDate,
+            }).returning({ id: workflowTasks.id });
+
+            taskId = createdTask.id;
+        }
+
+        const adminUsers = await tx.select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, 'admin'));
+
+        for (const admin of adminUsers) {
+            if (admin.id === user.id) continue;
+            await tx.insert(notifications).values({
+                userId: admin.id,
+                title: 'RFQ Ready For Negotiation',
+                message: `${workbench.rfqTitle} moved into negotiation with ${workbench.quoteCount} quoted suppliers and ${workbench.shouldCostGap.toLocaleString()} modeled savings still open.`,
+                type: 'info',
+                link: `/sourcing/rfqs/${rfqId}`,
+            });
+        }
+
+        revalidatePath('/sourcing/rfqs');
+        revalidatePath(`/sourcing/rfqs/${rfqId}`);
+        revalidatePath('/admin/tasks');
+
+        return {
+            success: true as const,
+            eventId,
+            taskId,
+            shouldCostGap: workbench.shouldCostGap,
+            competitiveSavings: workbench.competitiveSavings,
+        };
+    });
 }
 
 export async function awardSourcingEvent(eventId: string, supplierId: string, justification: string, awardMemo?: string) {
