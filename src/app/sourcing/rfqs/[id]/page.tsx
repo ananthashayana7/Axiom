@@ -25,6 +25,7 @@ import { getRFQNegotiationWorkbench } from "@/app/actions/cost-intelligence";
 import Link from "next/link";
 import type { Supplier, Part } from "@/db/schema";
 import { LaunchSourcingButton, ComparePricesButton, PrepareNegotiationButton } from "@/components/sourcing/rfq-action-buttons";
+import { formatDateLabel } from "@/lib/utils/date";
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +134,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
 
     const allSuppliersMaster = await getSuppliers();
     const negotiationWorkbench = canManageRfqs ? await getRFQNegotiationWorkbench(id).catch(() => null) : null;
+    const createdDateLabel = formatDateLabel(rfq.createdAt);
 
     const handleStatusChange = async (formData: FormData) => {
         'use server';
@@ -141,7 +143,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
     };
 
     return (
-        <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
+        <div className="flex min-h-full min-w-0 flex-col bg-muted/40 p-4 lg:p-8">
             <div className="mb-6">
                 <Link href="/sourcing/rfqs" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
@@ -149,22 +151,22 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                 </Link>
             </div>
 
-            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8 mb-10">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-4">
-                        <h1 className="text-4xl font-bold tracking-tight text-foreground">{rfq.title}</h1>
+            <div className="mb-10 flex min-w-0 flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <h1 className="break-words text-4xl font-bold tracking-tight text-foreground">{rfq.title}</h1>
                         <Badge variant={rfq.status === 'open' ? 'default' : 'secondary'} className="text-sm px-3">
                             {rfq.status?.toUpperCase()}
                         </Badge>
                     </div>
-                    <p className="text-muted-foreground text-lg max-w-2xl">{rfq.description || "No description provided."}</p>
+                    <p className="max-w-2xl break-words text-lg text-muted-foreground">{rfq.description || "No description provided."}</p>
                 </div>
 
-                <Card className="w-full lg:w-[350px] p-6 bg-background shadow-sm border-accent/50">
+                <Card className="w-full border-accent/50 bg-background p-6 shadow-sm lg:w-[320px] lg:shrink-0">
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-muted-foreground">Created</span>
-                            <span className="text-sm font-semibold">{new Date(rfq.createdAt!).toLocaleDateString()}</span>
+                            <span className="text-sm font-semibold">{createdDateLabel}</span>
                         </div>
                         <div className="flex items-center justify-between border-t pt-4">
                             <span className="text-sm font-medium text-muted-foreground">Request Items</span>
@@ -172,7 +174,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         </div>
                         {isAdmin && (
                             <div className="pt-4 border-t space-y-3">
-                                <form action={handleStatusChange} className="flex gap-2">
+                                <form action={handleStatusChange} className="flex flex-col gap-2 sm:flex-row">
                                     <select
                                         name="status"
                                         defaultValue={rfq.status!}
@@ -194,9 +196,9 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                 </Card>
             </div>
 
-            <div className="grid gap-8 grid-cols-1 lg:grid-cols-3 mb-10">
+            <div className="mb-10 grid grid-cols-1 gap-8 xl:grid-cols-3">
                 {/* Left: Items List */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="space-y-6 xl:col-span-1">
                     <Card className="h-full border-accent/20 rounded-3xl shadow-sm bg-background/50 backdrop-blur-sm">
                         <CardHeader className="pb-4 border-b border-muted">
                             <CardTitle className="text-xl font-black tracking-tight flex items-center gap-2">
@@ -207,12 +209,12 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                         <CardContent className="pt-6">
                             <div className="space-y-4">
                                 {rfq.items.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-4 rounded-2xl border bg-muted/30 hover:bg-muted/50 transition-colors">
-                                        <div className="space-y-1">
-                                            <p className="font-bold text-sm text-foreground">{item.part.name}</p>
+                                    <div key={item.id} className="flex items-center justify-between gap-4 rounded-2xl border bg-muted/30 p-4 transition-colors hover:bg-muted/50">
+                                        <div className="min-w-0 space-y-1">
+                                            <p className="break-words font-bold text-sm text-foreground">{item.part.name}</p>
                                             <p className="text-[10px] text-muted-foreground font-mono bg-background px-1.5 py-0.5 rounded border inline-block">{item.part.sku}</p>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="shrink-0 text-right">
                                             <p className="font-black text-primary">{item.quantity} Units</p>
                                             <Badge variant="outline" className="text-[10px] font-bold h-4 px-1.5 uppercase opacity-60 mt-1">{item.part.category}</Badge>
                                         </div>
@@ -224,15 +226,15 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                 </div>
 
                 {/* Right: AI Selection & Insights */}
-                <div className="lg:col-span-2 space-y-8">
+                <div className="min-w-0 space-y-8 xl:col-span-2">
                     <Card className="border-primary/20 bg-emerald-50/10 shadow-xl rounded-[2rem] overflow-hidden border-2">
                         <CardHeader className="pb-6 border-b border-primary/10 bg-primary/5">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <CardTitle className="text-2xl font-black tracking-tighter flex items-center gap-3">
                                     <Sparkles className="h-7 w-7 text-primary" />
                                     Sourcing Intelligence
                                 </CardTitle>
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
                                     {isAdmin && (
                                         <ManualInviteDialog
                                             rfqId={id}
@@ -249,7 +251,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 Multidimensional supplier evaluation using procurement telemetry and financial risk modeling.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-8 pt-8 px-8 pb-10">
+                        <CardContent className="space-y-8 px-6 pb-10 pt-8 md:px-8">
                             {sortedSuppliers.map((s) => {
                                 const analysis = parseSupplierAnalysis(s.aiAnalysis);
                                 const hasCommercialAnalysis = analysis.deliveryWeeks !== null || Boolean(analysis.terms) || analysis.highlights.length > 0;
@@ -259,16 +261,16 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 const matchScore = Math.round((performance * 0.7) + ((100 - risk) * 0.3));
 
                                 return (
-                                    <div key={s.id} className={`flex flex-col gap-8 p-10 rounded-[2rem] border transition-all group relative overflow-hidden ${isTop ? 'border-primary/30 bg-white shadow-2xl scale-[1.02] z-10' : 'bg-background hover:border-accent hover:shadow-lg opacity-90 hover:opacity-100'}`}>
+                                    <div key={s.id} className={`group relative flex flex-col gap-8 overflow-hidden rounded-[2rem] border p-6 transition-all sm:p-8 xl:p-10 ${isTop ? 'z-10 scale-[1.01] border-primary/30 bg-white shadow-2xl' : 'bg-background opacity-90 hover:border-accent hover:opacity-100 hover:shadow-lg'}`}>
 
-                                        <div className="flex flex-col xl:flex-row justify-between gap-10">
-                                            <div className="flex-1 space-y-8">
+                                        <div className="flex min-w-0 flex-col gap-10 xl:flex-row xl:justify-between">
+                                            <div className="min-w-0 flex-1 space-y-8">
                                                 <div>
                                                     <div className="flex items-center gap-4 mb-2 flex-wrap">
-                                                        <h3 className="text-3xl font-black tracking-tighter text-foreground group-hover:text-primary transition-colors">
+                                                        <h3 className="break-words text-3xl font-black tracking-tighter text-foreground transition-colors group-hover:text-primary">
                                                             {s.supplier.name}
                                                         </h3>
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex flex-wrap items-center gap-2">
                                                             <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest h-6 bg-primary/5 text-primary border-primary/20 px-3 shrink-0">
                                                                 {s.status}
                                                             </Badge>
@@ -347,7 +349,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                 )}
                                             </div>
 
-                                            <div className="flex flex-col gap-4 shrink-0 xl:pl-10 xl:border-l border-muted-foreground/10 w-full xl:w-[260px] justify-center pt-8 xl:pt-0">
+                                            <div className="flex w-full flex-col justify-center gap-4 pt-8 xl:w-[260px] xl:shrink-0 xl:border-l xl:border-muted-foreground/10 xl:pl-10 xl:pt-0">
                                                 {isAdmin && (
                                                     <div className="space-y-4">
                                                         <ApproveOrderButton
@@ -536,7 +538,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
 
                                         <div className="rounded-[2rem] border p-6 bg-muted/20">
-                                            <div className="flex items-center justify-between gap-3 mb-4">
+                                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                 <div>
                                                     <p className="text-sm font-black tracking-tight">Should-Cost Backbone</p>
                                                     <p className="text-xs text-muted-foreground mt-1">Every RFQ line now carries a benchmark trail into negotiation.</p>
@@ -591,7 +593,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
 
                     {quotedSuppliers.length > 1 && (
                         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-2xl rounded-[2.5rem] overflow-hidden border-2 mt-12">
-                            <CardHeader className="pb-8 pt-8 px-10 border-b border-primary/10">
+                            <CardHeader className="border-b border-primary/10 px-6 pb-8 pt-8 md:px-8 xl:px-10">
                                 <CardTitle className="text-3xl font-black tracking-tighter flex items-center gap-3">
                                     <Sparkles className="h-8 w-8 text-primary animate-pulse" />
                                     Strategic Award Intelligence
@@ -600,8 +602,8 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                     Weighted decision matrix comparing performance, speed, and unit economics.
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="p-10">
-                                <div className="grid md:grid-cols-3 gap-8">
+                            <CardContent className="p-6 md:p-8 xl:p-10">
+                                <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
                                     <div className="p-4 lg:p-8 rounded-[2rem] bg-background border-2 border-green-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                                         <div className="space-y-4">
                                             <div className="p-3 bg-green-100 rounded-2xl w-fit">

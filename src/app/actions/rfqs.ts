@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents, notifications, sourcingEvents } from "@/db/schema";
-import { eq, and, inArray, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { createNotification } from "./notifications";
@@ -381,7 +381,7 @@ async function notifyAdminsOfQuoteSubmission(
         await createNotification({
             userId: admin.id,
             title,
-            message: `${supplier.name} ${messagePrefix} "${rfq.title}". Amount: Rs ${amount.toLocaleString()}`,
+            message: `${supplier.name} ${messagePrefix} "${rfq.title}". Amount: INR ${amount.toLocaleString()}`,
             type: 'info',
             link: `/sourcing/rfqs/${rfqId}`
         });
@@ -529,7 +529,7 @@ export async function submitSupplierQuote(data: {
                 .where(eq(sourcingEvents.rfqId, rfqSupplier.rfqId));
         });
 
-        await logActivity('UPDATE', 'rfq_supplier', data.rfqSupplierId, `Supplier quote submitted through portal. Amount: Rs ${analysis.totalAmount.toLocaleString()}`);
+        await logActivity('UPDATE', 'rfq_supplier', data.rfqSupplierId, `Supplier quote submitted through portal. Amount: INR ${analysis.totalAmount.toLocaleString()}`);
         await notifyAdminsOfQuoteSubmission(rfqSupplier.rfqId, rfqSupplier.supplierId, analysis.totalAmount, "New Quote Received", "has submitted a quote for");
 
         revalidatePath("/portal/rfqs");

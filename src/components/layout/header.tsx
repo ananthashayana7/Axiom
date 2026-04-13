@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
 import { cn } from "@/lib/utils";
+import { MobileNavigation } from "@/components/layout/mobile-navigation";
 
 type SessionUser = {
     role?: string | null;
@@ -26,29 +27,30 @@ export async function Header() {
 
     return (
         <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-14 flex items-center justify-between px-4 lg:px-8 transition-all font-sans">
-            <div className="flex items-center gap-8">
+            <div className="flex min-w-0 items-center gap-3 md:gap-8">
+                <MobileNavigation role={role} />
                 <div className="flex flex-col">
                     <h2 className="text-base font-bold text-foreground tracking-tight font-heading leading-tight">Intelligence Hub</h2>
                 </div>
-                <div className="hidden lg:block h-6 w-[1px] bg-border" />
+                <div className="hidden xl:block h-6 w-[1px] bg-border" />
                 <div className="hidden md:flex items-center">
                     <SearchTrigger />
                 </div>
             </div>
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3 md:gap-5">
                 <ThemeToggle />
                 <NotificationBell />
                 <div className="h-6 w-[1px] bg-border hidden sm:block" />
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                     <Link
                         href="/profile"
-                        className="flex items-center gap-2.5 px-3 py-1.5 text-xs font-bold text-foreground rounded-lg hover:bg-muted transition-all"
+                        className="flex min-w-0 items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-bold text-foreground transition-all hover:bg-muted"
                     >
                         <div className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/30 rounded-md flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
                             {userName.charAt(0)}
                         </div>
-                        <span className="hidden xl:inline">{userName}</span>
+                        <span className="hidden truncate xl:inline">{userName}</span>
                         {role && (
                             <span className={cn(
                                 "hidden sm:inline text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",

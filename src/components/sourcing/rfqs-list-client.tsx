@@ -7,6 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CreateRFQModal } from "@/components/sourcing/create-rfq-modal";
+
+type PartOption = {
+    id: string;
+    sku: string;
+    name: string;
+    category: string;
+};
 
 type RFQRow = {
     id: string;
@@ -14,6 +22,7 @@ type RFQRow = {
     description?: string | null;
     status?: string | null;
     createdAt?: Date | string | null;
+    createdAtLabel?: string;
     items?: Array<{ id: string; [key: string]: unknown }>;
     suppliers?: Array<{ id: string; supplier?: { name?: string | null; [key: string]: unknown } | null; [key: string]: unknown }>;
     [key: string]: unknown;
@@ -22,25 +31,28 @@ type RFQRow = {
 type RFQsListClientProps = {
     rfqs: RFQRow[];
     isAdmin: boolean;
-    createAction: React.ReactNode;
+    parts: PartOption[];
+    defaultCreateOpen?: boolean;
 };
 
 type StatusFilter = 'all' | 'draft' | 'open' | 'closed' | 'cancelled';
 type SupplierFilter = 'all' | 'invited' | 'unassigned';
 type SortKey = 'newest' | 'oldest' | 'title' | 'items' | 'suppliers';
 
-export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientProps) {
+export function RFQsListClient({ rfqs, isAdmin, parts, defaultCreateOpen = false }: RFQsListClientProps) {
     const [query, setQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
     const [sortBy, setSortBy] = useState<SortKey>('newest');
     const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+    const showHeaderCreateAction = isAdmin && rfqs.length > 0;
+    const showEmptyStateCreateAction = isAdmin && rfqs.length === 0;
 
     const filteredRfqs = [...rfqs]
         .filter((rfq) => {
             const supplierNames = (rfq.suppliers || []).map((supplier) => supplier.supplier?.name || "").join(" ").toLowerCase();
             const matchesQuery = !deferredQuery
-                || rfq.title.toLowerCase().includes(deferredQuery)
+                || (rfq.title || "").toLowerCase().includes(deferredQuery)
                 || (rfq.description || "").toLowerCase().includes(deferredQuery)
                 || supplierNames.includes(deferredQuery);
 
@@ -57,7 +69,7 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
                 case 'oldest':
                     return new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime();
                 case 'title':
-                    return left.title.localeCompare(right.title);
+                    return (left.title || "").localeCompare(right.title || "");
                 case 'items':
                     return (right.items?.length || 0) - (left.items?.length || 0);
                 case 'suppliers':
@@ -70,16 +82,22 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
 
     return (
         <>
-            <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <div>
+            <div className="mb-8 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
                     <h1 className="text-3xl font-bold tracking-tight">Sourcing Requests (RFQs)</h1>
                     <p className="mt-1 text-muted-foreground">Manage quotations, supplier invitations, and sourcing progress with quick filters.</p>
                 </div>
-                {isAdmin && createAction}
+                {showHeaderCreateAction ? (
+                    <CreateRFQModal
+                        key={defaultCreateOpen ? 'header-create-open' : 'header-create-closed'}
+                        parts={parts}
+                        defaultOpen={defaultCreateOpen}
+                    />
+                ) : null}
             </div>
 
             <Card className="mb-6 border-accent/20 shadow-sm">
-                <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.7fr))_auto]">
+                <CardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.72fr))_auto]">
                     <div className="space-y-2">
                         <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</label>
                         <div className="relative">
@@ -132,7 +150,7 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
                             <option value="suppliers">Most suppliers</option>
                         </select>
                     </div>
-                    <div className="flex items-end justify-between gap-3 lg:justify-end">
+                    <div className="flex items-end justify-between gap-3 md:col-span-2 xl:col-span-4 2xl:col-span-1 2xl:justify-end">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <SlidersHorizontal className="h-4 w-4" />
                             {filteredRfqs.length} result{filteredRfqs.length === 1 ? '' : 's'}
@@ -157,32 +175,36 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
             <div className="grid gap-6">
                 {filteredRfqs.map((rfq) => (
                     <Card key={rfq.id} className="border-accent/20 transition-shadow hover:shadow-md">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                    <CardTitle className="text-xl">{rfq.title}</CardTitle>
+                        <CardHeader className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 space-y-1">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <CardTitle className="text-xl leading-tight break-words">{rfq.title}</CardTitle>
                                     <Badge variant={
                                         rfq.status === 'open' ? 'default' :
                                             rfq.status === 'draft' ? 'secondary' :
                                                 'outline'
                                     }>
-                                        {rfq.status?.toUpperCase()}
+                                        {(rfq.status || 'draft').toUpperCase()}
                                     </Badge>
                                 </div>
-                                <CardDescription className="flex items-center gap-2">
+                                <CardDescription suppressHydrationWarning className="hidden">
                                     <History size={14} />
                                     Created {new Date(rfq.createdAt || 0).toLocaleDateString()} • {rfq.status === 'closed' && (rfq.items?.length || 0) === 0 ? 'archived item detail unavailable' : `${rfq.items?.length || 0} items`} • {rfq.suppliers?.length || 0} suppliers
                                 </CardDescription>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                                    <History size={14} />
+                                    Created {rfq.createdAtLabel || 'N/A'} | {rfq.status === 'closed' && (rfq.items?.length || 0) === 0 ? 'archived item detail unavailable' : `${rfq.items?.length || 0} items`} | {rfq.suppliers?.length || 0} suppliers
+                                </div>
                             </div>
-                            <Link href={`/sourcing/rfqs/${rfq.id}`}>
-                                <Button variant="ghost" className="gap-2">
+                            <Link href={`/sourcing/rfqs/${rfq.id}`} className="w-full sm:w-auto">
+                                <Button variant="ghost" className="w-full gap-2 sm:w-auto">
                                     View Details
                                     <ArrowRight size={16} />
                                 </Button>
                             </Link>
                         </CardHeader>
                         <CardContent>
-                            <div className="mb-3 text-sm text-muted-foreground">
+                            <div className="mb-3 break-words text-sm text-muted-foreground">
                                 {rfq.description || "No description provided."}
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -199,7 +221,7 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
                 ))}
 
                 {filteredRfqs.length === 0 && (
-                    <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-accent/30 bg-background py-20">
+                    <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-accent/30 bg-background px-6 py-20 text-center">
                         <Search className="mb-4 h-12 w-12 text-muted-foreground/30" />
                         <h3 className="text-lg font-semibold">No sourcing requests found</h3>
                         <p className="mb-6 text-muted-foreground">
@@ -207,7 +229,13 @@ export function RFQsListClient({ rfqs, isAdmin, createAction }: RFQsListClientPr
                                 ? "Create your first RFQ to start automated supplier selection."
                                 : "Adjust the filters to widen the result set."}
                         </p>
-                        {isAdmin && rfqs.length === 0 && createAction}
+                        {showEmptyStateCreateAction ? (
+                            <CreateRFQModal
+                                key={defaultCreateOpen ? 'empty-create-open' : 'empty-create-closed'}
+                                parts={parts}
+                                defaultOpen={defaultCreateOpen}
+                            />
+                        ) : null}
                     </div>
                 )}
             </div>

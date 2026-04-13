@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,19 +37,20 @@ interface CreateRFQModalProps {
     defaultOpen?: boolean;
 }
 
+type CreateRFQItem = {
+    partId: string;
+    quantity: number;
+};
+
+type CreateRFQItemField = keyof CreateRFQItem;
+
 export function CreateRFQModal({ parts, defaultOpen = false }: CreateRFQModalProps) {
     const router = useRouter();
     const [open, setOpen] = useState(defaultOpen);
     const [isPending, startTransition] = useTransition();
-    const [items, setItems] = useState<{ partId: string; quantity: number }[]>([
+    const [items, setItems] = useState<CreateRFQItem[]>([
         { partId: "", quantity: 1 }
     ]);
-
-    useEffect(() => {
-        if (defaultOpen) {
-            setOpen(true);
-        }
-    }, [defaultOpen]);
 
     const handleAddItem = () => {
         setItems([...items, { partId: "", quantity: 1 }]);
@@ -59,9 +60,12 @@ export function CreateRFQModal({ parts, defaultOpen = false }: CreateRFQModalPro
         setItems(items.filter((_, i) => i !== index));
     };
 
-    const handleUpdateItem = (index: number, field: string, value: any) => {
+    const handleUpdateItem = (index: number, field: CreateRFQItemField, value: CreateRFQItem[CreateRFQItemField]) => {
         const newItems = [...items];
-        (newItems[index] as any)[field] = value;
+        const currentItem = newItems[index];
+        newItems[index] = field === 'partId'
+            ? { ...currentItem, partId: value as string }
+            : { ...currentItem, quantity: value as number };
         setItems(newItems);
     };
 
@@ -132,9 +136,9 @@ export function CreateRFQModal({ parts, defaultOpen = false }: CreateRFQModalPro
                             </div>
 
                             {items.map((item, index) => (
-                                <div key={index} className="flex gap-3 items-end p-3 rounded-lg border bg-muted/20">
+                                <div key={index} className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-end">
                                     <div className="flex-1 space-y-2">
-                                        <Label className="text-[10px] uppercase text-muted-foreground uppercase">Select Part</Label>
+                                        <Label className="text-[10px] uppercase text-muted-foreground">Select Part</Label>
                                         <Select
                                             value={item.partId}
                                             onValueChange={(val) => handleUpdateItem(index, 'partId', val)}
@@ -151,20 +155,23 @@ export function CreateRFQModal({ parts, defaultOpen = false }: CreateRFQModalPro
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="w-[100px] space-y-2">
-                                        <Label className="text-[10px] uppercase text-muted-foreground uppercase">Quantity</Label>
+                                    <div className="w-full space-y-2 sm:w-[100px]">
+                                        <Label className="text-[10px] uppercase text-muted-foreground">Quantity</Label>
                                         <Input
                                             type="number"
                                             min="1"
                                             value={item.quantity}
-                                            onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value))}
+                                            onChange={(e) => {
+                                                const nextQuantity = Number.parseInt(e.target.value, 10);
+                                                handleUpdateItem(index, 'quantity', Number.isNaN(nextQuantity) ? 1 : nextQuantity);
+                                            }}
                                         />
                                     </div>
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="text-muted-foreground hover:text-destructive"
+                                        className="self-start text-muted-foreground hover:text-destructive sm:self-auto"
                                         onClick={() => handleRemoveItem(index)}
                                         disabled={items.length === 1}
                                     >
