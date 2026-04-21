@@ -1,12 +1,10 @@
-// ─── In-Memory Token Bucket Rate Limiter ──────────────────────────────
-// No external dependencies (Redis optional upgrade path)
-// Usage: const limiter = createRateLimiter({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60000 });
-//        const result = limiter.consume(userId); → { allowed: true, remaining: 99 } or { allowed: false, retryAfterMs: 1234 }
+import crypto from "node:crypto";
+import { NextResponse } from "next/server";
 
 interface RateLimiterConfig {
     maxTokens: number;
-    refillRate: number; // tokens added per interval
-    refillIntervalMs: number; // ms between refills
+    refillRate: number;
+    refillIntervalMs: number;
 }
 
 interface TokenBucket {
@@ -14,21 +12,44 @@ interface TokenBucket {
     lastRefill: number;
 }
 
+type RateLimitResult = {
+    allowed: boolean;
+    remaining: number;
+    retryAfterMs?: number;
+};
+
+export type RateLimitName = "read" | "write" | "auth";
+
+type RedisLike = {
+    incrby(key: string, increment: number): Promise<number>;
+    pexpire(key: string, milliseconds: number): Promise<number>;
+    connect(): Promise<void>;
+    disconnect(): void;
+    on(event: "error", handler: (error: Error) => void): RedisLike;
+};
+
+const globalForRateLimit = globalThis as typeof globalThis & {
+    __axiomRedisRateLimitClient?: Promise<RedisLike | null>;
+};
+
+let redisWarningLogged = false;
+
 export function createRateLimiter(config: RateLimiterConfig) {
     const buckets = new Map<string, TokenBucket>();
     const { maxTokens, refillRate, refillIntervalMs } = config;
 
-    // Periodic cleanup of stale entries (every 5 minutes)
-    if (typeof setInterval !== 'undefined') {
-        setInterval(() => {
+    if (typeof setInterval !== "undefined") {
+        const cleanup = setInterval(() => {
             const now = Date.now();
-            const staleThreshold = 10 * 60 * 1000; // 10 minutes
+            const staleThreshold = 10 * 60 * 1000;
             for (const [key, bucket] of buckets) {
                 if (now - bucket.lastRefill > staleThreshold) {
                     buckets.delete(key);
                 }
             }
         }, 5 * 60 * 1000);
+
+        cleanup.unref?.();
     }
 
     function refill(bucket: TokenBucket, now: number): void {
@@ -41,7 +62,7 @@ export function createRateLimiter(config: RateLimiterConfig) {
     }
 
     return {
-        consume(key: string, cost: number = 1): { allowed: boolean; remaining: number; retryAfterMs?: number } {
+        consume(key: string, cost: number = 1): RateLimitResult {
             const now = Date.now();
 
             let bucket = buckets.get(key);
@@ -57,7 +78,6 @@ export function createRateLimiter(config: RateLimiterConfig) {
                 return { allowed: true, remaining: bucket.tokens };
             }
 
-            // Calculate when tokens will be available
             const deficit = cost - bucket.tokens;
             const intervalsNeeded = Math.ceil(deficit / refillRate);
             const retryAfterMs = intervalsNeeded * refillIntervalMs;
@@ -78,46 +98,138 @@ export function createRateLimiter(config: RateLimiterConfig) {
     };
 }
 
-// ─── Pre-configured Rate Limiters ──────────────────────────────────────
+export const rateLimitConfigs: Record<RateLimitName, RateLimiterConfig> = {
+    read: {
+        maxTokens: Number(process.env.RATE_LIMIT_READ_PER_MINUTE || 300),
+        refillRate: Number(process.env.RATE_LIMIT_READ_PER_MINUTE || 300),
+        refillIntervalMs: 60_000,
+    },
+    write: {
+        maxTokens: Number(process.env.RATE_LIMIT_WRITE_PER_MINUTE || 60),
+        refillRate: Number(process.env.RATE_LIMIT_WRITE_PER_MINUTE || 60),
+        refillIntervalMs: 60_000,
+    },
+    auth: {
+        maxTokens: Number(process.env.RATE_LIMIT_AUTH_PER_MINUTE || 5),
+        refillRate: Number(process.env.RATE_LIMIT_AUTH_PER_MINUTE || 5),
+        refillIntervalMs: 60_000,
+    },
+};
 
-/** 100 read requests per minute per user */
-export const readLimiter = createRateLimiter({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-});
+export const readLimiter = createRateLimiter(rateLimitConfigs.read);
+export const writeLimiter = createRateLimiter(rateLimitConfigs.write);
+export const authLimiter = createRateLimiter(rateLimitConfigs.auth);
 
-/** 20 write requests per minute per user */
-export const writeLimiter = createRateLimiter({
-    maxTokens: 20,
-    refillRate: 20,
-    refillIntervalMs: 60_000,
-});
+const fallbackLimiters = {
+    read: readLimiter,
+    write: writeLimiter,
+    auth: authLimiter,
+};
 
-/** 5 auth attempts per minute per IP */
-export const authLimiter = createRateLimiter({
-    maxTokens: 5,
-    refillRate: 5,
-    refillIntervalMs: 60_000,
-});
+async function getRedisClient() {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) return null;
 
-// ─── Middleware Helper ─────────────────────────────────────────────────
+    if (!globalForRateLimit.__axiomRedisRateLimitClient) {
+        globalForRateLimit.__axiomRedisRateLimitClient = (async () => {
+            try {
+                const { default: IORedis } = await import("ioredis");
+                const client = new IORedis(redisUrl, {
+                    enableOfflineQueue: false,
+                    lazyConnect: true,
+                    maxRetriesPerRequest: 1,
+                }) as RedisLike;
 
-import { NextResponse } from 'next/server';
+                client.on("error", (error) => {
+                    if (!redisWarningLogged) {
+                        redisWarningLogged = true;
+                        console.warn("[RateLimit] Redis unavailable; using local fallback.", error.message);
+                    }
+                });
+
+                await client.connect();
+                return client;
+            } catch (error) {
+                if (!redisWarningLogged) {
+                    redisWarningLogged = true;
+                    console.warn(
+                        "[RateLimit] Failed to connect to Redis; using local fallback.",
+                        error instanceof Error ? error.message : error,
+                    );
+                }
+                return null;
+            }
+        })();
+    }
+
+    return globalForRateLimit.__axiomRedisRateLimitClient;
+}
+
+function scopedRedisKey(name: RateLimitName, key: string, bucket: number) {
+    const namespace = process.env.RATE_LIMIT_NAMESPACE || "axiom";
+    const hashedKey = crypto.createHash("sha256").update(key).digest("hex");
+    return `rate:${namespace}:${name}:${bucket}:${hashedKey}`;
+}
+
+export async function consumeRateLimit(
+    name: RateLimitName,
+    key: string,
+    cost: number = 1,
+): Promise<RateLimitResult> {
+    const config = rateLimitConfigs[name];
+    const safeCost = Math.max(1, Math.ceil(cost));
+    const redis = await getRedisClient();
+
+    if (redis) {
+        try {
+            const now = Date.now();
+            const windowBucket = Math.floor(now / config.refillIntervalMs);
+            const redisKey = scopedRedisKey(name, key, windowBucket);
+            const used = await redis.incrby(redisKey, safeCost);
+
+            if (used === safeCost) {
+                await redis.pexpire(redisKey, config.refillIntervalMs * 2);
+            }
+
+            if (used > config.maxTokens) {
+                return {
+                    allowed: false,
+                    remaining: 0,
+                    retryAfterMs: config.refillIntervalMs - (now % config.refillIntervalMs),
+                };
+            }
+
+            return {
+                allowed: true,
+                remaining: Math.max(config.maxTokens - used, 0),
+            };
+        } catch (error) {
+            if (!redisWarningLogged) {
+                redisWarningLogged = true;
+                console.warn(
+                    "[RateLimit] Redis rate-limit operation failed; using local fallback.",
+                    error instanceof Error ? error.message : error,
+                );
+            }
+        }
+    }
+
+    return fallbackLimiters[name].consume(key, safeCost);
+}
 
 export function rateLimitResponse(retryAfterMs: number) {
     const retryAfterSeconds = Math.ceil(retryAfterMs / 1000);
     return NextResponse.json(
         {
-            error: 'Too many requests. Please slow down.',
+            error: "Too many requests. Please slow down.",
             retryAfterSeconds,
         },
         {
             status: 429,
             headers: {
-                'Retry-After': retryAfterSeconds.toString(),
-                'X-RateLimit-Reset': new Date(Date.now() + retryAfterMs).toISOString(),
+                "Retry-After": retryAfterSeconds.toString(),
+                "X-RateLimit-Reset": new Date(Date.now() + retryAfterMs).toISOString(),
             },
-        }
+        },
     );
 }

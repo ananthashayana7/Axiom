@@ -17,13 +17,14 @@ async function applyMigration() {
         if (!statement.trim()) continue;
         try {
             await db.execute(sql.raw(statement));
-        } catch (error) {
+        } catch (error: unknown) {
+            const err = error as Error;
             // Ignore "already exists" errors to make it idempotent
-            if (error.message.includes('already exists') || error.message.includes('already a value')) {
+            if (err.message.includes('already exists') || err.message.includes('already a value')) {
                 console.log(`Skipping: ${statement.slice(0, 50)}... (Already exists)`);
             } else {
                 console.error(`Error executing: ${statement.slice(0, 50)}...`);
-                console.error(error.message);
+                console.error(err.message);
                 // Continue despite errors to try and get as much as possible
             }
         }

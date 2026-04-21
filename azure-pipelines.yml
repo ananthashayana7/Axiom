@@ -31,7 +31,7 @@ stages:
             inputs:
               versionSpec: $(NodeVersion)
 
-          - script: npm ci
+          - script: npm ci --legacy-peer-deps
             displayName: Install dependencies
 
           - script: npm run lint

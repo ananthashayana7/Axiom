@@ -8,10 +8,16 @@ export function AxiomLogo({ className }: { className?: string }) {
             fill="currentColor"
             xmlns="http://www.w3.org/2000/svg"
         >
-            <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
-            <path d="M12 11L8 18H16L12 11Z" />
-            <path d="M2.5 20L10 6L12 10L5 21H2.5Z" />
-            <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
+            {/* Background diamond */}
+            <path d="M12 2L22 12L12 22L2 12Z" opacity="0.15" />
+            {/* Bold A letterform */}
+            <path d="M12 5.5L5.5 19H8.2L9.8 15H14.2L15.8 19H18.5L12 5.5Z" opacity="0.3" />
+            {/* Left leg */}
+            <path d="M12 5.5L7 19H9.2L12 11.5L12 5.5Z" />
+            {/* Right leg */}
+            <path d="M12 5.5L17 19H14.8L12 11.5L12 5.5Z" />
+            {/* Crossbar */}
+            <path d="M10.2 14H13.8L12 10L10.2 14Z" />
         </svg>
     );
 }

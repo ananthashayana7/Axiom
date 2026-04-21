@@ -159,6 +159,7 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
     try {
         return await db.transaction(async (tx) => {
             // Fetch current order inside transaction to prevent TOCTOU race
+            await tx.execute(sql`select ${procurementOrders.id} from ${procurementOrders} where ${procurementOrders.id} = ${orderId} for update`);
             const [currentOrder] = await tx.select().from(procurementOrders).where(eq(procurementOrders.id, orderId));
             if (!currentOrder) return { success: false, error: "Order not found" };
 
@@ -429,6 +430,8 @@ export async function recordGoodsReceipt(orderId: string, data: {
 
     try {
         return await db.transaction(async (tx) => {
+            await tx.execute(sql`select ${procurementOrders.id} from ${procurementOrders} where ${procurementOrders.id} = ${orderId} for update`);
+
             const existingReceipts = await tx.select({ id: goodsReceipts.id })
                 .from(goodsReceipts)
                 .where(eq(goodsReceipts.orderId, orderId));

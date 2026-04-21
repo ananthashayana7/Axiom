@@ -5,6 +5,9 @@ import { eq } from 'drizzle-orm';
 type SupplierScorePayload = { supplierId: string };
 
 const QUEUE_NAME = 'supplier-score';
+const globalForQueues = globalThis as typeof globalThis & {
+    __axiomSupplierScoreQueue?: Promise<unknown>;
+};
 
 async function computeSupplierScore(supplierId: string) {
     const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
@@ -25,6 +28,12 @@ async function computeSupplierScore(supplierId: string) {
 async function getQueue() {
     if (!process.env.REDIS_URL) return null;
 
+    if (globalForQueues.__axiomSupplierScoreQueue) {
+        return globalForQueues.__axiomSupplierScoreQueue as Promise<{
+            add: (name: string, payload: SupplierScorePayload, options?: { jobId?: string }) => Promise<unknown>;
+        }>;
+    }
+
     const [{ Queue }, { default: IORedis }] = await Promise.all([
         import('bullmq'),
         import('ioredis'),
@@ -34,7 +43,7 @@ async function getQueue() {
         maxRetriesPerRequest: null,
     });
 
-    return new Queue<SupplierScorePayload>(QUEUE_NAME, {
+    globalForQueues.__axiomSupplierScoreQueue = Promise.resolve(new Queue<SupplierScorePayload>(QUEUE_NAME, {
         connection,
         defaultJobOptions: {
             attempts: 3,
@@ -42,7 +51,11 @@ async function getQueue() {
             removeOnFail: 1000,
             backoff: { type: 'exponential', delay: 5000 },
         },
-    });
+    }));
+
+    return globalForQueues.__axiomSupplierScoreQueue as Promise<{
+        add: (name: string, payload: SupplierScorePayload, options?: { jobId?: string }) => Promise<unknown>;
+    }>;
 }
 
 export async function enqueueSupplierScore(supplierId: string) {
@@ -58,8 +71,9 @@ export async function enqueueSupplierScore(supplierId: string) {
         return;
     }
 
-    await queue.add('compute-supplier-score', { supplierId });
-    await queue.close();
+    await queue.add('compute-supplier-score', { supplierId }, {
+        jobId: `supplier-score:${supplierId}`,
+    });
 }
 
 export async function startSupplierScoreWorker() {

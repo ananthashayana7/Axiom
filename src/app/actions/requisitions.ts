@@ -1,12 +1,11 @@
 'use server'
 
 import { db } from "@/db";
-import { requisitions, auditLogs, users } from "@/db/schema";
+import { budgets, requisitions, auditLogs, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { createNotification } from "./notifications";
-import { consumeBudget, checkBudgetAvailability } from "./budgets";
 
 export async function getRequisitions() {
     try {
@@ -31,40 +30,50 @@ export async function createRequisition(data: {
     try {
         if (data.estimatedAmount <= 0) return { success: false, error: "Amount must be positive" };
 
-        // Budget Check (Sprint 3)
-        if (data.budgetId) {
-            const budgetCheck = await checkBudgetAvailability(data.budgetId, data.estimatedAmount);
-            if (!budgetCheck.available) {
-                return { 
-                    success: false, 
-                    error: budgetCheck.error || `Insufficient budget. Remaining: ${budgetCheck.remaining?.toLocaleString()}` 
-                };
+        let requisition: typeof requisitions.$inferSelect | null = null;
+
+        await db.transaction(async (tx) => {
+            if (data.budgetId) {
+                const [reservedBudget] = await tx.update(budgets)
+                    .set({
+                        usedAmount: sql`CAST(${budgets.usedAmount} AS numeric) + ${data.estimatedAmount}`,
+                    })
+                    .where(and(
+                        eq(budgets.id, data.budgetId),
+                        eq(budgets.status, 'active'),
+                        sql`(CAST(${budgets.totalAmount} AS numeric) - CAST(${budgets.usedAmount} AS numeric)) >= ${data.estimatedAmount}`,
+                    ))
+                    .returning({ id: budgets.id });
+
+                if (!reservedBudget) {
+                    throw new Error("Insufficient active budget for this requisition");
+                }
             }
-        }
 
-        const [requisition] = await db.insert(requisitions).values({
-            title: data.title,
-            description: data.description,
-            estimatedAmount: data.estimatedAmount.toFixed(2),
-            department: data.department,
-            budgetId: data.budgetId,
-            requestedById: session.user.id,
-            status: 'pending_approval'
-        }).returning();
+            const [created] = await tx.insert(requisitions).values({
+                title: data.title,
+                description: data.description,
+                estimatedAmount: data.estimatedAmount.toFixed(2),
+                department: data.department,
+                budgetId: data.budgetId,
+                requestedById: session.user.id,
+                status: 'pending_approval'
+            }).returning();
 
-        // Consume Budget if applicable
-        if (data.budgetId) {
-            await consumeBudget(data.budgetId, data.estimatedAmount);
-        }
+            requisition = created;
 
-        // Audit Trail (SOX Compliance)
-        await db.insert(auditLogs).values({
-            userId: session.user.id,
-            action: 'CREATE',
-            entityType: 'requisition',
-            entityId: requisition.id,
-            details: `Requisition created for ${data.title} - Est. Amount: ${data.estimatedAmount}`
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'CREATE',
+                entityType: 'requisition',
+                entityId: created.id,
+                details: `Requisition created for ${data.title} - Est. Amount: ${data.estimatedAmount}`
+            });
         });
+
+        if (!requisition) {
+            return { success: false, error: "Failed to create requisition" };
+        }
 
         // Threshold-based approval routing:
         // - Low amount (≤ 10,000): notify admins in the same department (department leads)
@@ -112,33 +121,54 @@ export async function approveRequisition(id: string) {
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can approve requisitions" };
 
     try {
-        const [requisition] = await db.select().from(requisitions).where(eq(requisitions.id, id));
-        if (!requisition) return { success: false, error: "Requisition not found" };
+        let requisitionToNotify: typeof requisitions.$inferSelect | null = null;
 
-        if (requisition.requestedById === session.user.id) {
-            return { success: false, error: "Self-approval is not allowed for compliance (Segregation of Duties)." };
+        const result = await db.transaction(async (tx) => {
+            await tx.execute(sql`select ${requisitions.id} from ${requisitions} where ${requisitions.id} = ${id} for update`);
+
+            const [requisition] = await tx.select().from(requisitions).where(eq(requisitions.id, id));
+            if (!requisition) return { success: false, error: "Requisition not found" };
+
+            if (requisition.requestedById === session.user.id) {
+                return { success: false, error: "Self-approval is not allowed for compliance (Segregation of Duties)." };
+            }
+
+            if (requisition.status !== 'pending_approval') {
+                return { success: false, error: `Requisition is already ${requisition.status}` };
+            }
+
+            const [updated] = await tx.update(requisitions)
+                .set({ status: 'approved' })
+                .where(and(eq(requisitions.id, id), eq(requisitions.status, 'pending_approval')))
+                .returning();
+
+            if (!updated) {
+                return { success: false, error: "Requisition was updated by another user. Refresh and try again." };
+            }
+
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'APPROVE',
+                entityType: 'requisition',
+                entityId: id,
+                details: `Requisition approved by admin`
+            });
+
+            requisitionToNotify = requisition;
+            return { success: true };
+        });
+
+        if (!result.success) return result;
+
+        if (requisitionToNotify) {
+            await createNotification({
+                userId: requisitionToNotify.requestedById,
+                title: "Requisition Approved",
+                message: `Your requisition for "${requisitionToNotify.title}" has been approved!`,
+                type: 'success',
+                link: `/sourcing/requisitions?id=${requisitionToNotify.id}`
+            });
         }
-
-        await db.update(requisitions)
-            .set({ status: 'approved' })
-            .where(eq(requisitions.id, id));
-
-        await db.insert(auditLogs).values({
-            userId: session.user.id,
-            action: 'APPROVE',
-            entityType: 'requisition',
-            entityId: id,
-            details: `Requisition approved by admin`
-        });
-
-        // Notify Requester
-        await createNotification({
-            userId: requisition.requestedById,
-            title: "Requisition Approved",
-            message: `Your requisition for "${requisition.title}" has been approved!`,
-            type: 'success',
-            link: `/sourcing/requisitions?id=${requisition.id}`
-        });
 
         revalidatePath('/sourcing/requisitions');
         return { success: true };
@@ -153,27 +183,48 @@ export async function rejectRequisition(id: string, reason: string) {
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can reject requisitions" };
 
     try {
-        await db.update(requisitions)
-            .set({ status: 'rejected' })
-            .where(eq(requisitions.id, id));
+        let requisitionToNotify: typeof requisitions.$inferSelect | null = null;
 
-        await db.insert(auditLogs).values({
-            userId: session.user.id,
-            action: 'REJECT',
-            entityType: 'requisition',
-            entityId: id,
-            details: `Requisition rejected. Reason: ${reason}`
+        const result = await db.transaction(async (tx) => {
+            await tx.execute(sql`select ${requisitions.id} from ${requisitions} where ${requisitions.id} = ${id} for update`);
+
+            const [requisition] = await tx.select().from(requisitions).where(eq(requisitions.id, id));
+            if (!requisition) return { success: false, error: "Requisition not found" };
+
+            if (requisition.status !== 'pending_approval') {
+                return { success: false, error: `Requisition is already ${requisition.status}` };
+            }
+
+            const [updated] = await tx.update(requisitions)
+                .set({ status: 'rejected' })
+                .where(and(eq(requisitions.id, id), eq(requisitions.status, 'pending_approval')))
+                .returning();
+
+            if (!updated) {
+                return { success: false, error: "Requisition was updated by another user. Refresh and try again." };
+            }
+
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'REJECT',
+                entityType: 'requisition',
+                entityId: id,
+                details: `Requisition rejected. Reason: ${reason}`
+            });
+
+            requisitionToNotify = requisition;
+            return { success: true };
         });
 
-        const [requisition] = await db.select().from(requisitions).where(eq(requisitions.id, id));
-        if (requisition) {
-            // Notify Requester
+        if (!result.success) return result;
+
+        if (requisitionToNotify) {
             await createNotification({
-                userId: requisition.requestedById,
+                userId: requisitionToNotify.requestedById,
                 title: "Requisition Rejected",
-                message: `Your requisition for "${requisition.title}" was rejected. Reason: ${reason}`,
+                message: `Your requisition for "${requisitionToNotify.title}" was rejected. Reason: ${reason}`,
                 type: 'warning',
-                link: `/sourcing/requisitions?id=${requisition.id}`
+                link: `/sourcing/requisitions?id=${requisitionToNotify.id}`
             });
         }
 
@@ -192,14 +243,15 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Only admins can convert to PO" };
 
     try {
-        return await db.transaction(async (tx) => {
+        let requisitionToNotify: typeof requisitions.$inferSelect | null = null;
+        const result = await db.transaction(async (tx) => {
+            await tx.execute(sql`select ${requisitions.id} from ${requisitions} where ${requisitions.id} = ${requisitionId} for update`);
+
             const [requisition] = await tx.select().from(requisitions).where(eq(requisitions.id, requisitionId));
             if (!requisition) {
-                tx.rollback();
                 return { success: false, error: "Requisition not found" };
             }
             if (requisition.status !== 'approved') {
-                tx.rollback();
                 return { success: false, error: "Only approved requisitions can be converted" };
             }
 
@@ -217,7 +269,7 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
                     status: 'converted_to_po',
                     purchaseOrderId: order.id
                 })
-                .where(eq(requisitions.id, requisitionId));
+                .where(and(eq(requisitions.id, requisitionId), eq(requisitions.status, 'approved')));
 
             // 3. Log Audit
             await tx.insert(auditLogs).values({
@@ -228,21 +280,26 @@ export async function convertToPO(requisitionId: string, supplierId: string) {
                 details: `Requisition converted to PO: ${order.id}`
             });
 
-            // Notify Requester
-            await createNotification({
-                userId: requisition.requestedById,
-                title: "Purchase Order Issued",
-                message: `Requisition "${requisition.title}" has been converted to PO #${order.id.split('-')[0].toUpperCase()}.`,
-                type: 'info',
-                link: `/sourcing/orders?id=${order.id}`
-            });
-
-            revalidatePath('/sourcing/requisitions');
-            revalidatePath('/sourcing/orders');
+            requisitionToNotify = requisition;
             return { success: true, orderId: order.id };
         });
-    } catch (error) {
-        if (error.message === 'Rollback') return { success: false, error: "Transaction rolled back" };
+
+        if (!result.success) return result;
+
+        if (requisitionToNotify && result.orderId) {
+            await createNotification({
+                userId: requisitionToNotify.requestedById,
+                title: "Purchase Order Issued",
+                message: `Requisition "${requisitionToNotify.title}" has been converted to PO #${result.orderId.split('-')[0].toUpperCase()}.`,
+                type: 'info',
+                link: `/sourcing/orders?id=${result.orderId}`
+            });
+        }
+
+        revalidatePath('/sourcing/requisitions');
+        revalidatePath('/sourcing/orders');
+        return result;
+    } catch (error: unknown) {
         console.error("Conversion failed:", error);
         return { success: false, error: "Internal Server Error" };
     }

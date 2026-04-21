@@ -83,7 +83,7 @@ export function RiskIntelligenceView({ supplier }: { supplier: RiskSupplier }) {
                 <MitigationAction
                     supplierId={supplier.id}
                     supplierName={supplier.name}
-                    currentRisk={supplier.riskScore}
+                    currentRisk={supplier.riskScore ?? 0}
                     type="link"
                 />
             </div>

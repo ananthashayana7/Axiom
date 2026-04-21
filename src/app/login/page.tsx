@@ -5,7 +5,7 @@ import { authenticate, verifyAndEnableTwoFactor } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Zap, BarChart3 } from 'lucide-react';
 import { toast } from "sonner";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 
@@ -25,16 +25,14 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [displayErrorMessage, setDisplayErrorMessage] = useState('');
 
-    // Use effects for state transitions to avoid render-time state updates
     useEffect(() => {
         let processedError = '';
         if (errorMessage) {
             if (errorMessage.includes('require-2fa')) {
                 setShow2FA(true);
                 setShowSetup2FA(false);
-                processedError = ''; // Don't display this as a user-facing error
+                processedError = '';
             } else if (errorMessage.startsWith('setup-2fa:')) {
-                // QR code URL and optional secret are embedded in the message
                 const payload = errorMessage.slice('setup-2fa:'.length);
                 const [qrUrl, secret] = payload.split('|');
                 setQrCodeUrl(qrUrl);
@@ -42,7 +40,6 @@ export default function LoginPage() {
                 setShowSetup2FA(true);
                 processedError = '';
             } else if (errorMessage === 'setup-2fa') {
-                // Server couldn't generate QR code during login — show error
                 processedError = 'Failed to initialize 2FA setup. Please try again or contact admin.';
             } else {
                 processedError = errorMessage;
@@ -58,11 +55,9 @@ export default function LoginPage() {
         if (setupCode.length !== 6) return;
         setIsVerifyingSetup(true);
         try {
-            // Pass identifier so the server action can locate the user without a session
             const result = await verifyAndEnableTwoFactor(setupCode, identifier);
             if (result.success) {
                 toast.success("2FA enabled! Enter a fresh code from your authenticator to log in.");
-                // Transition directly to 2FA code entry instead of "Finalize Login"
                 setShowSetup2FA(false);
                 setSetupCode('');
                 setShow2FA(true);
@@ -79,163 +74,229 @@ export default function LoginPage() {
         toast.info("Please contact your administrator (admin@axiomprocure.com) to reset your password.");
     };
 
+    const features = [
+        { icon: Zap, label: "AI-Powered Sourcing", desc: "10 autonomous agents working 24/7" },
+        { icon: ShieldCheck, label: "3-Way Invoice Matching", desc: "Automated fraud detection & validation" },
+        { icon: BarChart3, label: "Real-time Risk Intelligence", desc: "ESG scoring & supplier risk monitoring" },
+    ];
+
     return (
-        <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
-            {/* Ambient glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl pointer-events-none" />
-            <div className="w-full max-w-sm rounded-xl border bg-card/80 backdrop-blur-sm p-6 lg:p-8 shadow-xl relative z-10">
-                <div className="flex justify-center mb-3">
-                    <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-                        <AxiomLogo className="h-7 w-7 text-primary" />
+        <div className="flex min-h-full bg-background">
+            {/* Left panel — branding */}
+            <div className="hidden lg:flex flex-col justify-between w-[420px] xl:w-[460px] bg-primary p-10 relative overflow-hidden shrink-0">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.1)_0%,_transparent_60%)] pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-full h-1/2 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(0,0,0,0.15)_0%,_transparent_70%)] pointer-events-none" />
+                {/* Decorative grid */}
+                <div className="absolute inset-0 opacity-[0.04]" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
+
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-14">
+                        <div className="h-9 w-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+                            <AxiomLogo className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <span className="text-[17px] font-black tracking-tight text-white">Axiom</span>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/55">Procurement OS</p>
+                        </div>
                     </div>
+                    <h2 className="text-[28px] font-black text-white leading-tight mb-4">
+                        Intelligent<br />Procurement,<br />Simplified.
+                    </h2>
+                    <p className="text-white/65 text-sm leading-relaxed max-w-xs">
+                        AI-powered sourcing, supplier management, and spend analytics — built for modern procurement teams.
+                    </p>
                 </div>
-                <h1 className="mb-1 text-center text-3xl font-black tracking-tighter text-foreground">Axiom</h1>
-                <p className="mb-6 text-center text-xs text-muted-foreground font-medium uppercase tracking-widest">
-                    {showSetup2FA ? "Security Setup" : (show2FA ? "Enter verification code" : "Procurement Intelligence")}
-                </p>
-                <form action={formAction} className="space-y-4">
-                    {!show2FA && !showSetup2FA ? (
-                        <>
-                            <div className="space-y-2">
-                                <Label htmlFor="identifier">Email Address</Label>
-                                <Input
-                                    id="identifier"
-                                    name="identifier"
-                                    type="email"
-                                    placeholder="you@company.com"
-                                    value={identifier}
-                                    onChange={(e) => setIdentifier(e.target.value)}
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="password">Password</Label>
-                                    <button
-                                        type="button"
-                                        onClick={handleForgotPassword}
-                                        className="text-xs text-primary hover:underline"
-                                    >
-                                        Forgot password?
-                                    </button>
+
+                <div className="relative z-10 space-y-4">
+                    {features.map((f) => {
+                        const Icon = f.icon;
+                        return (
+                            <div key={f.label} className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+                                    <Icon className="h-4 w-4 text-white" />
                                 </div>
-                                <div className="relative">
-                                    <Input
-                                        id="password"
-                                        name="password"
-                                        type={showPassword ? "text" : "password"}
-                                        className="pr-10"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                    >
-                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
+                                <div>
+                                    <p className="text-white text-[13px] font-semibold">{f.label}</p>
+                                    <p className="text-white/55 text-[11px] mt-0.5">{f.desc}</p>
                                 </div>
                             </div>
-                        </>
-                    ) : showSetup2FA ? (
-                        <div className="space-y-4">
-                            <div className="flex flex-col items-center justify-center space-y-4">
-                                <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
-                                <div className="bg-white p-2 rounded-lg shadow-inner">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
-                                </div>
-                                {setupSecret && (
-                                    <div className="w-full">
-                                        <p className="text-[10px] text-center text-muted-foreground mb-1">Or enter this key manually:</p>
-                                        <code className="block w-full p-2 bg-muted border rounded text-center font-mono text-xs break-all select-all">
-                                            {setupSecret}
-                                        </code>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Right panel — form */}
+            <div className="flex-1 flex items-center justify-center p-6 lg:p-10 relative bg-gradient-to-br from-background via-background to-primary/5">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/4 rounded-full blur-3xl pointer-events-none" />
+                <div className="w-full max-w-sm relative z-10">
+                    {/* Mobile logo */}
+                    <div className="flex items-center gap-3 mb-8 lg:hidden">
+                        <div className="h-9 w-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
+                            <AxiomLogo className="h-5 w-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                            <span className="text-[17px] font-black tracking-tight text-foreground">Axiom</span>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Procurement OS</p>
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border bg-card/90 backdrop-blur-sm p-7 shadow-2xl shadow-black/5">
+                        <h1 className="mb-1 text-2xl font-black tracking-tight text-foreground">
+                            {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : "Welcome back")}
+                        </h1>
+                        <p className="mb-6 text-sm text-muted-foreground">
+                            {showSetup2FA ? "Set up 2FA to protect your account" : (show2FA ? "Enter the code from your authenticator app" : "Sign in to your Axiom workspace")}
+                        </p>
+
+                        <form action={formAction} className="space-y-4">
+                            {!show2FA && !showSetup2FA ? (
+                                <>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="identifier" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email Address</Label>
+                                        <Input
+                                            id="identifier"
+                                            name="identifier"
+                                            type="email"
+                                            placeholder="you@company.com"
+                                            value={identifier}
+                                            onChange={(e) => setIdentifier(e.target.value)}
+                                            required
+                                            className="h-10"
+                                        />
                                     </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
+                                            <button
+                                                type="button"
+                                                onClick={handleForgotPassword}
+                                                className="text-xs text-primary hover:underline font-medium"
+                                            >
+                                                Forgot password?
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <Input
+                                                id="password"
+                                                name="password"
+                                                type={showPassword ? "text" : "password"}
+                                                className="pr-10 h-10"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : showSetup2FA ? (
+                                <div className="space-y-4">
+                                    <div className="flex flex-col items-center justify-center space-y-4">
+                                        <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
+                                        <div className="bg-white p-3 rounded-xl shadow-inner border">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
+                                        </div>
+                                        {setupSecret && (
+                                            <div className="w-full">
+                                                <p className="text-[10px] text-center text-muted-foreground mb-1">Or enter this key manually:</p>
+                                                <code className="block w-full p-2 bg-muted border rounded-lg text-center font-mono text-xs break-all select-all">
+                                                    {setupSecret}
+                                                </code>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="setupCode" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verification Code</Label>
+                                        <Input
+                                            id="setupCode"
+                                            value={setupCode}
+                                            onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
+                                            placeholder="000000"
+                                            maxLength={6}
+                                            required
+                                            className="text-center text-2xl tracking-[0.3em] font-bold h-12"
+                                        />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                        onClick={handleVerifySetup}
+                                        disabled={isVerifyingSetup || setupCode.length !== 6}
+                                    >
+                                        {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="code" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Authenticator Code</Label>
+                                        <Input
+                                            id="code"
+                                            name="code"
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]{6}"
+                                            placeholder="000000"
+                                            autoFocus
+                                            required
+                                            maxLength={6}
+                                            autoComplete="one-time-code"
+                                            className="text-center text-2xl tracking-[0.3em] font-bold h-12"
+                                        />
+                                        <p className="text-[10px] text-center text-muted-foreground">Open your Authenticator app to get the code.</p>
+                                    </div>
+                                    <input type="hidden" name="identifier" value={identifier} />
+                                    <input type="hidden" name="password" value={password} />
+                                </div>
+                            )}
+
+                            {!showSetup2FA && (
+                                <Button className="w-full h-10 font-semibold" aria-disabled={isPending} type="submit">
+                                    {isPending ? (show2FA ? "Verifying..." : "Signing in...") : (show2FA ? "Verify Code" : "Sign in")}
+                                </Button>
+                            )}
+
+                            {(show2FA || showSetup2FA) && (
+                                <button
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() => {
+                                        setShow2FA(false);
+                                        setShowSetup2FA(false);
+                                        setSetupCode('');
+                                        setSetupSecret('');
+                                        setQrCodeUrl('');
+                                        setDisplayErrorMessage('');
+                                    }}
+                                    className="w-full text-xs text-muted-foreground hover:text-foreground hover:underline mt-2 transition-colors"
+                                >
+                                    ← Back to sign in
+                                </button>
+                            )}
+
+                            <div
+                                className="flex h-6 items-end space-x-1"
+                                aria-live="polite"
+                                aria-atomic="true"
+                            >
+                                {displayErrorMessage && (
+                                    <p className="text-xs text-red-500 font-medium text-center w-full">{displayErrorMessage}</p>
                                 )}
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="setupCode">Verification Code</Label>
-                                <Input
-                                    id="setupCode"
-                                    value={setupCode}
-                                    onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
-                                    placeholder="000000"
-                                    maxLength={6}
-                                    required
-                                    className="text-center text-2xl tracking-[0.3em] font-bold"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                className="w-full bg-green-600 hover:bg-green-700"
-                                onClick={handleVerifySetup}
-                                disabled={isVerifyingSetup || setupCode.length !== 6}
-                            >
-                                {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="code">Authenticator Code</Label>
-                                <Input
-                                    id="code"
-                                    name="code"
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]{6}"
-                                    placeholder="000000"
-                                    autoFocus
-                                    required
-                                    maxLength={6}
-                                    autoComplete="one-time-code"
-                                    className="text-center text-2xl tracking-[0.3em] font-bold"
-                                />
-                                <p className="text-[10px] text-center text-muted-foreground">Open your Authenticator app to get the code.</p>
-                            </div>
-                            {/* Hidden inputs to preserve credentials for the action */}
-                            <input type="hidden" name="identifier" value={identifier} />
-                            <input type="hidden" name="password" value={password} />
-                        </div>
-                    )}
-
-                    {!showSetup2FA && (
-                        <Button className="w-full" aria-disabled={isPending} type="submit">
-                            {isPending ? (show2FA ? "Verifying..." : "Logging in...") : (show2FA ? "Verify Code" : "Log in")}
-                        </Button>
-                    )}
-
-                    {(show2FA || showSetup2FA) && (
-                        <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => {
-                                setShow2FA(false);
-                                setShowSetup2FA(false);
-                                setSetupCode('');
-                                setSetupSecret('');
-                                setQrCodeUrl('');
-                                setDisplayErrorMessage('');
-                            }}
-                            className="w-full text-xs text-muted-foreground hover:underline mt-4"
-                        >
-                            Cancel and back to login
-                        </button>
-                    )}
-                    <div
-                        className="flex h-8 items-end space-x-1"
-                        aria-live="polite"
-                        aria-atomic="true"
-                    >
-                        {displayErrorMessage && (
-                            <p className="text-sm text-red-500 font-medium text-center w-full">{displayErrorMessage}</p>
-                        )}
+                        </form>
                     </div>
-                </form>
+
+                    <p className="mt-4 text-center text-[11px] text-muted-foreground/50">
+                        Secured by Axiom &middot; Enterprise Procurement Platform
+                    </p>
+                </div>
             </div>
         </div>
     );

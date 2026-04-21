@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getAiModel } from '@/lib/ai-provider';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceMutationFirewall } from '@/lib/api-security';
 
 export async function POST(req: NextRequest) {
     try {
+        const blocked = enforceMutationFirewall(req);
+        if (blocked) return blocked;
+
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const limited = await enforceRateLimit(req, 'write', (session.user as any).id);
+        if (limited) return limited;
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;

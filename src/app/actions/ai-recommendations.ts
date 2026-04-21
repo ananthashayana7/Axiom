@@ -80,7 +80,8 @@ export async function getRecommendations(filters?: {
 
     const validImpacts = ['low', 'medium', 'high', 'critical'] as const;
     const validStatuses = ['pending', 'approved', 'dismissed'] as const;
-    const conditions: (typeof eq<any, any>)[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conditions: any[] = [];
     if (filters?.status && (validStatuses as readonly string[]).includes(filters.status)) {
         conditions.push(eq(agentRecommendations.status, filters.status as 'pending' | 'approved' | 'dismissed'));
     }

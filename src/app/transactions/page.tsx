@@ -70,8 +70,8 @@ export default function TransactionsPage() {
 
     const filtered = rows.filter(r => {
         const matchSearch = !search || r._ref?.toLowerCase().includes(search.toLowerCase()) || r._type?.toLowerCase().includes(search.toLowerCase());
-        const matchFrom = !dateFrom || new Date(r._date) >= new Date(dateFrom);
-        const matchTo = !dateTo || new Date(r._date) <= new Date(dateTo);
+        const matchFrom = !dateFrom || (r._date != null && new Date(r._date) >= new Date(dateFrom));
+        const matchTo = !dateTo || (r._date != null && new Date(r._date) <= new Date(dateTo));
         return matchSearch && matchFrom && matchTo;
     });
 

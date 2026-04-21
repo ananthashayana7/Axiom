@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { orderItems, parts, procurementOrders, demandForecasts } from '@/db/schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getAiModel } from '@/lib/ai-provider';
-
-function isCronAuthorized(req: Request) {
-    const secret = process.env.CRON_SECRET;
-    if (!secret) return false;
-    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    const header = req.headers.get('x-cron-token');
-    return bearer === secret || header === secret;
-}
+import { isCronAuthorized } from '@/lib/api-security';
+import { withPgAdvisoryLock } from '@/lib/db-locks';
 
 export async function GET(req: Request) {
     try {
@@ -18,6 +12,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const locked = await withPgAdvisoryLock('cron:demand-forecast', async () => {
         // 1. Aggregate order history per part per month (last 12 months)
         const twelveMonthsAgo = new Date();
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
@@ -133,6 +128,13 @@ Predict demand for the next 3 months. Return ONLY a JSON array:
             errors: errors.length > 0 ? errors : undefined,
             timestamp: new Date().toISOString(),
         });
+        });
+
+        if (!locked.acquired) {
+            return NextResponse.json({ success: true, skipped: true, reason: 'already_running' }, { status: 202 });
+        }
+
+        return locked.value;
     } catch (error) {
         console.error('[Demand Forecast] Cron failed:', error);
         return NextResponse.json({ error: 'Forecast generation failed' }, { status: 500 });

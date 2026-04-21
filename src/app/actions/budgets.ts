@@ -110,16 +110,28 @@ export async function consumeBudget(budgetId: string, amount: number) {
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
     try {
-        const check = await checkBudgetAvailability(budgetId, amount);
-        if (!check.available) {
-            return { success: false, error: check.error || `Insufficient budget. Available: ${check.remaining?.toLocaleString()}` };
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return { success: false, error: "Amount must be positive" };
         }
 
-        await db.update(budgets)
+        const [updated] = await db.update(budgets)
             .set({
                 usedAmount: sql`CAST(${budgets.usedAmount} AS numeric) + ${amount}`,
             })
-            .where(eq(budgets.id, budgetId));
+            .where(and(
+                eq(budgets.id, budgetId),
+                eq(budgets.status, 'active'),
+                sql`(CAST(${budgets.totalAmount} AS numeric) - CAST(${budgets.usedAmount} AS numeric)) >= ${amount}`,
+            ))
+            .returning({ id: budgets.id });
+
+        if (!updated) {
+            const check = await checkBudgetAvailability(budgetId, amount);
+            return {
+                success: false,
+                error: check.error || `Insufficient budget. Available: ${check.remaining?.toLocaleString()}`,
+            };
+        }
 
         return { success: true };
     } catch (error) {

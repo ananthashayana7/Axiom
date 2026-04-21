@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { fetchSapEntityData, mapSapRecordToAxiom, mappedRowsToCsv, testSapConnection, type SapEntityType } from '@/lib/services/sap';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceMutationFirewall, readJsonBody } from '@/lib/api-security';
 
 type SyncMode = 'dry-run' | 'commit';
 
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const limited = enforceRateLimit(req, 'read', (session as any).user?.id);
+    const limited = await enforceRateLimit(req, 'read', (session as any).user?.id);
     if (limited) return limited;
 
     const baseUrl = process.env.SAP_BASE_URL;
@@ -60,16 +61,19 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+    const blocked = enforceMutationFirewall(req);
+    if (blocked) return blocked;
+
     const session = await auth();
     if (!ensureAdmin(session)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const limited = enforceRateLimit(req, 'write', (session as any).user?.id);
+    const limited = await enforceRateLimit(req, 'write', (session as any).user?.id);
     if (limited) return limited;
 
     try {
-        const body = (await req.json()) as SapSyncBody;
+        const body = await readJsonBody<SapSyncBody>(req);
         const action = body.action || 'sync';
 
         // Action: test-connection — Verify SAP connectivity
@@ -130,7 +134,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ source, mode, entityType, ...result });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'SAP sync failed';
-        return NextResponse.json({ error: message }, { status: 500 });
+        const status = message.includes('request body') || message.includes('application/json') || message.includes('JSON')
+            ? 400
+            : 500;
+        return NextResponse.json({ error: message }, { status });
     }
 }
 

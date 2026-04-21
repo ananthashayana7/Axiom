@@ -16,7 +16,7 @@ export async function GET(
         }
 
         const user = session.user as any;
-        const limited = enforceRateLimit(req, 'read', user.id);
+        const limited = await enforceRateLimit(req, 'read', user.id);
         if (limited) return limited;
 
         if (user.role !== 'admin') {

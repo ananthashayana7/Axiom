@@ -32,6 +32,7 @@ import { runAutoRemediation } from "@/app/actions/agents/auto-remediation";
 import { detectBottlenecks } from "@/app/actions/agents/predictive-bottleneck";
 import { processAutoApprovals } from "@/app/actions/agents/smart-approval-routing";
 import { buildSupplierEcosystem } from "@/app/actions/agents/supplier-ecosystem";
+import type { FraudAlert, DemandForecast, WorkflowBottleneck } from "@/lib/ai/agent-types";
 
 const agentIcons: Record<string, React.ReactNode> = {
     'demand-forecasting': <TrendingUp className="h-4 w-4" />,
@@ -151,43 +152,49 @@ export function CommandCenter() {
 
         startTransition(async () => {
             try {
-                let result: { success: boolean; data?: unknown; error?: string } = { success: false };
+                // Use a union type that covers all possible agent result shapes
+                type AnyAgentResult = { success: boolean; data?: unknown; error?: string };
+                let result: AnyAgentResult = { success: false };
                 let runResult: AgentRunResult = {};
 
                 switch (agentName) {
-                    case 'fraud-detection':
+                    case 'fraud-detection': {
                         addLog(`INIT: Synchronizing transaction ledger...`);
                         await delay(300);
                         addLog(`PROC: Executing heuristic anomaly detection...`);
                         await delay(300);
                         addLog(`PROC: Cross-referencing vendor bank identifiers...`);
-                        result = await runFraudDetectionAgent(30);
-                        if (result.success && result.data) {
-                            const highSeverity = result.data.filter((a) => a.severity === 'high' || a.severity === 'critical').length;
+                        const fraudResult = await runFraudDetectionAgent(30);
+                        result = fraudResult;
+                        if (fraudResult.success && fraudResult.data) {
+                            const fraudData = fraudResult.data as FraudAlert[];
+                            const highSeverity = fraudData.filter((a) => a.severity === 'high' || a.severity === 'critical').length;
                             runResult = {
-                                alertsFound: result.data.length,
-                                details: result.data.length > 0
-                                    ? `Identified ${result.data.length} anomalies across 30-day lookback. ${highSeverity > 0 ? `HIGH PRIORITY: ${highSeverity} items match risk patterns (Duplicate Invoices/Segregation Violations).` : 'Minor inconsistencies detected in non-critical patterns.'}`
+                                alertsFound: fraudData.length,
+                                details: fraudData.length > 0
+                                    ? `Identified ${fraudData.length} anomalies across 30-day lookback. ${highSeverity > 0 ? `HIGH PRIORITY: ${highSeverity} items match risk patterns (Duplicate Invoices/Segregation Violations).` : 'Minor inconsistencies detected in non-critical patterns.'}`
                                     : 'Exhaustive audit complete. All transactions within 3-sigma variance. No duplicate invoice identifiers or unauthorized vendor high-value patterns detected.',
                                 link: "/admin/fraud-alerts"
                             };
-                            addLog(`✅ Audit complete: ${result.data.length} findings`);
+                            addLog(`✅ Audit complete: ${fraudData.length} findings`);
                         }
                         break;
+                    }
 
-                    case 'payment-optimizer':
+                    case 'payment-optimizer': {
                         addLog(`INIT: Fetching mature account payables...`);
                         await delay(300);
                         addLog(`PROC: Evaluating net-30/net-60 discount elasticity...`);
                         await delay(300);
                         addLog(`PROC: Modeling capital float opportunities...`);
-                        result = await runPaymentOptimizationAgent();
-                        if (result.success && result.data) {
-                            const opportunities = result.data as Array<{ potentialSavings?: number }>;
+                        const payResult = await runPaymentOptimizationAgent();
+                        result = payResult;
+                        if (payResult.success && payResult.data) {
+                            const opportunities = payResult.data as Array<{ potentialSavings?: number }>;
                             const totalSavings = opportunities.reduce((sum, o) => sum + (o.potentialSavings || 0), 0);
                             runResult = {
                                 savingsAmount: totalSavings,
-                                itemsScanned: result.data.length,
+                                itemsScanned: opportunities.length,
                                 details: totalSavings > 0
                                     ? `Identified ₹${totalSavings.toLocaleString()} in unrealized discount potential. suggested payment triggers updated based on dynamic cash flow forecasting.`
                                     : 'Capital utilization optimized. No qualifying invoices found with early-payment discount terms or favorable float windows.'
@@ -195,66 +202,75 @@ export function CommandCenter() {
                             addLog(`✅ Optimization complete: ₹${totalSavings.toLocaleString()} opportunity`);
                         }
                         break;
+                    }
 
-                    case 'demand-forecasting':
+                    case 'demand-forecasting': {
                         addLog(`INIT: Indexing time-series consumption data...`);
                         await delay(300);
                         addLog(`PROC: Applying stochastic prediction models...`);
                         await delay(300);
                         addLog(`PROC: Verifying safety-stock variance...`);
-                        result = await runDemandForecastingAgent(undefined, 30);
-                        if (result.success && result.data) {
+                        const demandResult = await runDemandForecastingAgent(undefined, 30);
+                        result = demandResult;
+                        if (demandResult.success && demandResult.data) {
+                            const demandData = demandResult.data as DemandForecast[];
                             runResult = {
-                                itemsScanned: result.data.length,
-                                details: `Prediction engine verified consumption velocity for ${result.data.length} SKUs. Adjusted reorder triggers for high-volatility categories. Current safety stock sufficient for 30-day window.`
+                                itemsScanned: demandData.length,
+                                details: `Prediction engine verified consumption velocity for ${demandData.length} SKUs. Adjusted reorder triggers for high-volatility categories. Current safety stock sufficient for 30-day window.`
                             };
-                            addLog(`✅ Forecast updated: ${result.data.length} SKUs synced`);
+                            addLog(`✅ Forecast updated: ${demandData.length} SKUs synced`);
                         }
                         break;
+                    }
 
-                    case 'auto-remediation':
+                    case 'auto-remediation': {
                         addLog(`INIT: Scanning for stale requisitions...`);
                         await delay(300);
                         addLog(`PROC: Checking RFQs without responses...`);
                         await delay(300);
                         addLog(`EXEC: Applying automated remediation protocols...`);
-                        result = await runAutoRemediation();
-                        if (result.success && result.data) {
+                        const remResult = await runAutoRemediation();
+                        result = remResult;
+                        if (remResult.success && remResult.data) {
+                            const remData = remResult.data as Array<unknown>;
                             runResult = {
-                                actionsCount: result.data.length,
-                                details: result.data.length > 0
-                                    ? `Executed ${result.data.length} autonomous corrections. Resolved 4/4 critical state violations in requisition flow.`
+                                actionsCount: remData.length,
+                                details: remData.length > 0
+                                    ? `Executed ${remData.length} autonomous corrections. Resolved 4/4 critical state violations in requisition flow.`
                                     : 'System health optimal. No stale states or circular approval loops detected in active workflows.'
                             };
-                            addLog(`✅ Remediation complete: ${result.data.length} actions`);
+                            addLog(`✅ Remediation complete: ${remData.length} actions`);
                         }
                         break;
+                    }
 
-                    case 'predictive-bottleneck':
+                    case 'predictive-bottleneck': {
                         addLog(`INIT: Establishing workflow baseline...`);
                         await delay(300);
                         addLog(`PROC: Calculating cycle-time variance...`);
                         await delay(300);
                         addLog(`EVAL: Predicting queue congestion...`);
-                        result = await detectBottlenecks();
-                        if (result.success && result.data) {
+                        const bottleneckResult = await detectBottlenecks();
+                        result = bottleneckResult;
+                        if (bottleneckResult.success && bottleneckResult.data) {
+                            const bottleneckData = bottleneckResult.data as unknown as WorkflowBottleneck[];
                             runResult = {
-                                alertsFound: result.data.length,
-                                details: result.data.length > 0
-                                    ? `Detected ${result.data.length} predicted bottlenecks. Estimated SLA slippage: 14.2h across Finance approval queues.`
+                                alertsFound: bottleneckData.length,
+                                details: bottleneckData.length > 0
+                                    ? `Detected ${bottleneckData.length} predicted bottlenecks. Estimated SLA slippage: 14.2h across Finance approval queues.`
                                     : 'Flow velocity healthy. Current queue throughput exceeds historical 30-day average by 12%.'
                             };
-                            addLog(`✅ Analysis complete: ${result.data.length} bottlenecks`);
+                            addLog(`✅ Analysis complete: ${bottleneckData.length} bottlenecks`);
                         }
                         break;
+                    }
 
-                    case 'negotiations-autopilot':
+                    case 'negotiations-autopilot': {
                         addLog(`INIT: Parsing competitive bidding landscape...`);
                         await delay(300);
                         addLog(`PROC: Cross-referencing historical price benchmarks...`);
                         await delay(300);
                         addLog(`GEN: Constructing optimal counter-offer scripts...`);
-                        // Use a dummy or first RFQ if available, for demo purposes in command center we mock the run if no ID
                         result = { success: true, data: { suggestedCounterOffer: 450000, leverage: ["Volume", "Payment Terms"] } };
                         runResult = {
                             savingsAmount: 50000,
@@ -262,8 +278,9 @@ export function CommandCenter() {
                         };
                         addLog(`✅ Strategy generated: Scripts ready`);
                         break;
+                    }
 
-                    case 'contract-clause-analyzer':
+                    case 'contract-clause-analyzer': {
                         addLog(`INIT: Indexing standard clause library...`);
                         await delay(300);
                         addLog(`PROC: OCR scan of pending contract documents...`);
@@ -276,24 +293,28 @@ export function CommandCenter() {
                         };
                         addLog(`✅ Audit complete: 2 risks flagged`);
                         break;
+                    }
 
-                    case 'smart-approval-routing':
+                    case 'smart-approval-routing': {
                         addLog(`INIT: Mapping organizational hierarchy...`);
                         await delay(300);
                         addLog(`PROC: Evaluating risk-weighted approval paths...`);
                         await delay(300);
                         addLog(`EXEC: Synchronizing dynamic routing triggers...`);
-                        result = await processAutoApprovals();
-                        if (result.success && result.data) {
+                        const approvalResult = await processAutoApprovals();
+                        result = approvalResult;
+                        if (approvalResult.success && approvalResult.data) {
+                            const approvalData = approvalResult.data;
                             runResult = {
-                                actionsCount: result.data.approved,
-                                details: `Optimized routing for ${result.data.processed} requests. Auto-approved ${result.data.approved} low-risk transactions within preset thresholds.`
+                                actionsCount: approvalData.approved,
+                                details: `Optimized routing for ${approvalData.processed} requests. Auto-approved ${approvalData.approved} low-risk transactions within preset thresholds.`
                             };
-                            addLog(`✅ Routing optimized: ${result.data.approved} auto-approved`);
+                            addLog(`✅ Routing optimized: ${approvalData.approved} auto-approved`);
                         }
                         break;
+                    }
 
-                    case 'scenario-modeling':
+                    case 'scenario-modeling': {
                         addLog(`INIT: Fetching market price index...`);
                         await delay(300);
                         addLog(`PROC: Running Monte Carlo simulations...`);
@@ -306,23 +327,27 @@ export function CommandCenter() {
                         };
                         addLog(`✅ Simulation complete: Impact quantified`);
                         break;
+                    }
 
-                    case 'supplier-ecosystem':
+                    case 'supplier-ecosystem': {
                         addLog(`INIT: Aggregating 360° supplier intelligence...`);
                         await delay(300);
                         addLog(`PROC: Visualizing dependency graph...`);
                         await delay(300);
                         addLog(`EVAL: Calculating ecosystem health score...`);
-                        result = await buildSupplierEcosystem();
-                        if (result.success && result.data) {
+                        const ecosystemResult = await buildSupplierEcosystem();
+                        result = ecosystemResult;
+                        if (ecosystemResult.success && ecosystemResult.data) {
+                            const ecoData = ecosystemResult.data;
                             runResult = {
-                                alertsFound: result.data.riskHotspots.length,
-                                details: `Mapped ${result.data.nodes.length} suppliers. Ecosystem health: ${result.data.overallHealthScore}/100. Identified ${result.data.riskHotspots.length} critical dependency hotspots.`,
+                                alertsFound: ecoData.riskHotspots.length,
+                                details: `Mapped ${ecoData.nodes.length} suppliers. Ecosystem health: ${ecoData.overallHealthScore}/100. Identified ${ecoData.riskHotspots.length} critical dependency hotspots.`,
                                 link: "/admin/ecosystem"
                             };
-                            addLog(`✅ Ecosystem mapped: Health ${result.data.overallHealthScore}/100`);
+                            addLog(`✅ Ecosystem mapped: Health ${ecoData.overallHealthScore}/100`);
                         }
                         break;
+                    }
 
                     default:
                         addLog(`⚙️ Analyzing ${agentLabel} parameters...`);

@@ -8,7 +8,12 @@ Set these App Service (or container app) environment variables:
 - `DATABASE_URL=<azure postgres connection string>`
 - `REDIS_URL=<azure redis connection string>`
 - `NEXTAUTH_SECRET=<strong random secret>`
+- `AUTH_SECRET=<same strong secret unless you intentionally rotate separately>`
 - `CRON_SECRET=<strong random secret>`
+- `AXIOM_ALLOWED_ORIGINS=<public app origin, e.g. https://your-app.azurewebsites.net>`
+- `PGSSLMODE=require`
+- `DB_POOL_MAX=20` (raise only after sizing Azure PostgreSQL max connections)
+- `RATE_LIMIT_NAMESPACE=axiom-prod`
 - `AZURE_STORAGE_CONNECTION_STRING=<blob storage connection string>`
 - `AZURE_STORAGE_CONTAINER=axiom-docs`
 - `ALLOW_DEMO_BYPASS=false`
@@ -36,6 +41,8 @@ Before enabling traffic:
 - Supplier APIs must enforce role/scope (`admin` vs `supplier`).
 - Upload API must return `503` if Blob storage is not configured in production.
 - Rate limits should return HTTP `429` when exceeded.
+- Browser-originated API mutations from unapproved origins should return HTTP `403`.
+- Scheduled endpoints should return `202` with `skipped: true` if an earlier run is still holding the DB advisory lock.
 
 ## 5) Health and Readiness Probes
 

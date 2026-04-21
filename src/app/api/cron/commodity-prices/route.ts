@@ -1,14 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { marketPriceIndex } from '@/db/schema';
-
-function isCronAuthorized(req: Request) {
-    const secret = process.env.CRON_SECRET;
-    if (!secret) return false;
-    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    const header = req.headers.get('x-cron-token');
-    return bearer === secret || header === secret;
-}
+import { isCronAuthorized } from '@/lib/api-security';
+import { withPgAdvisoryLock } from '@/lib/db-locks';
 
 // Free commodity data sources
 const COMMODITY_ENDPOINTS = [
@@ -58,60 +52,68 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const now = new Date();
-        const validFrom = new Date(now);
-        validFrom.setHours(0, 0, 0, 0);
-        const validTo = new Date(validFrom);
-        validTo.setDate(validTo.getDate() + 1);
+        const locked = await withPgAdvisoryLock('cron:commodity-prices', async () => {
+            const now = new Date();
+            const validFrom = new Date(now);
+            validFrom.setHours(0, 0, 0, 0);
+            const validTo = new Date(validFrom);
+            validTo.setDate(validTo.getDate() + 1);
 
-        let allPrices: { category: string; commodity: string; price: number; source: string }[] = [];
+            let allPrices: { category: string; commodity: string; price: number; source: string }[] = [];
 
-        // Try fetching from real APIs first
-        for (const endpoint of COMMODITY_ENDPOINTS) {
-            try {
-                const response = await fetch(endpoint.url, {
-                    signal: AbortSignal.timeout(5000),
-                    next: { revalidate: 0 },
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    allPrices.push(...endpoint.parser(data));
+            // Try fetching from real APIs first
+            for (const endpoint of COMMODITY_ENDPOINTS) {
+                try {
+                    const response = await fetch(endpoint.url, {
+                        signal: AbortSignal.timeout(5000),
+                        next: { revalidate: 0 },
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        allPrices.push(...endpoint.parser(data));
+                    }
+                } catch {
+                    // API failed, will use synthetic fallback
                 }
-            } catch {
-                // API failed, will use synthetic fallback
             }
-        }
 
-        // Fall back to synthetic prices if no real data
-        if (allPrices.length === 0) {
-            allPrices = generateSyntheticPrices();
-        }
-
-        // Insert into marketPriceIndex
-        let inserted = 0;
-        for (const price of allPrices) {
-            try {
-                await db.insert(marketPriceIndex).values({
-                    partCategory: price.category,
-                    commodity: price.commodity,
-                    benchmarkPrice: price.price.toString(),
-                    source: price.source,
-                    validFrom,
-                    validTo,
-                });
-                inserted++;
-            } catch (e) {
-                // Ignore duplicate insertions
+            // Fall back to synthetic prices if no real data
+            if (allPrices.length === 0) {
+                allPrices = generateSyntheticPrices();
             }
-        }
 
-        return NextResponse.json({
-            success: true,
-            inserted,
-            totalPrices: allPrices.length,
-            categories: [...new Set(allPrices.map(p => p.category))],
-            timestamp: now.toISOString(),
+            // Insert into marketPriceIndex
+            let inserted = 0;
+            for (const price of allPrices) {
+                try {
+                    await db.insert(marketPriceIndex).values({
+                        partCategory: price.category,
+                        commodity: price.commodity,
+                        benchmarkPrice: price.price.toString(),
+                        source: price.source,
+                        validFrom,
+                        validTo,
+                    });
+                    inserted++;
+                } catch {
+                    // Ignore duplicate insertions
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                inserted,
+                totalPrices: allPrices.length,
+                categories: [...new Set(allPrices.map(p => p.category))],
+                timestamp: now.toISOString(),
+            });
         });
+
+        if (!locked.acquired) {
+            return NextResponse.json({ success: true, skipped: true, reason: 'already_running' }, { status: 202 });
+        }
+
+        return locked.value;
     } catch (error) {
         console.error('[Commodity Prices] Cron failed:', error);
         return NextResponse.json({ error: 'Commodity price update failed' }, { status: 500 });

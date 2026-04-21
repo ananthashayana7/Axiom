@@ -2,14 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { platformSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-
-function isCronAuthorized(req: Request) {
-    const secret = process.env.CRON_SECRET;
-    if (!secret) return false;
-    const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    const header = req.headers.get('x-cron-token');
-    return bearer === secret || header === secret;
-}
+import { isCronAuthorized } from '@/lib/api-security';
+import { withPgAdvisoryLock } from '@/lib/db-locks';
 
 const ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 
@@ -45,47 +39,55 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const response = await fetch(ECB_URL, {
-            headers: { 'Accept': 'application/xml' },
-            next: { revalidate: 0 },
+        const locked = await withPgAdvisoryLock('cron:fx-rates', async () => {
+            const response = await fetch(ECB_URL, {
+                headers: { 'Accept': 'application/xml' },
+                next: { revalidate: 0 },
+                signal: AbortSignal.timeout(10_000),
+            });
+
+            if (!response.ok) {
+                throw new Error(`ECB API returned ${response.status}`);
+            }
+
+            const xml = await response.text();
+            const fxRates = parseEcbXml(xml);
+
+            if (Object.keys(fxRates.rates).length <= 1) {
+                throw new Error('No exchange rates parsed from ECB response');
+            }
+
+            const [existing] = await db.select().from(platformSettings).limit(1);
+            if (existing) {
+                await db
+                    .update(platformSettings)
+                    .set({ exchangeRates: JSON.stringify(fxRates) })
+                    .where(eq(platformSettings.id, existing.id));
+            }
+
+            return NextResponse.json({
+                success: true,
+                currencyCount: Object.keys(fxRates.rates).length,
+                date: fxRates.date,
+                sampleRates: {
+                    USD: fxRates.rates['USD'],
+                    GBP: fxRates.rates['GBP'],
+                    INR: fxRates.rates['INR'],
+                    JPY: fxRates.rates['JPY'],
+                },
+            });
         });
 
-        if (!response.ok) {
-            throw new Error(`ECB API returned ${response.status}`);
+        if (!locked.acquired) {
+            return NextResponse.json({ success: true, skipped: true, reason: 'already_running' }, { status: 202 });
         }
 
-        const xml = await response.text();
-        const fxRates = parseEcbXml(xml);
-
-        if (Object.keys(fxRates.rates).length <= 1) {
-            throw new Error('No exchange rates parsed from ECB response');
-        }
-
-        // Store in platformSettings — update the first row
-        const [existing] = await db.select().from(platformSettings).limit(1);
-        if (existing) {
-            await db
-                .update(platformSettings)
-                .set({ exchangeRates: JSON.stringify(fxRates) })
-                .where(eq(platformSettings.id, existing.id));
-        }
-
-        return NextResponse.json({
-            success: true,
-            currencyCount: Object.keys(fxRates.rates).length,
-            date: fxRates.date,
-            sampleRates: {
-                USD: fxRates.rates['USD'],
-                GBP: fxRates.rates['GBP'],
-                INR: fxRates.rates['INR'],
-                JPY: fxRates.rates['JPY'],
-            },
-        });
+        return locked.value;
     } catch (error) {
         console.error('[FX Rates] Fetch failed:', error);
         return NextResponse.json(
             { error: 'Failed to fetch exchange rates', details: error instanceof Error ? error.message : 'Unknown' },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

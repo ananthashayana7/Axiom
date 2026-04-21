@@ -106,11 +106,12 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                         });
                         return null;
                     }
-                } catch (error) {
-                    if (error.message === 'require-2fa' || error.message === 'setup-2fa') {
+                } catch (error: unknown) {
+                    const err = error as Error;
+                    if (err.message === 'require-2fa' || err.message === 'setup-2fa') {
                         throw error;
                     }
-                    console.error(`[AUTH] FATAL_ERROR | identifier: ${credentials?.identifier} | error: ${error.message}`);
+                    console.error(`[AUTH] FATAL_ERROR | identifier: ${credentials?.identifier} | error: ${err.message}`);
                     return null;
                 }
             },

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { invoices, auditLogs, suppliers } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, ilike, gte, lte, type SQL } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function getInvoices(filters?: {
@@ -24,7 +24,8 @@ export async function getInvoices(filters?: {
         const userRole = session.user.role;
         const userSupplierId = session.user.supplierId;
 
-        const conditions: SQL[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const conditions: any[] = [];
 
         if (userRole === 'supplier') {
             conditions.push(eq(invoices.supplierId, userSupplierId));

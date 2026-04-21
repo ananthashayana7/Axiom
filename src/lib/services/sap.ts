@@ -172,7 +172,11 @@ export async function fetchSapEntityData(entitySet: string, params?: Record<stri
         headers.Authorization = `Basic ${basic}`;
     }
 
-    const response = await fetch(url.toString(), { headers, cache: 'no-store' });
+    const response = await fetch(url.toString(), {
+        headers,
+        cache: 'no-store',
+        signal: AbortSignal.timeout(Number(process.env.SAP_REQUEST_TIMEOUT_MS || 10000)),
+    });
     if (!response.ok) {
         const body = await response.text();
         throw new Error(`SAP request failed (${response.status}): ${body.slice(0, 200)}`);

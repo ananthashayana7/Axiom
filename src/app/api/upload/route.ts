@@ -4,6 +4,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceMutationFirewall } from '@/lib/api-security';
 
 const ALLOWED_MIME_TYPES = new Set([
     'application/pdf',
@@ -33,12 +34,15 @@ const EXT_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
     try {
+        const blocked = enforceMutationFirewall(req);
+        if (blocked) return blocked;
+
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const limited = enforceRateLimit(req, 'write', (session.user as any).id);
+        const limited = await enforceRateLimit(req, 'write', (session.user as any).id);
         if (limited) return limited;
 
         const formData = await req.formData();

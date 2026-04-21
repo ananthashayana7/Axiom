@@ -161,7 +161,7 @@ export default function SupplierRFQDetail() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-muted-foreground italic">
-                                "{rfq.description || "Quote for standard delivery and quality specifications."}"
+                                &quot;{rfq.description || "Quote for standard delivery and quality specifications."}&quot;
                             </p>
                         </CardContent>
                     </Card>

@@ -35,7 +35,7 @@ export default async function RiskDashboardPage() {
 
     if (!stats) return <div className="p-8">Unable to load risk intelligence.</div>;
 
-    const allSuppliers = await db.query.suppliers.findMany();
+    const allSuppliers = await db.select().from(suppliers);
     const highRiskSuppliers = allSuppliers.filter((s) => (s.riskScore || 0) > 60);
     const lowESGSuppliers = allSuppliers.filter((s) => (s.esgScore || 0) < 40);
     const financialWatchlist = allSuppliers.filter((s) => (s.financialScore || 0) < 50);
@@ -205,7 +205,7 @@ export default async function RiskDashboardPage() {
                     </CardHeader>
                     <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {highRiskSuppliers.slice(0, 3).map((s) => (
-                            <RiskIntelligenceView key={s.id} supplier={s} />
+                            <RiskIntelligenceView key={s.id} supplier={{ id: s.id, name: s.name, riskScore: s.riskScore }} />
                         ))}
                         {highRiskSuppliers.length === 0 && (
                             <div className="col-span-3 py-10 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-primary/20">

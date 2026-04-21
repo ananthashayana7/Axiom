@@ -26,31 +26,32 @@ export async function Header() {
             : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800";
 
     return (
-        <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border h-14 flex items-center justify-between px-4 lg:px-8 transition-all font-sans">
-            <div className="flex min-w-0 items-center gap-3 md:gap-8">
+        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border/60 h-14 flex items-center justify-between px-4 lg:px-6 transition-all font-sans shadow-sm shadow-black/[0.03]">
+            <div className="flex min-w-0 items-center gap-3 md:gap-6">
                 <MobileNavigation role={role} />
-                <div className="flex flex-col">
-                    <h2 className="text-base font-bold text-foreground tracking-tight font-heading leading-tight">Intelligence Hub</h2>
+                <div className="flex flex-col leading-none">
+                    <h2 className="text-[13px] font-bold text-foreground tracking-tight">Intelligence Hub</h2>
+                    <span className="text-[10px] text-muted-foreground/55 font-medium hidden md:block">Procurement Command Center</span>
                 </div>
-                <div className="hidden xl:block h-6 w-[1px] bg-border" />
+                <div className="hidden xl:block h-5 w-[1px] bg-border/60" />
                 <div className="hidden md:flex items-center">
                     <SearchTrigger />
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 md:gap-5">
+            <div className="flex items-center gap-2 md:gap-3">
                 <ThemeToggle />
                 <NotificationBell />
-                <div className="h-6 w-[1px] bg-border hidden sm:block" />
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="h-5 w-[1px] bg-border/60 hidden sm:block" />
+                <div className="flex min-w-0 items-center gap-2">
                     <Link
                         href="/profile"
-                        className="flex min-w-0 items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-bold text-foreground transition-all hover:bg-muted"
+                        className="flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-muted/80 border border-transparent hover:border-border/60"
                     >
-                        <div className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/30 rounded-md flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
-                            {userName.charAt(0)}
+                        <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-black text-[11px] shadow-sm shadow-primary/20">
+                            {userName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="hidden truncate xl:inline">{userName}</span>
+                        <span className="hidden truncate xl:inline text-[13px] font-semibold">{userName}</span>
                         {role && (
                             <span className={cn(
                                 "hidden sm:inline text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
@@ -66,8 +67,8 @@ export async function Header() {
                             await signOut({ redirectTo: '/login' });
                         }}
                     >
-                        <Button variant="ghost" size="sm" type="submit" className="h-9 w-9 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-colors">
-                            <LogOut className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" type="submit" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-colors">
+                            <LogOut className="h-3.5 w-3.5" />
                         </Button>
                     </form>
                 </div>

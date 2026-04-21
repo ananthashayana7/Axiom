@@ -21,12 +21,14 @@ import {
 import { runScenarioAnalysis } from "@/app/actions/agents/scenario-modeling";
 import { toast } from "sonner";
 
+// Use compatible local types that match the agent module's interface
 type ScenarioOutcome = {
     metric: string;
-    currentValue: string;
-    projectedValue: string;
-    impact: 'positive' | 'negative' | string;
-    changePercent: number;
+    category?: string;
+    currentValue: string | number;
+    projectedValue: string | number;
+    impact: 'positive' | 'negative' | 'neutral' | string;
+    changePercent?: number;
 };
 
 type ScenarioResult = {
@@ -41,13 +43,10 @@ type ScenarioResult = {
 };
 
 type ScenarioInput = {
-    scenarioType: string;
+    scenarioType: 'price_change' | 'supplier_switch' | 'volume_change' | 'lead_time' | 'currency_fluctuation';
     title?: string;
     description: string;
-    parameters: {
-        percentChange: number;
-        volumeShift?: number;
-    };
+    parameters: Record<string, number | string>;
 };
 
 export default function ScenarioModelingPage() {
@@ -69,7 +68,7 @@ export default function ScenarioModelingPage() {
         try {
             const result = await runScenarioAnalysis(scenarioInput);
             if (result.success && result.data) {
-                setScenarios([result.data, ...scenarios]);
+                setScenarios([result.data as unknown as ScenarioResult, ...scenarios]);
                 toast.success("Simulation Complete", {
                     description: `Scenario "${result.data.title}" has been modeled successfully.`
                 });

@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { db } from '@/db';
 import { notifications } from '@/db/schema';
 import { eq, and, desc, gt } from 'drizzle-orm';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
     if (!session?.user?.id) {
         return new Response('Unauthorized', { status: 401 });
     }
+
+    const limited = await enforceRateLimit(req, 'read', session.user.id);
+    if (limited) return limited;
 
     const userId = session.user.id;
     const encoder = new TextEncoder();

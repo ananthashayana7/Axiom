@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { enqueueSupplierScore } from '@/lib/queue';
 import { auth } from '@/auth';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceMutationFirewall } from '@/lib/api-security';
 
 async function requireSession() {
     const session = await auth();
@@ -17,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const user = await requireSession();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const limited = enforceRateLimit(req, 'read', user.id);
+    const limited = await enforceRateLimit(req, 'read', user.id);
     if (limited) return limited;
 
     const { id } = await params;
@@ -33,13 +34,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const blocked = enforceMutationFirewall(req);
+    if (blocked) return blocked;
+
     const user = await requireSession();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const limited = enforceRateLimit(req, 'write', user.id);
+    const limited = await enforceRateLimit(req, 'write', user.id);
     if (limited) return limited;
 
     const { id } = await params;

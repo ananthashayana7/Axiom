@@ -33,6 +33,26 @@ export async function createNotification(data: {
 }) {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Unauthorized" };
+    return insertNotification(data);
+}
+
+export async function createSystemNotification(data: {
+    userId: string;
+    title: string;
+    message: string;
+    type?: 'info' | 'warning' | 'success' | 'error';
+    link?: string;
+}) {
+    return insertNotification(data);
+}
+
+async function insertNotification(data: {
+    userId: string;
+    title: string;
+    message: string;
+    type?: 'info' | 'warning' | 'success' | 'error';
+    link?: string;
+}) {
     try {
         await db.insert(notifications).values({
             userId: data.userId,

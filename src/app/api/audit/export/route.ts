@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { db } from '@/db';
 import { auditLogs, users } from '@/db/schema';
 import { eq, desc, gte, lte, and } from 'drizzle-orm';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(req: Request) {
     try {
@@ -10,6 +11,9 @@ export async function GET(req: Request) {
         if (!session?.user || session.user.role !== 'admin') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
+
+        const limited = await enforceRateLimit(req, 'read', session.user.id);
+        if (limited) return limited;
 
         const url = new URL(req.url);
         const dateFrom = url.searchParams.get('from');

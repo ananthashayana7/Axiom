@@ -41,7 +41,7 @@ export default function SupplierEcosystemPage() {
             try {
                 const result = await buildSupplierEcosystem();
                 if (result.success) {
-                    setEcosystem(result.data);
+                    setEcosystem(result.data ?? null);
                 }
             } catch (_error) {
                 toast.error("Failed to map ecosystem");
@@ -282,7 +282,7 @@ export default function SupplierEcosystemPage() {
                                     data={[
                                         { name: 'Critical Risk', value: ecosystem?.riskHotspots.filter((h) => h.impactSeverity === 'critical').length || 0 },
                                         { name: 'High Risk', value: ecosystem?.riskHotspots.filter((h) => h.impactSeverity === 'high').length || 0 },
-                                        { name: 'Moderate', value: ecosystem?.nodes.length - ecosystem?.riskHotspots.length },
+                                        { name: 'Moderate', value: (ecosystem?.nodes.length ?? 0) - (ecosystem?.riskHotspots.length ?? 0) },
                                     ]}
                                     cx="50%"
                                     cy="50%"

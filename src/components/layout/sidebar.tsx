@@ -20,7 +20,14 @@ import {
     FileUp,
     Inbox,
     ShieldCheck,
-    ClipboardList
+    ClipboardList,
+    Warehouse,
+    ReceiptText,
+    Scale,
+    Globe,
+    Layers,
+    Building2,
+    Leaf,
 } from "lucide-react";
 import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
@@ -48,7 +55,7 @@ const adminOperationalLinks = [
     { label: "Import Data", icon: FileUp, href: "/admin/import" },
     { label: "Admin Settings", icon: Settings, href: "/admin/settings" },
     { label: "Scenario Modeling", icon: BarChart3, href: "/admin/scenarios" },
-    { label: "Supplier Ecosystem", icon: Users, href: "/admin/ecosystem" },
+    { label: "Supplier Ecosystem", icon: Globe, href: "/admin/ecosystem" },
 ];
 
 const supplierLinks = [
@@ -73,41 +80,41 @@ export async function Sidebar({ className }: { className?: string }) {
             <div className="flex-1 overflow-y-auto min-h-0 pb-2">
 
                 {/* ── Brand ── */}
-                <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-8 w-8 bg-primary/5 rounded-sm flex items-center justify-center border border-primary/10 shrink-0">
-                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-primary" fill="currentColor">
-                            <path d="M12 4L3 20H7L12 11L17 20H21L12 4Z" opacity="0.3" />
-                            <path d="M12 11L8 18H16L12 11Z" />
-                            <path d="M2.5 20L10 6L12 10L5 21H2.5Z" />
-                            <path d="M21.5 20L14 6L12 10L19 21H21.5Z" />
-                        </svg>
+                <div className="px-4 py-4 flex items-center gap-3 border-b border-border/40 mb-1">
+                    <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-primary/30 shrink-0">
+                        <AxiomLogo className="h-5 w-5 text-primary-foreground" />
                     </div>
-                    <h2 className="text-xl font-bold text-foreground font-display leading-none tracking-tight">
-                        Axiom
-                    </h2>
+                    <div className="flex flex-col leading-none">
+                        <span className="text-[16px] font-black tracking-tight text-foreground">Axiom</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Procurement OS</span>
+                    </div>
                 </div>
 
                 {/* ── Primary Nav ── */}
-                <div className="px-3 space-y-0.5">
+                <div className="px-3 mt-2 space-y-0.5">
                     <NavLink href={role === 'supplier' ? '/portal' : '/'} className={navCls}>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         Dashboard
                     </NavLink>
                     {role !== 'supplier' && (
                         <NavLink href="/suppliers" className={navCls}>
-                            <Users className="mr-2 h-4 w-4" />
+                            <Building2 className="mr-2 h-4 w-4" />
                             Suppliers
                         </NavLink>
                     )}
-                    <NavLink href="/copilot" className={cn(navCls, "text-primary dark:text-primary font-bold")}>
-                        <AxiomLogo className="mr-2 h-4 w-4" />
+                </div>
+                {/* AI Features - highlighted */}
+                <div className="px-3 mt-2 space-y-1">
+                    <NavLink href="/copilot" className={cn(navCls, "bg-primary/8 text-primary border border-primary/15 hover:bg-primary/12 font-semibold")}>
+                        <AxiomLogo className="mr-2 h-4 w-4 text-primary" />
                         Axiom Copilot
                     </NavLink>
                     {role === 'admin' && (
                         <Link href="/admin/agents">
-                            <span className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/30 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400 font-bold transition-all border border-emerald-100 dark:border-emerald-800/50">
-                                <AxiomLogo className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="flex items-center rounded-md px-3 py-1.5 text-[13px] font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/40 dark:bg-emerald-950/15 text-emerald-700 dark:text-emerald-400 transition-all border border-emerald-200/60 dark:border-emerald-800/40">
+                                <Layers className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                 AI Agents
+                                <span className="ml-auto text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">10</span>
                             </span>
                         </Link>
                     )}
@@ -115,31 +122,50 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {/* ── Sourcing ── */}
                 {role !== 'supplier' && (
-                    <div className="px-3 mt-3">
-                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Sourcing
-                        </h2>
+                    <div className="px-3 mt-4">
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                            <span className="h-px flex-1 bg-border/50" />
+                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Sourcing</span>
+                            <span className="h-px flex-1 bg-border/50" />
+                        </div>
                         <div className="space-y-0.5">
                             <NavLink href="/sourcing/parts" className={navCls}><Package className="mr-2 h-4 w-4" />Parts Catalog</NavLink>
                             <NavLink href="/sourcing/rfqs" className={navCls}><FileText className="mr-2 h-4 w-4" />Sourcing Requests</NavLink>
-                            <NavLink href="/sourcing/requisitions" className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Requisitions</NavLink>
+                            <NavLink href="/sourcing/requisitions" className={navCls}><ClipboardList className="mr-2 h-4 w-4" />Requisitions</NavLink>
                             <NavLink href="/sourcing/orders" className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Orders</NavLink>
                             <NavLink href="/sourcing/goods-receipts" className={navCls}><Truck className="mr-2 h-4 w-4" />Goods Receipts</NavLink>
-                            <NavLink href="/sourcing/invoices" className={navCls}><FileText className="mr-2 h-4 w-4" />Invoice Records</NavLink>
-                            <NavLink href="/sourcing/contracts" className={navCls}><FileText className="mr-2 h-4 w-4" />Agreements</NavLink>
+                            <NavLink href="/sourcing/contracts" className={navCls}><Scale className="mr-2 h-4 w-4" />Contracts</NavLink>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Finance ── */}
+                {role !== 'supplier' && (
+                    <div className="px-3 mt-4">
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                            <span className="h-px flex-1 bg-border/50" />
+                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Finance</span>
+                            <span className="h-px flex-1 bg-border/50" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <NavLink href="/sourcing/invoices" className={navCls}><ReceiptText className="mr-2 h-4 w-4" />Invoices</NavLink>
+                            <NavLink href="/inventory" className={navCls}><Warehouse className="mr-2 h-4 w-4" />Inventory</NavLink>
                             <NavLink href="/transactions" className={navCls}><ArrowRightLeft className="mr-2 h-4 w-4" />Transactions</NavLink>
                             <NavLink href="/contacts" className={navCls}><ContactRound className="mr-2 h-4 w-4" />Contacts</NavLink>
                             <NavLink href="/savings" className={navCls}><PiggyBank className="mr-2 h-4 w-4" />Savings</NavLink>
+                            <NavLink href="/sustainability" className={navCls}><Leaf className="mr-2 h-4 w-4" />Sustainability</NavLink>
                         </div>
                     </div>
                 )}
 
                 {/* ── Vendor Portal ── */}
                 {role === 'supplier' && (
-                    <div className="px-3 mt-3">
-                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Vendor Portal
-                        </h2>
+                    <div className="px-3 mt-4">
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                            <span className="h-px flex-1 bg-border/50" />
+                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Vendor Portal</span>
+                            <span className="h-px flex-1 bg-border/50" />
+                        </div>
                         <div className="space-y-0.5">
                             {supplierLinks.map((link) => {
                                 const Icon = link.icon;
@@ -155,10 +181,12 @@ export async function Sidebar({ className }: { className?: string }) {
                 )}
 
                 {/* ── Resources ── */}
-                <div className="px-3 mt-3 border-t border-border/50 pt-2">
-                    <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                        Resources
-                    </h2>
+                <div className="px-3 mt-4">
+                    <div className="flex items-center gap-2 mb-1.5 px-1">
+                        <span className="h-px flex-1 bg-border/50" />
+                        <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Resources</span>
+                        <span className="h-px flex-1 bg-border/50" />
+                    </div>
                     <div className="space-y-0.5">
                         {role !== 'supplier' && (
                             <NavLink href="/docs" className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</NavLink>
@@ -169,44 +197,51 @@ export async function Sidebar({ className }: { className?: string }) {
 
                 {/* ── Admin / Intelligence ── */}
                 {role === 'admin' && (
-                    <div className="px-3 mt-3 border-t border-border/50 pt-2">
-                        <h2 className="mb-1 px-3 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                            Admin Control
-                        </h2>
-                        <div className="space-y-2">
-                            <div className="space-y-0.5">
-                                {visiblePriorityLinks.map((link) => {
-                                    const Icon = link.icon;
-                                    return (
-                                        <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-semibold hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
-                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
-                                            {link.label}
-                                        </NavLink>
-                                    );
-                                })}
-                            </div>
-                            {visibleOperationalLinks.length > 0 && (
-                                <div className="border-t border-border/50 pt-2">
-                                    <p className="px-3 pb-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">
-                                        Operations
-                                    </p>
-                                    <div className="space-y-0.5">
-                                        {visibleOperationalLinks.map((link) => {
-                                            const Icon = link.icon;
-                                            return (
-                                                <NavLink key={link.href} href={link.href} className="flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
-                                                    <Icon className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-sidebar-primary transition-colors" />
-                                                    {link.label}
-                                                </NavLink>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                    <div className="px-3 mt-4">
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                            <span className="h-px flex-1 bg-border/50" />
+                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Intelligence</span>
+                            <span className="h-px flex-1 bg-border/50" />
                         </div>
+                        <div className="space-y-0.5">
+                            {visiblePriorityLinks.map((link) => {
+                                const Icon = link.icon;
+                                return (
+                                    <NavLink key={link.href} href={link.href} className={navCls}>
+                                        <Icon className="mr-2 h-4 w-4" />
+                                        {link.label}
+                                    </NavLink>
+                                );
+                            })}
+                        </div>
+                        {visibleOperationalLinks.length > 0 && (
+                            <div className="mt-3">
+                                <div className="flex items-center gap-2 mb-1.5 px-1">
+                                    <span className="h-px flex-1 bg-border/50" />
+                                    <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Operations</span>
+                                    <span className="h-px flex-1 bg-border/50" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    {visibleOperationalLinks.map((link) => {
+                                        const Icon = link.icon;
+                                        return (
+                                            <NavLink key={link.href} href={link.href} className={navCls}>
+                                                <Icon className="mr-2 h-4 w-4" />
+                                                {link.label}
+                                            </NavLink>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
+            </div>
+            {/* ── Footer ── */}
+            <div className="px-4 py-2.5 border-t border-border/40 flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[9.5px] font-bold text-muted-foreground/50 uppercase tracking-[0.12em]">System Online</span>
             </div>
         </div>
     );

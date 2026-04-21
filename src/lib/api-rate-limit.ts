@@ -1,9 +1,9 @@
-import { readLimiter, writeLimiter, rateLimitResponse } from "@/lib/rate-limit";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 type LimitMode = "read" | "write";
 
-function extractClientIp(req: Request): string {
+export function extractClientIp(req: Request): string {
     const forwarded = req.headers.get("x-forwarded-for");
     if (forwarded) {
         const first = forwarded.split(",")[0]?.trim();
@@ -16,11 +16,10 @@ function extractClientIp(req: Request): string {
     return "unknown";
 }
 
-export function enforceRateLimit(req: Request, mode: LimitMode, userKey?: string): NextResponse | null {
+export async function enforceRateLimit(req: Request, mode: LimitMode, userKey?: string): Promise<NextResponse | null> {
     const ip = extractClientIp(req);
     const scope = userKey ? `user:${userKey}` : `ip:${ip}`;
-    const limiter = mode === "write" ? writeLimiter : readLimiter;
-    const result = limiter.consume(scope);
+    const result = await consumeRateLimit(mode, scope);
 
     if (!result.allowed) {
         return rateLimitResponse(result.retryAfterMs ?? 60_000);

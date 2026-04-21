@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { TotpService } from "@/lib/totp";
 import QRCode from "qrcode";
-import { authLimiter } from "@/lib/rate-limit";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
@@ -23,7 +23,7 @@ export async function authenticate(
         const code = formData.get('code') as string;
 
         // Rate limit login attempts by identifier
-        const rateCheck = authLimiter.consume(identifier.toLowerCase());
+        const rateCheck = await consumeRateLimit('auth', identifier.toLowerCase());
         if (!rateCheck.allowed) {
             return 'Too many login attempts. Please try again later.';
         }
@@ -46,7 +46,7 @@ export async function authenticate(
             code,
             redirectTo,
         });
-    } catch (error) {
+    } catch (error: unknown) {
         if (isRedirectError(error)) {
             throw error;
         }
@@ -54,12 +54,14 @@ export async function authenticate(
         // Avoid JSON.stringify(error.cause) as it can cause circular reference crashes
         console.warn("[AUTH ACTION] Sign-in failure detected");
 
-        const errorMsg = error.message || '';
+        const err = error as Error & { cause?: unknown };
+        const errorMsg = err.message || '';
         // Safer way to access cause-bound messages
         let causeMsg = '';
-        if (error.cause && typeof error.cause === 'object') {
-            const cause = error.cause as any;
-            causeMsg = cause.err?.message || cause.message || '';
+        if (err.cause && typeof err.cause === 'object') {
+            const cause = err.cause as Record<string, unknown>;
+            const causeErr = cause.err as Error | undefined;
+            causeMsg = causeErr?.message || (cause.message as string) || '';
         }
 
         if (errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
@@ -86,7 +88,7 @@ export async function authenticate(
             return `Authentication Error: ${type}`;
         }
 
-        return error.message || 'An unexpected error occurred. Please try again.';
+        return err.message || 'An unexpected error occurred. Please try again.';
     }
 }
 
