@@ -6,6 +6,39 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc, and, ilike, gte, lte } from "drizzle-orm";
 import { createNotification } from "./notifications";
+import {
+    coerceInvoiceNumber,
+    coerceMoney,
+    normalizeCurrencyCode,
+    normalizeDateToIso,
+    normalizeInvoiceLineItems,
+    optionalDecimalString,
+} from "@/lib/invoices/normalization";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string) {
+    return UUID_PATTERN.test(value);
+}
+
+function dateForInsert(value: string | undefined) {
+    const iso = normalizeDateToIso(value);
+    return iso ? new Date(`${iso}T00:00:00.000Z`) : undefined;
+}
+
+function invoiceInsertErrorMessage(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (/order_id.*not null|null value.*order_id/i.test(message) || /column .*invoice_date.*does not exist/i.test(message)) {
+        return "Invoice database schema is not up to date. Run the invoice enhancement migration and try again.";
+    }
+
+    if (/foreign key.*supplier|suppliers/i.test(message)) {
+        return "Selected supplier could not be found.";
+    }
+
+    return "Failed to create invoice. Please try again.";
+}
 
 export async function getInvoices(filters?: {
     invoiceNumber?: string;
@@ -117,17 +150,69 @@ export async function createInvoice(data: {
     if (!session?.user) return { success: false, error: "Unauthorized" };
 
     try {
+        const supplierId = String(data.supplierId || "").trim();
+        if (!supplierId || !isUuid(supplierId)) {
+            return { success: false, error: "Please select a valid supplier" };
+        }
+
+        if (session.user.role === "supplier" && session.user.supplierId !== supplierId) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        const invoiceNumber = coerceInvoiceNumber(data.invoiceNumber);
+        if (!invoiceNumber) {
+            return { success: false, error: "Invoice number is required" };
+        }
+
+        const amount = coerceMoney(data.amount);
+        if (amount === null || amount <= 0) {
+            return { success: false, error: "Invoice amount must be a valid positive amount" };
+        }
+
+        const orderId = data.orderId?.trim();
+        if (orderId && !isUuid(orderId)) {
+            return { success: false, error: "Order reference is invalid" };
+        }
+
+        const [supplier] = await db
+            .select({ id: suppliers.id })
+            .from(suppliers)
+            .where(eq(suppliers.id, supplierId))
+            .limit(1);
+
+        if (!supplier) {
+            return { success: false, error: "Selected supplier could not be found" };
+        }
+
+        const invoiceDate = dateForInsert(data.invoiceDate);
+        if (data.invoiceDate && !invoiceDate) {
+            return { success: false, error: "Invoice date is invalid" };
+        }
+
+        const dueDate = dateForInsert(data.dueDate);
+        if (data.dueDate && !dueDate) {
+            return { success: false, error: "Due date is invalid" };
+        }
+
+        const taxAmount = optionalDecimalString(data.taxAmount, "Tax amount");
+        if (taxAmount.error) return { success: false, error: taxAmount.error };
+
+        const subtotal = optionalDecimalString(data.subtotal, "Subtotal");
+        if (subtotal.error) return { success: false, error: subtotal.error };
+
+        const lineItems = normalizeInvoiceLineItems(data.lineItems);
+
         const [invoice] = await db.insert(invoices).values({
-            ...(data.orderId ? { orderId: data.orderId } : {}),
-            supplierId: data.supplierId,
-            invoiceNumber: data.invoiceNumber,
-            amount: data.amount.toString(),
-            currency: data.currency || 'INR',
-            invoiceDate: data.invoiceDate ? new Date(data.invoiceDate) : undefined,
-            dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-            taxAmount: data.taxAmount?.toString(),
-            subtotal: data.subtotal?.toString(),
-            lineItems: data.lineItems ? JSON.stringify(data.lineItems) : undefined,
+            ...(orderId ? { orderId } : {}),
+            supplierId,
+            invoiceNumber,
+            amount: amount.toFixed(2),
+            currency: normalizeCurrencyCode(data.currency, "INR") || "INR",
+            invoiceDate,
+            dueDate,
+            taxAmount: taxAmount.value,
+            subtotal: subtotal.value,
+            lineItems: lineItems.length > 0 ? JSON.stringify(lineItems) : undefined,
             paymentTerms: data.paymentTerms,
             purchaseOrderRef: data.purchaseOrderRef,
             documentUrl: data.documentUrl,
@@ -143,15 +228,16 @@ export async function createInvoice(data: {
             action: 'CREATE',
             entityType: 'invoice',
             entityId: invoice.id,
-            details: `Invoice ${data.invoiceNumber} created${data.orderId ? ` for order ${data.orderId}` : ''}`
+            details: `Invoice ${invoiceNumber} created${orderId ? ` for order ${orderId}` : ''}`
         });
 
         revalidatePath('/sourcing/invoices');
         revalidatePath('/portal/invoices');
+        if (orderId) revalidatePath(`/sourcing/orders/${orderId}`);
         return { success: true, data: invoice };
     } catch (error) {
         console.error("Failed to create invoice:", error);
-        return { success: false, error: "Internal Server Error" };
+        return { success: false, error: invoiceInsertErrorMessage(error) };
     }
 }
 

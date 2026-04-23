@@ -21,7 +21,7 @@ interface OCRData {
     dueDate: string | null;
     taxAmount: number | null;
     subtotal: number | null;
-    lineItems: { description: string; quantity: number; unitPrice: number; totalPrice: number }[] | null;
+    lineItems: { description: string; quantity: number; unitPrice: number; totalPrice: number }[];
     paymentTerms: string | null;
     purchaseOrderRef: string | null;
 }
@@ -31,6 +31,15 @@ interface UploadInvoiceDialogProps {
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
     suppliers: { id: string; name: string }[];
+}
+
+const SUPPORTED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp']);
+
+function isSupportedInvoiceFile(file: File) {
+    if (file.type.startsWith('image/') || file.type === 'application/pdf') return true;
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    return extension ? SUPPORTED_EXTENSIONS.has(extension) : false;
 }
 
 export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }: UploadInvoiceDialogProps) {
@@ -51,8 +60,11 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
         setEditableData({});
     };
 
+    const formatLineNumber = (value: number | null | undefined) =>
+        typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '-';
+
     const handleFileSelect = async (file: File) => {
-        if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        if (!isSupportedInvoiceFile(file)) {
             toast.error("Only PDF and image files are supported");
             return;
         }
@@ -69,7 +81,10 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             formData.append('file', file);
 
             const res = await fetch('/api/invoices/ocr', { method: 'POST', body: formData });
-            const json = await res.json();
+            const json = await res.json().catch(() => ({
+                success: false,
+                error: "OCR service returned an unreadable response",
+            }));
 
             if (!res.ok || !json.success) {
                 toast.error(json.error || "OCR extraction failed");
@@ -101,8 +116,9 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             }
 
             setStep('review');
-        } catch {
-            toast.error("Failed to process document");
+        } catch (error) {
+            console.error("Invoice OCR upload failed:", error);
+            toast.error("Failed to process document. Please try another file or enter the fields manually.");
         } finally {
             setUploading(false);
         }
@@ -124,27 +140,33 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
 
         setStep('saving');
 
-        const result = await createInvoice({
-            supplierId,
-            invoiceNumber: editableData.invoiceNumber,
-            amount: Number(editableData.amount),
-            currency: editableData.currency || 'INR',
-            invoiceDate: editableData.invoiceDate || undefined,
-            dueDate: editableData.dueDate || undefined,
-            taxAmount: editableData.taxAmount ? Number(editableData.taxAmount) : undefined,
-            subtotal: editableData.subtotal ? Number(editableData.subtotal) : undefined,
-            lineItems: ocrData?.lineItems || undefined,
-            paymentTerms: editableData.paymentTerms || undefined,
-            purchaseOrderRef: editableData.purchaseOrderRef || undefined,
-        });
+        try {
+            const result = await createInvoice({
+                supplierId,
+                invoiceNumber: editableData.invoiceNumber,
+                amount: Number(editableData.amount),
+                currency: editableData.currency || 'INR',
+                invoiceDate: editableData.invoiceDate || undefined,
+                dueDate: editableData.dueDate || undefined,
+                taxAmount: editableData.taxAmount ? Number(editableData.taxAmount) : undefined,
+                subtotal: editableData.subtotal ? Number(editableData.subtotal) : undefined,
+                lineItems: ocrData?.lineItems || undefined,
+                paymentTerms: editableData.paymentTerms || undefined,
+                purchaseOrderRef: editableData.purchaseOrderRef || undefined,
+            });
 
-        if (result.success) {
-            toast.success(`Invoice ${editableData.invoiceNumber} created successfully`);
-            onSuccess();
-            onOpenChange(false);
-            reset();
-        } else {
-            toast.error(result.error || "Failed to create invoice");
+            if (result.success) {
+                toast.success(`Invoice ${editableData.invoiceNumber} created successfully`);
+                onSuccess();
+                onOpenChange(false);
+                reset();
+            } else {
+                toast.error(result.error || "Failed to create invoice");
+                setStep('review');
+            }
+        } catch (error) {
+            console.error("Invoice save failed:", error);
+            toast.error("Failed to create invoice. Please review the fields and try again.");
             setStep('review');
         }
     };
@@ -232,7 +254,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                                 {ocrData.supplierName && !supplierId && (
                                     <p className="text-xs text-amber-600 flex items-center gap-1">
                                         <AlertTriangle className="h-3 w-3" />
-                                        Detected: &quot;{ocrData.supplierName}&quot; — select matching supplier
+                                        Detected: &quot;{ocrData.supplierName}&quot; - select matching supplier
                                     </p>
                                 )}
                             </div>
@@ -336,8 +358,8 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                                                 <tr key={i} className="border-b">
                                                     <td className="px-3 py-2">{item.description}</td>
                                                     <td className="px-3 py-2 text-right tabular-nums">{item.quantity}</td>
-                                                    <td className="px-3 py-2 text-right tabular-nums">{item.unitPrice?.toFixed(2)}</td>
-                                                    <td className="px-3 py-2 text-right tabular-nums font-medium">{item.totalPrice?.toFixed(2)}</td>
+                                                    <td className="px-3 py-2 text-right tabular-nums">{formatLineNumber(item.unitPrice)}</td>
+                                                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatLineNumber(item.totalPrice)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

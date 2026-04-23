@@ -1,0 +1,497 @@
+{"kind":"deck","id":"ai-workshop-interactive","slideCount":24,"pptxPath":"C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\outputs\\ai-workshop-interactive-ppt\\AI_Workshop_Showcase_PowerPoint_Safe.pptx"}
+{"kind":"textbox","slide":1,"role":"hero node","text":"AI","bbox":[900,232,112,44]}
+{"kind":"textbox","slide":1,"role":"hero node","text":"DATA","bbox":[792,196,72,24]}
+{"kind":"textbox","slide":1,"role":"hero node","text":"APIs","bbox":[1057,201,72,24]}
+{"kind":"textbox","slide":1,"role":"hero node","text":"UX","bbox":[822,451,72,24]}
+{"kind":"textbox","slide":1,"role":"hero node","text":"EVALS","bbox":[1037,449,72,24]}
+{"kind":"textbox","slide":1,"role":"hero node","text":"CODE","bbox":[927,541,72,24]}
+{"kind":"textbox","slide":1,"role":"kicker","text":"APRIL 28, 2026 | 7-HOUR TECHNICAL SHOWCASE","bbox":[76,92,530,26]}
+{"kind":"textbox","slide":1,"role":"cover title","text":"AI Workshop","bbox":[72,142,610,72]}
+{"kind":"textbox","slide":1,"role":"cover subtitle","text":"From ideas to reliable intelligent software","bbox":[76,224,600,94]}
+{"kind":"textbox","slide":1,"role":"core statement","text":"Models + data + APIs + product engineering + governance","bbox":[104,420,494,48]}
+{"kind":"textbox","slide":1,"role":"navigation pill","text":"START WITH AGENDA","bbox":[76,550,190,40]}
+{"kind":"textbox","slide":1,"role":"navigation pill","text":"OPEN DEMO PORTFOLIO","bbox":[282,550,220,40]}
+{"kind":"textbox","slide":2,"role":"section label","text":"HOME","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":2,"role":"slide number","text":"02 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":2,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":2,"role":"title","text":"Workshop Control Room","bbox":[72,88,870,98]}
+{"kind":"textbox","slide":2,"role":"subtitle","text":"Jump into any section, return home anytime, and keep the day moving.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":2,"role":"home link","text":"AGENDA","bbox":[168,274,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"Seven-hour flow and pacing","bbox":[110,332,200,42]}
+{"kind":"textbox","slide":2,"role":"home link","text":"FOUNDATIONS","bbox":[438,274,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"AI/ML basics, RAG, architecture","bbox":[380,332,200,42]}
+{"kind":"textbox","slide":2,"role":"home link","text":"DEMOS","bbox":[708,274,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"Six showcase demos and runbook","bbox":[650,332,200,42]}
+{"kind":"textbox","slide":2,"role":"home link","text":"STACK","bbox":[978,274,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"Software stack and API connects","bbox":[920,332,200,42]}
+{"kind":"textbox","slide":2,"role":"home link","text":"GOVERNANCE","bbox":[308,484,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"Security, evals, responsible AI","bbox":[250,542,200,42]}
+{"kind":"textbox","slide":2,"role":"home link","text":"ROADMAP","bbox":[718,484,140,28]}
+{"kind":"textbox","slide":2,"role":"home card body","text":"Prep plan and 30-60-90 path","bbox":[660,542,200,42]}
+{"kind":"textbox","slide":2,"role":"usage note","text":"Tip: use slideshow mode. Every top-level card, footer pill, and HOME button is clickable.","bbox":[94,631,760,18]}
+{"kind":"textbox","slide":3,"role":"section label","text":"AGENDA","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":3,"role":"slide number","text":"03 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":3,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":3,"role":"title","text":"Seven-Hour Flow","bbox":[72,88,890,98]}
+{"kind":"textbox","slide":3,"role":"subtitle","text":"A balanced day: vision, foundations, demos, engineering depth, governance, and roadmap.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"0:00","bbox":[46,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Opening","bbox":[28,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"0:30","bbox":[181,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Foundations","bbox":[163,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"1:15","bbox":[336,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Knowledge demo","bbox":[318,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"2:15","bbox":[511,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Predictive ML","bbox":[493,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"3:00","bbox":[686,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Agents","bbox":[668,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"3:45","bbox":[826,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Break","bbox":[808,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"4:15","bbox":[951,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Stack deep dive","bbox":[933,370,140,44]}
+{"kind":"textbox","slide":3,"role":"agenda time","text":"5:45","bbox":[1106,250,104,24]}
+{"kind":"textbox","slide":3,"role":"agenda label","text":"Governance","bbox":[1088,370,140,44]}
+{"kind":"textbox","slide":3,"role":"card label","text":"Pacing rule","bbox":[112,510,294,28]}
+{"kind":"textbox","slide":3,"role":"card body","text":"Use demos early. Explain architecture after the audience has seen the behavior.","bbox":[112,548,294,46]}
+{"kind":"textbox","slide":3,"role":"card label","text":"Flexible buffer","bbox":[494,510,294,28]}
+{"kind":"textbox","slide":3,"role":"card body","text":"Keep 30 to 45 minutes available for deeper Q&A, setup delays, or audience-led discussion.","bbox":[494,548,294,46]}
+{"kind":"textbox","slide":3,"role":"card label","text":"Presenter mode","bbox":[876,510,294,28]}
+{"kind":"textbox","slide":3,"role":"card body","text":"Use HOME for navigation and speaker notes for talk tracks.","bbox":[876,548,294,46]}
+{"kind":"textbox","slide":4,"role":"section label","text":"FOUNDATIONS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":4,"role":"slide number","text":"04 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":4,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":4,"role":"title","text":"North Star","bbox":[72,88,990,98]}
+{"kind":"textbox","slide":4,"role":"subtitle","text":"AI is not a feature bolted on at the end. It is a capability layer inside a complete product system.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":4,"role":"north star quote","text":"\"AI is a capability layer: data, models, APIs, UX, evaluation, security, and operations working together.\"","bbox":[126,302,1028,48]}
+{"kind":"textbox","slide":4,"role":"card label","text":"Model","bbox":[130,463,276,28]}
+{"kind":"textbox","slide":4,"role":"card body","text":"Reasoning, generation, classification, embeddings","bbox":[130,501,276,66]}
+{"kind":"textbox","slide":4,"role":"card label","text":"System","bbox":[500,463,276,28]}
+{"kind":"textbox","slide":4,"role":"card body","text":"Retrieval, tools, jobs, data, APIs, state","bbox":[500,501,276,66]}
+{"kind":"textbox","slide":4,"role":"card label","text":"Trust","bbox":[870,463,276,28]}
+{"kind":"textbox","slide":4,"role":"card body","text":"Permissions, evals, audit logs, human approval","bbox":[870,501,276,66]}
+{"kind":"textbox","slide":5,"role":"section label","text":"FOUNDATIONS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":5,"role":"slide number","text":"05 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":5,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":5,"role":"title","text":"Capability Map","bbox":[72,88,900,98]}
+{"kind":"textbox","slide":5,"role":"subtitle","text":"Six pillars show breadth without turning the workshop into a random collection of experiments.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Knowledge AI","bbox":[102,263,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"RAG, semantic search, citations","bbox":[102,301,300,66]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Document Intelligence","bbox":[492,263,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"OCR, extraction, validation","bbox":[492,301,300,66]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Predictive ML","bbox":[882,263,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"Forecasting, anomalies, risk","bbox":[882,301,300,66]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Workflow Agents","bbox":[102,443,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"Tool calling, approvals, logs","bbox":[102,481,300,66]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Visual AI","bbox":[492,443,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"Images, charts, screenshots","bbox":[492,481,300,66]}
+{"kind":"textbox","slide":5,"role":"card label","text":"Developer Intelligence","bbox":[882,443,300,28]}
+{"kind":"textbox","slide":5,"role":"card body","text":"Code, tests, review, docs","bbox":[882,481,300,66]}
+{"kind":"textbox","slide":6,"role":"section label","text":"FOUNDATIONS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":6,"role":"slide number","text":"06 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":6,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":6,"role":"title","text":"Reference Architecture","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":6,"role":"subtitle","text":"A production-minded AI system coordinates UX, APIs, orchestration, models, retrieval, data, integrations, and operations.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"Experience","bbox":[188,233,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"Web app, dashboards, chat, admin console","bbox":[430,234,625,24]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"Application API","bbox":[188,295,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"REST/GraphQL, auth, validation, rate limits","bbox":[430,296,625,24]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"Orchestration","bbox":[188,357,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"Workflow engine, agent planner, queues, approvals","bbox":[430,358,625,24]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"AI + Retrieval","bbox":[188,419,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"LLMs, embeddings, vector search, reranking","bbox":[430,420,625,24]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"Data + Integrations","bbox":[188,481,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"SQL, files, CRM, ERP, email, calendar","bbox":[430,482,625,24]}
+{"kind":"textbox","slide":6,"role":"architecture layer","text":"Governance + Ops","bbox":[188,543,210,24]}
+{"kind":"textbox","slide":6,"role":"architecture body","text":"RBAC, audit logs, evals, monitoring, CI/CD","bbox":[430,544,625,24]}
+{"kind":"textbox","slide":7,"role":"section label","text":"FOUNDATIONS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":7,"role":"slide number","text":"07 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":7,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":7,"role":"title","text":"RAG Pipeline","bbox":[72,88,1050,98]}
+{"kind":"textbox","slide":7,"role":"subtitle","text":"Retrieval augmented generation grounds answers in trusted sources instead of asking the model to guess.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"1","bbox":[128,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Sources","bbox":[94,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Docs, tickets, reports, wikis","bbox":[96,346,118,48]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"2","bbox":[318,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Ingest","bbox":[284,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Extract, clean, chunk, enrich","bbox":[286,346,118,48]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"3","bbox":[508,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Embed","bbox":[474,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Create searchable vector signals","bbox":[476,346,118,48]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"4","bbox":[698,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Retrieve","bbox":[664,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Hybrid search and reranking","bbox":[666,346,118,48]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"5","bbox":[888,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Answer","bbox":[854,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Grounded response with citations","bbox":[856,346,118,48]}
+{"kind":"textbox","slide":7,"role":"rag number","text":"6","bbox":[1078,250,54,24]}
+{"kind":"textbox","slide":7,"role":"rag label","text":"Evaluate","bbox":[1044,310,122,24]}
+{"kind":"textbox","slide":7,"role":"rag body","text":"Feedback, golden tests, refusal checks","bbox":[1046,346,118,48]}
+{"kind":"textbox","slide":7,"role":"card label","text":"Quality contract","bbox":[197,523,886,28]}
+{"kind":"textbox","slide":7,"role":"card body","text":"Answer directly, cite sources, separate fact from interpretation, show uncertainty, and refuse unsupported questions.","bbox":[197,561,886,14]}
+{"kind":"textbox","slide":8,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":8,"role":"slide number","text":"08 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":8,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":8,"role":"title","text":"Demo 1: Knowledge Copilot","bbox":[72,88,980,98]}
+{"kind":"textbox","slide":8,"role":"subtitle","text":"A private knowledge assistant that answers from approved documents with citations and refusal behavior.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":8,"role":"step number","text":"1","bbox":[110,268,44,20]}
+{"kind":"textbox","slide":8,"role":"step label","text":"Upload/connect docs","bbox":[168,260,397,24]}
+{"kind":"textbox","slide":8,"role":"step body","text":"Document library and metadata filters","bbox":[168,288,397,42]}
+{"kind":"textbox","slide":8,"role":"step number","text":"2","bbox":[650,268,44,20]}
+{"kind":"textbox","slide":8,"role":"step label","text":"Ask grounded question","bbox":[708,260,397,24]}
+{"kind":"textbox","slide":8,"role":"step body","text":"Retriever selects evidence","bbox":[708,288,397,42]}
+{"kind":"textbox","slide":8,"role":"step number","text":"3","bbox":[110,403,44,20]}
+{"kind":"textbox","slide":8,"role":"step label","text":"Answer with citations","bbox":[168,395,397,24]}
+{"kind":"textbox","slide":8,"role":"step body","text":"Open source and inspect context","bbox":[168,423,397,42]}
+{"kind":"textbox","slide":8,"role":"step number","text":"4","bbox":[650,403,44,20]}
+{"kind":"textbox","slide":8,"role":"step label","text":"Unsupported question","bbox":[708,395,397,24]}
+{"kind":"textbox","slide":8,"role":"step body","text":"Refuse or ask for clarification","bbox":[708,423,397,42]}
+{"kind":"textbox","slide":8,"role":"card label","text":"Technical proof","bbox":[790,528,316,28]}
+{"kind":"textbox","slide":8,"role":"card body","text":"Chunking, embeddings, hybrid retrieval, reranking, citations, feedback loop, evaluation set.","bbox":[790,566,316,22]}
+{"kind":"textbox","slide":9,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":9,"role":"slide number","text":"09 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":9,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":9,"role":"title","text":"Demo 2: Document Intelligence","bbox":[72,88,1030,98]}
+{"kind":"textbox","slide":9,"role":"subtitle","text":"Convert unstructured documents into validated, reviewable, API-ready structured data.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":9,"role":"document pipeline","text":"Classify","bbox":[142,321,114,28]}
+{"kind":"textbox","slide":9,"role":"document pipeline","text":"Extract","bbox":[347,321,114,28]}
+{"kind":"textbox","slide":9,"role":"document pipeline","text":"Validate","bbox":[552,321,114,28]}
+{"kind":"textbox","slide":9,"role":"document pipeline","text":"Review","bbox":[757,321,114,28]}
+{"kind":"textbox","slide":9,"role":"document pipeline","text":"Payload","bbox":[962,321,114,28]}
+{"kind":"textbox","slide":9,"role":"card label","text":"Schema-driven","bbox":[142,488,266,28]}
+{"kind":"textbox","slide":9,"role":"card body","text":"Extraction fields are defined up front and validated before export.","bbox":[142,526,266,52]}
+{"kind":"textbox","slide":9,"role":"card label","text":"Confidence-aware","bbox":[507,488,266,28]}
+{"kind":"textbox","slide":9,"role":"card body","text":"Low-confidence values are routed to human review instead of hidden.","bbox":[507,526,266,52]}
+{"kind":"textbox","slide":9,"role":"card label","text":"API-ready","bbox":[872,488,266,28]}
+{"kind":"textbox","slide":9,"role":"card body","text":"Validated JSON payloads can move into workflow systems safely.","bbox":[872,526,266,52]}
+{"kind":"textbox","slide":10,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":10,"role":"slide number","text":"10 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":10,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":10,"role":"title","text":"Demo 3: Predictive ML","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":10,"role":"subtitle","text":"Show that applied AI is broader than chat: forecasting, anomaly detection, scoring, and decision support.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":10,"role":"card label","text":"ML lifecycle","bbox":[98,263,268,28]}
+{"kind":"textbox","slide":10,"role":"card body","text":"Clean data, features, split, train, test, serve, monitor.","bbox":[98,301,268,38]}
+{"kind":"textbox","slide":10,"role":"card label","text":"Presenter angle","bbox":[98,403,268,28]}
+{"kind":"textbox","slide":10,"role":"card body","text":"Use metrics to show that ML is measurable, not magical.","bbox":[98,441,268,38]}
+{"kind":"textbox","slide":10,"role":"chart title","text":"Forecast demo scorecard","bbox":[458,244,320,26]}
+{"kind":"textbox","slide":11,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":11,"role":"slide number","text":"11 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":11,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":11,"role":"title","text":"Demo 4: Agentic Workflow","bbox":[72,88,1050,98]}
+{"kind":"textbox","slide":11,"role":"subtitle","text":"Move from answers to controlled actions through typed tools, approvals, API execution, and audit logs.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Request","bbox":[100,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Classify","bbox":[270,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Gather context","bbox":[440,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Plan","bbox":[630,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Approve","bbox":[780,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Execute","bbox":[950,303,100,24]}
+{"kind":"textbox","slide":11,"role":"agent state","text":"Audit","bbox":[1100,303,100,24]}
+{"kind":"textbox","slide":11,"role":"card label","text":"Safety boundary","bbox":[142,478,276,28]}
+{"kind":"textbox","slide":11,"role":"card body","text":"Read tools and write tools are separate. External writes require approval.","bbox":[142,516,276,48]}
+{"kind":"textbox","slide":11,"role":"card label","text":"Typed tools","bbox":[502,478,276,28]}
+{"kind":"textbox","slide":11,"role":"card body","text":"Every tool has a schema, validation, timeout, retry behavior, and audit payload.","bbox":[502,516,276,48]}
+{"kind":"textbox","slide":11,"role":"card label","text":"Dry run mode","bbox":[862,478,276,28]}
+{"kind":"textbox","slide":11,"role":"card body","text":"Show proposed actions before execution. Keep demos safe and inspectable.","bbox":[862,516,276,48]}
+{"kind":"textbox","slide":12,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":12,"role":"slide number","text":"12 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":12,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":12,"role":"title","text":"API Integration Topology","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":12,"role":"subtitle","text":"AI becomes useful when it can safely read context, call tools, and write approved outcomes.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":12,"role":"api hub","text":"AI\nOrchestration\nHub","bbox":[580,327,120,72]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Identity","bbox":[163,243,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Knowledge","bbox":[488,203,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Business systems","bbox":[818,243,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Communication","bbox":[913,448,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"AI providers","bbox":[758,583,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Data systems","bbox":[403,583,214,30]}
+{"kind":"textbox","slide":12,"role":"api system","text":"Developer systems","bbox":[118,448,214,30]}
+{"kind":"textbox","slide":12,"role":"card label","text":"Rule","bbox":[100,613,256,28]}
+{"kind":"textbox","slide":12,"role":"card body","text":"Permission first, then retrieval, then action.","bbox":[100,651,256,-14]}
+{"kind":"textbox","slide":13,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":13,"role":"slide number","text":"13 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":13,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":13,"role":"title","text":"Multimodal and Visual AI","bbox":[72,88,1030,98]}
+{"kind":"textbox","slide":13,"role":"subtitle","text":"Images, screenshots, charts, forms, and video frames become first-class inputs for intelligent workflows.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":13,"role":"card label","text":"Screenshot analyzer","bbox":[132,268,406,28]}
+{"kind":"textbox","slide":13,"role":"card body","text":"Understand UI states and errors","bbox":[132,306,406,51]}
+{"kind":"textbox","slide":13,"role":"card label","text":"Form image reader","bbox":[652,268,406,28]}
+{"kind":"textbox","slide":13,"role":"card body","text":"OCR + structured extraction","bbox":[652,306,406,51]}
+{"kind":"textbox","slide":13,"role":"card label","text":"Chart explainer","bbox":[132,433,406,28]}
+{"kind":"textbox","slide":13,"role":"card body","text":"Ask questions about visual data","bbox":[132,471,406,51]}
+{"kind":"textbox","slide":13,"role":"card label","text":"Visual QA","bbox":[652,433,406,28]}
+{"kind":"textbox","slide":13,"role":"card body","text":"Classify defects and flag uncertainty","bbox":[652,471,406,51]}
+{"kind":"textbox","slide":13,"role":"visual mock label","text":"Confidence + review","bbox":[862,444,210,28]}
+{"kind":"textbox","slide":14,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":14,"role":"slide number","text":"14 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":14,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":14,"role":"title","text":"Developer Intelligence","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":14,"role":"subtitle","text":"Use AI to understand code, generate tests, review diffs, explain logs, and speed up delivery.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":14,"role":"card label","text":"Understand","bbox":[114,293,200,28]}
+{"kind":"textbox","slide":14,"role":"card body","text":"Index a repo, explain modules, map dependencies.","bbox":[114,331,200,76]}
+{"kind":"textbox","slide":14,"role":"card label","text":"Generate","bbox":[402,293,200,28]}
+{"kind":"textbox","slide":14,"role":"card body","text":"Create focused unit tests and API docs.","bbox":[402,331,200,76]}
+{"kind":"textbox","slide":14,"role":"card label","text":"Review","bbox":[690,293,200,28]}
+{"kind":"textbox","slide":14,"role":"card body","text":"Inspect diffs for bugs, regressions, missing tests.","bbox":[690,331,200,76]}
+{"kind":"textbox","slide":14,"role":"card label","text":"Debug","bbox":[978,293,200,28]}
+{"kind":"textbox","slide":14,"role":"card body","text":"Summarize logs and propose next checks.","bbox":[978,331,200,76]}
+{"kind":"textbox","slide":14,"role":"developer principle","text":"Human review remains the gate: AI proposes, engineers verify, tests prove.","bbox":[250,526,780,30]}
+{"kind":"textbox","slide":15,"role":"section label","text":"STACK","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":15,"role":"slide number","text":"15 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":15,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":15,"role":"title","text":"Software Stack Deep Dive","bbox":[72,88,980,98]}
+{"kind":"textbox","slide":15,"role":"subtitle","text":"The workshop should prove full-stack competence, not only model familiarity.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":15,"role":"card label","text":"Frontend","bbox":[114,253,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"React-style UI, dashboards, chat, uploads","bbox":[114,291,288,56]}
+{"kind":"textbox","slide":15,"role":"card label","text":"Backend","bbox":[494,253,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"Typed APIs, auth, validation, background jobs","bbox":[494,291,288,56]}
+{"kind":"textbox","slide":15,"role":"card label","text":"Data","bbox":[874,253,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"SQL, object storage, vector search, cache","bbox":[874,291,288,56]}
+{"kind":"textbox","slide":15,"role":"card label","text":"AI/ML","bbox":[114,423,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"LLMs, embeddings, vision, speech, classical ML","bbox":[114,461,288,56]}
+{"kind":"textbox","slide":15,"role":"card label","text":"DevOps","bbox":[494,423,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"CI/CD, tests, containers, staged deploys","bbox":[494,461,288,56]}
+{"kind":"textbox","slide":15,"role":"card label","text":"Observability","bbox":[874,423,288,28]}
+{"kind":"textbox","slide":15,"role":"card body","text":"Logs, traces, metrics, cost controls","bbox":[874,461,288,56]}
+{"kind":"textbox","slide":16,"role":"section label","text":"GOVERNANCE","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":16,"role":"slide number","text":"16 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":16,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":16,"role":"title","text":"Evaluation and LLMOps","bbox":[72,88,1020,98]}
+{"kind":"textbox","slide":16,"role":"subtitle","text":"The mature question is not only what the model can do. It is how we know it works.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":16,"role":"card label","text":"Evaluation methods","bbox":[802,278,306,28]}
+{"kind":"textbox","slide":16,"role":"card body","text":"Golden Q&A\nHuman review\nSchema and source checks\nRed-team prompts","bbox":[802,316,306,66]}
+{"kind":"textbox","slide":16,"role":"card label","text":"Operational metrics","bbox":[802,438,306,28]}
+{"kind":"textbox","slide":16,"role":"card body","text":"Latency and cost\nRefusal rate\nTool success\nFeedback review","bbox":[802,476,306,66]}
+{"kind":"textbox","slide":17,"role":"section label","text":"GOVERNANCE","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":17,"role":"slide number","text":"17 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":17,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":17,"role":"title","text":"Security and Responsible AI","bbox":[72,88,1050,98]}
+{"kind":"textbox","slide":17,"role":"subtitle","text":"Trust comes from permission checks, audit logs, refusal behavior, privacy controls, and human approval.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Least privilege","bbox":[96,253,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"Every connector gets only the scope it needs.","bbox":[96,291,306,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Access-aware retrieval","bbox":[491,253,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"Filter content before the model sees it.","bbox":[491,291,306,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Approval gates","bbox":[886,253,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"External writes require explicit human approval.","bbox":[886,291,306,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Audit logs","bbox":[96,419,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"Store prompts, tool calls, decisions, and outcomes.","bbox":[96,457,306,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Prompt injection defense","bbox":[491,419,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"Retrieved text cannot override system/tool rules.","bbox":[491,457,306,52]}
+{"kind":"textbox","slide":17,"role":"card label","text":"Cost controls","bbox":[886,419,306,28]}
+{"kind":"textbox","slide":17,"role":"card body","text":"Rate limits, quotas, caching, and model routing.","bbox":[886,457,306,52]}
+{"kind":"textbox","slide":18,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":18,"role":"slide number","text":"18 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":18,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":18,"role":"title","text":"Demo Portfolio Matrix","bbox":[72,88,1020,98]}
+{"kind":"textbox","slide":18,"role":"subtitle","text":"Pick a portfolio that proves both model depth and software integration depth.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":18,"role":"matrix axis","text":"AI / ML depth","bbox":[153,315.5,46,160]}
+{"kind":"textbox","slide":18,"role":"matrix axis","text":"Software and API integration depth","bbox":[420,581,440,24]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"Knowledge\nCopilot","bbox":[769,292,74,44]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"Document\nWorkflow","bbox":[784,416,74,44]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"AI Ops\nAgent","bbox":[904,464,74,44]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"Predictive\nML","bbox":[439,296,74,44]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"Visual\nAI","bbox":[351,398,74,44]}
+{"kind":"textbox","slide":18,"role":"matrix bubble","text":"Developer\nWorkbench","bbox":[599,474,78,44]}
+{"kind":"textbox","slide":18,"role":"matrix recommendation","text":"Best mix: two high-integration demos, two high-AI-depth demos, one live engineering proof point.","bbox":[245,620,790,24]}
+{"kind":"textbox","slide":19,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":19,"role":"slide number","text":"19 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":19,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":19,"role":"title","text":"Live Build Segment","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":19,"role":"subtitle","text":"A bounded live build proves real skill without risking the entire workshop.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":19,"role":"card label","text":"Mini RAG App","bbox":[132,293,271,28]}
+{"kind":"textbox","slide":19,"role":"card body","text":"Paste text, chunk it, retrieve relevant sections, generate cited answer.","bbox":[132,331,271,96]}
+{"kind":"textbox","slide":19,"role":"card label","text":"Agent API Tool","bbox":[497,293,271,28]}
+{"kind":"textbox","slide":19,"role":"card body","text":"Define schema, validate input, dry-run action, request approval, log result.","bbox":[497,331,271,96]}
+{"kind":"textbox","slide":19,"role":"card label","text":"Data Insight Generator","bbox":[862,293,271,28]}
+{"kind":"textbox","slide":19,"role":"card body","text":"Load CSV, profile columns, chart metrics, generate grounded summary.","bbox":[862,331,271,96]}
+{"kind":"textbox","slide":19,"role":"live build rule","text":"Rule: tiny scope, rehearsed starter code, mock mode, and a recorded fallback.","bbox":[214,538,852,24]}
+{"kind":"textbox","slide":20,"role":"section label","text":"DEMOS","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":20,"role":"slide number","text":"20 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":20,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":20,"role":"title","text":"Demo Fallback Runbook","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":20,"role":"subtitle","text":"Every impressive live demo needs a calm backup path.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":20,"role":"table header","text":"Demo","bbox":[150,258,250,24]}
+{"kind":"textbox","slide":20,"role":"table header","text":"Fallback asset","bbox":[460,258,540,24]}
+{"kind":"textbox","slide":20,"role":"fallback demo","text":"Knowledge Copilot","bbox":[150,306,250,24]}
+{"kind":"textbox","slide":20,"role":"fallback asset","text":"recorded walkthrough, screenshots, sample Q&A","bbox":[460,306,560,24]}
+{"kind":"textbox","slide":20,"role":"fallback demo","text":"Document Extraction","bbox":[150,354,250,24]}
+{"kind":"textbox","slide":20,"role":"fallback asset","text":"pre-extracted JSON and validation screen","bbox":[460,354,560,24]}
+{"kind":"textbox","slide":20,"role":"fallback demo","text":"Predictive ML","bbox":[150,402,250,24]}
+{"kind":"textbox","slide":20,"role":"fallback asset","text":"precomputed outputs and metrics screenshot","bbox":[460,402,560,24]}
+{"kind":"textbox","slide":20,"role":"fallback demo","text":"Agent Workflow","bbox":[150,450,250,24]}
+{"kind":"textbox","slide":20,"role":"fallback asset","text":"dry-run mode and visible tool payload","bbox":[460,450,560,24]}
+{"kind":"textbox","slide":20,"role":"fallback demo","text":"Visual AI","bbox":[150,498,250,24]}
+{"kind":"textbox","slide":20,"role":"fallback asset","text":"labeled expected output and review queue","bbox":[460,498,560,24]}
+{"kind":"textbox","slide":21,"role":"section label","text":"STACK","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":21,"role":"slide number","text":"21 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":21,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":21,"role":"title","text":"Video and Media Plan","bbox":[72,88,1000,98]}
+{"kind":"textbox","slide":21,"role":"subtitle","text":"Short videos support live demos, compress complex flows, and protect the session from network/API surprises.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":21,"role":"video name","text":"Opening montage","bbox":[168,275,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"45-60 sec","bbox":[168,312,140,22]}
+{"kind":"textbox","slide":21,"role":"video name","text":"Knowledge Copilot","bbox":[548,275,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"2-3 min","bbox":[548,312,140,22]}
+{"kind":"textbox","slide":21,"role":"video name","text":"Agent workflow","bbox":[928,275,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"2-3 min","bbox":[928,312,140,22]}
+{"kind":"textbox","slide":21,"role":"video name","text":"ML dashboard","bbox":[168,430,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"90 sec","bbox":[168,467,140,22]}
+{"kind":"textbox","slide":21,"role":"video name","text":"Engineering stack","bbox":[548,430,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"2 min","bbox":[548,467,140,22]}
+{"kind":"textbox","slide":21,"role":"video name","text":"Closing roadmap","bbox":[928,430,210,26]}
+{"kind":"textbox","slide":21,"role":"video duration","text":"45 sec","bbox":[928,467,140,22]}
+{"kind":"textbox","slide":21,"role":"video guidance","text":"Keep total video time around 12 to 18 minutes. Use videos as backup and emphasis, not as the whole workshop.","bbox":[180,594,920,28]}
+{"kind":"textbox","slide":22,"role":"section label","text":"ROADMAP","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":22,"role":"slide number","text":"22 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":22,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":22,"role":"title","text":"Prep Timeline","bbox":[72,88,1040,98]}
+{"kind":"textbox","slide":22,"role":"subtitle","text":"From Wednesday, April 22, 2026 to workshop day on Tuesday, April 28, 2026.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 22","bbox":[82,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Build story","bbox":[64,394,150,44]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 23","bbox":[282,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Polish demos","bbox":[264,394,150,44]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 24","bbox":[482,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Slides + visuals","bbox":[464,394,150,44]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 25-26","bbox":[682,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Record backups","bbox":[664,394,150,44]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 27","bbox":[882,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Full rehearsal","bbox":[864,394,150,44]}
+{"kind":"textbox","slide":22,"role":"prep date","text":"Apr 28","bbox":[1082,262,115,24]}
+{"kind":"textbox","slide":22,"role":"prep task","text":"Workshop day","bbox":[1064,394,150,44]}
+{"kind":"textbox","slide":22,"role":"card label","text":"Rehearsal checklist","bbox":[214,512,851,28]}
+{"kind":"textbox","slide":22,"role":"card body","text":"Network, display, mock mode, local data, backup videos, tabs, commands.","bbox":[214,550,851,32]}
+{"kind":"textbox","slide":23,"role":"section label","text":"ROADMAP","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":23,"role":"slide number","text":"23 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":23,"role":"title","text":"30-60-90 Roadmap","bbox":[72,88,1030,98]}
+{"kind":"textbox","slide":23,"role":"subtitle","text":"Turn the workshop energy into pilots, integrations, governance, and measurable production value.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":23,"role":"card label","text":"30 days","bbox":[140,300,258,28]}
+{"kind":"textbox","slide":23,"role":"card body","text":"Select use cases, define success metrics, build bounded prototypes.","bbox":[140,338,258,116]}
+{"kind":"textbox","slide":23,"role":"card label","text":"60 days","bbox":[490,300,258,28]}
+{"kind":"textbox","slide":23,"role":"card body","text":"Pilot with users, connect APIs, create evaluation sets, review security.","bbox":[490,338,258,116]}
+{"kind":"textbox","slide":23,"role":"card label","text":"90 days","bbox":[840,300,258,28]}
+{"kind":"textbox","slide":23,"role":"card body","text":"Productionize winners, monitor quality/cost, create reusable AI platform patterns.","bbox":[840,338,258,116]}
+{"kind":"textbox","slide":23,"role":"navigation pill","text":"Q&A","bbox":[565,545,150,40]}
+{"kind":"textbox","slide":24,"role":"section label","text":"Q&A","bbox":[50,24,280,26]}
+{"kind":"textbox","slide":24,"role":"slide number","text":"24 / 24","bbox":[1136,24,92,26]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"HOME","bbox":[50,665,78,30]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"FOUNDATIONS","bbox":[650,665,94,30]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"DEMOS","bbox":[754,665,94,30]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"STACK","bbox":[858,665,94,30]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"GOVERNANCE","bbox":[962,665,118,30]}
+{"kind":"textbox","slide":24,"role":"navigation pill","text":"ROADMAP","bbox":[1090,665,94,30]}
+{"kind":"textbox","slide":24,"role":"title","text":"Q&A and Closing","bbox":[72,88,1040,116]}
+{"kind":"textbox","slide":24,"role":"subtitle","text":"The advantage is not access to models. The advantage is knowing how to turn models into reliable capability.","bbox":[74,192,760,52]}
+{"kind":"textbox","slide":24,"role":"qa prompt","text":"How do we prevent hallucinations?","bbox":[175,270,930,34]}
+{"kind":"textbox","slide":24,"role":"qa prompt","text":"Which workflows should be productionized first?","bbox":[175,324,930,34]}
+{"kind":"textbox","slide":24,"role":"qa prompt","text":"How do we connect AI safely to APIs?","bbox":[175,378,930,34]}
+{"kind":"textbox","slide":24,"role":"qa prompt","text":"How do we measure quality and cost?","bbox":[175,432,930,34]}
+{"kind":"textbox","slide":24,"role":"qa prompt","text":"What data and governance are required?","bbox":[175,486,930,34]}
+{"kind":"textbox","slide":24,"role":"closing line","text":"Models are powerful. Reliable AI capability comes from the system around them.","bbox":[220,581,840,22]}
+{"kind":"previews","paths":["C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-01.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-02.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-03.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-04.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-05.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-06.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-07.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-08.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-09.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-10.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-11.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-12.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-13.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-14.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-15.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-16.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-17.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-18.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-19.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-20.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-21.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-22.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-23.png","C:\\Axiom\\Axiom\\workshop\\ai-workshop-april-28-2026\\tmp\\slides\\ai-workshop-interactive\\preview\\slide-24.png"]}
