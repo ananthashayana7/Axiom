@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CreditCard, Users, IndianRupee, ShieldAlert, TrendingUp, Boxes } from "lucide-react";
+import { Activity, ArrowUpRight, Boxes, CreditCard, IndianRupee, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/currency";
@@ -30,8 +30,6 @@ export default async function Home() {
   const currentUser = session?.user as SessionUser | undefined;
   const userRole = currentUser?.role;
   const isAdmin = userRole === 'admin';
-  const isStandardUser = userRole === 'user';
-  const isAgent = isAdmin || isStandardUser;
 
   const [
     stats,
@@ -260,6 +258,55 @@ export default async function Home() {
           riskySuppliers={riskySuppliers}
           stats={stats}
         />
+      )}
+
+      {isAdmin && (
+        <Card className="overflow-hidden border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#ecfeff_100%)] shadow-xl">
+          <CardContent className="p-6 lg:p-8">
+            <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-center">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                    AI Mission Control
+                  </Badge>
+                  <Badge variant="outline" className="border-slate-200 bg-white/80 text-slate-600">
+                    Stronger agents and guarded routes
+                  </Badge>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight text-slate-950">Interactive fleet ops are live from the main dashboard.</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                    Launch resilient AI runs, coordinated recovery bundles, and route-safe drill-downs from the upgraded command surface without routing glitches or brittle handoffs.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <Link href="/admin/agents">
+                  <Button className="w-full justify-between rounded-2xl bg-slate-950 px-5 py-6 text-left text-sm font-bold hover:bg-black">
+                    Open AI Fleet
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Link href="/admin/fraud-alerts">
+                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                      Risk Console
+                      <ShieldCheck className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/admin/scenarios">
+                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                      Scenario Lab
+                      <TrendingUp className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

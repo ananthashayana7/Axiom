@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, parts, suppliers, chatHistory, invoices } from "@/db/schema";
-import { eq, sum, desc, sql, count, asc, ilike, and, gte, lte, type SQL } from "drizzle-orm";
+import { procurementOrders, orderItems, parts, suppliers, chatHistory } from "@/db/schema";
+import { eq, sum, desc, sql, count, asc, ilike } from "drizzle-orm";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 
@@ -340,8 +340,8 @@ export async function processCopilotQuery(
             if (matchedIntent) {
                 const agentResult = await triggerAgentDispatch(matchedIntent.agentName);
                 const directResponse = agentResult.success
-                    ? `Executed ${matchedIntent.label} successfully.\n\nResult: ${agentResult.reasoning || 'Run completed.'}`
-                    : `I attempted to run ${matchedIntent.label}, but it failed: ${agentResult.error || 'Unknown error'}`;
+                    ? `Executed ${matchedIntent.label} successfully.\n\nResult: ${agentResult.summary.details || agentResult.reasoning || 'Run completed.'}`
+                    : `I attempted to run ${matchedIntent.label}, but it needs attention: ${agentResult.summary.details || agentResult.error || 'Unknown error'}${agentResult.dashboardHref ? `\n\nNext best route: ${agentResult.dashboardHref}` : ''}`;
 
                 await saveChatMessage('user', query);
                 await saveChatMessage('assistant', directResponse);

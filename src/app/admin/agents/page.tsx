@@ -188,6 +188,11 @@ export default async function AdminAgentsPage({ searchParams }: AdminAgentsPageP
                                                     Approval required
                                                 </Badge>
                                             )}
+                                            {agent.dispatchMode === 'workspace' && (
+                                                <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-600">
+                                                    Workspace guided
+                                                </Badge>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between pt-2 border-t text-xs text-stone-500">
                                             <span>v{agent.version}</span>
@@ -198,15 +203,15 @@ export default async function AdminAgentsPage({ searchParams }: AdminAgentsPageP
                                                 agentName={agent.name}
                                                 requiresApproval={agent.requiresApproval}
                                                 isEnabled={agent.isEnabled}
+                                                dispatchMode={agent.dispatchMode}
+                                                dashboardHref={agent.dashboardHref}
                                             />
-                                            {(agent.name === 'scenario-modeling' || agent.name === 'supplier-ecosystem') && (
-                                                <Link href={agent.name === 'scenario-modeling' ? "/admin/scenarios" : "/admin/ecosystem"} className="flex-1">
-                                                    <Button size="sm" variant="outline" className="w-full gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50">
-                                                        <ArrowUpRight className="h-3 w-3" />
-                                                        Dashboard
-                                                    </Button>
-                                                </Link>
-                                            )}
+                                            <Link href={agent.dashboardHref} className="flex-1">
+                                                <Button size="sm" variant="outline" className="w-full gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+                                                    <ArrowUpRight className="h-3 w-3" />
+                                                    {agent.dispatchMode === 'workspace' ? 'Workspace' : 'Dashboard'}
+                                                </Button>
+                                            </Link>
                                         </div>
                                         <div className="flex flex-wrap gap-1 text-[11px] text-slate-600">
                                             <Badge variant="outline" className="text-[10px]">
@@ -214,6 +219,9 @@ export default async function AdminAgentsPage({ searchParams }: AdminAgentsPageP
                                             </Badge>
                                             <Badge variant="secondary" className="text-[10px]">
                                                 Guarded Input Mapping
+                                            </Badge>
+                                            <Badge variant="secondary" className="text-[10px]">
+                                                {agent.focusLabel}
                                             </Badge>
                                         </div>
                                     </CardContent>

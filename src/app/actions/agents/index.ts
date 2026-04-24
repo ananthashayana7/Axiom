@@ -6,68 +6,81 @@
 
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
+import type {
+    AgentResult,
+    DemandForecast,
+    FraudAlert,
+    PaymentOptimization,
+    WorkflowBottleneck,
+} from "@/lib/ai/agent-types";
 
 // P0 Agents
 import {
     runDemandForecastingAgent,
-    getReplenishmentAlerts
+    getReplenishmentAlerts,
 } from './demand-forecasting';
 
 import {
     runFraudDetectionAgent,
     getOpenFraudAlerts,
-    resolveFraudAlert
+    resolveFraudAlert,
 } from './fraud-detection';
 
 import {
     runPaymentOptimizationAgent,
     getPaymentOptimizationSummary,
     executePaymentOptimization,
-    dismissPaymentOptimization
+    dismissPaymentOptimization,
 } from './payment-optimizer';
 
 // P1 Agents
 import {
     generateNegotiationStrategy,
-    generateCounterOfferEmail
+    generateCounterOfferEmail,
 } from './negotiations-autopilot';
 
 import {
     analyzeContractClauses,
-    compareContracts
+    compareContracts,
 } from './contract-clause-analyzer';
 
 // Phase 3: Intelligent Workflows
 import {
     calculateApprovalRoute,
     processAutoApprovals,
-    getApprovalRoutingAnalytics
+    getApprovalRoutingAnalytics,
 } from './smart-approval-routing';
 
 import {
     detectBottlenecks,
-    getBottleneckAnalytics
+    getBottleneckAnalytics,
 } from './predictive-bottleneck';
 
 import {
     runAutoRemediation,
     getRemediationRules,
-    getRemediationHistory
+    getRemediationHistory,
 } from './auto-remediation';
 
 // Phase 4: Advanced Analytics
 import {
     runScenarioAnalysis,
     compareScenarios,
-    getScenarioTemplates
+    getScenarioTemplates,
 } from './scenario-modeling';
 
 import {
     buildSupplierEcosystem,
-    analyzeSupplierDependency
+    analyzeSupplierDependency,
 } from './supplier-ecosystem';
 
-import { AGENT_REGISTRY, AGENT_BUNDLES, type AgentName, type AgentBundleName } from './registry';
+import {
+    AGENT_REGISTRY,
+    AGENT_BUNDLES,
+    AGENT_BUNDLE_META,
+    type AgentName,
+    type AgentBundleName,
+} from './registry';
 
 export {
     runDemandForecastingAgent,
@@ -95,19 +108,223 @@ export {
     compareScenarios,
     getScenarioTemplates,
     buildSupplierEcosystem,
-    analyzeSupplierDependency
+    analyzeSupplierDependency,
 };
 
 export { type AgentName, type AgentBundleName };
 
+export interface AgentDispatchSummary {
+    headline: string;
+    details: string;
+    alertsFound?: number;
+    itemsScanned?: number;
+    savingsAmount?: number;
+    actionsCount?: number;
+    link?: string;
+}
+
+export interface AgentDispatchResult<T = unknown> extends AgentResult<T> {
+    attempts: number;
+    dashboardHref: string;
+    summary: AgentDispatchSummary;
+}
+
+export interface AgentBundleDispatchResult {
+    success: boolean;
+    bundle: AgentBundleName;
+    displayName: string;
+    description: string;
+    dashboardHref: string;
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{
+        agent: AgentName;
+        success: boolean;
+        error?: string;
+        executionTimeMs: number;
+        attempts: number;
+        dashboardHref: string;
+        summary: AgentDispatchSummary;
+    }>;
+}
+
+export interface AgentDashboardSnapshot {
+    generatedAt: string;
+    fraudAlerts: number;
+    paymentSavings: number;
+    replenishmentAlerts: number;
+    degradedPanels: string[];
+    systemWarnings: string[];
+}
+
+type DispatchExecutor = () => Promise<AgentResult<unknown>>;
+
+const AGENT_EXECUTORS: Partial<Record<AgentName, DispatchExecutor>> = {
+    'demand-forecasting': () => runDemandForecastingAgent(),
+    'fraud-detection': () => runFraudDetectionAgent(),
+    'payment-optimizer': () => runPaymentOptimizationAgent(),
+    'smart-approval-routing': () => processAutoApprovals(),
+    'predictive-bottleneck': () => detectBottlenecks(),
+    'auto-remediation': () => runAutoRemediation(),
+    'scenario-modeling': () =>
+        runScenarioAnalysis({
+            scenarioType: 'price_change',
+            description: 'Global 5% market price volatility analysis',
+            parameters: { percentChange: 5 },
+        }),
+    'supplier-ecosystem': () => buildSupplierEcosystem(),
+};
+
+function getAgentMeta(agentName: AgentName) {
+    return AGENT_REGISTRY.find((agent) => agent.name === agentName);
+}
+
+function formatMoney(amount: number) {
+    return `Rs ${Math.round(amount).toLocaleString('en-IN')}`;
+}
+
+function createFailureSummary(
+    headline: string,
+    details: string,
+    dashboardHref?: string,
+): AgentDispatchSummary {
+    return {
+        headline,
+        details,
+        link: dashboardHref,
+    };
+}
+
+function createSuccessSummary(
+    agentName: AgentName,
+    result: AgentResult<unknown>,
+    dashboardHref: string,
+): AgentDispatchSummary {
+    switch (agentName) {
+        case 'fraud-detection': {
+            const alerts = (result.data as FraudAlert[] | undefined) ?? [];
+            const urgentAlerts = alerts.filter((alert) => alert.severity === 'high' || alert.severity === 'critical').length;
+            return {
+                headline: alerts.length > 0 ? `${alerts.length} fraud signals surfaced` : 'No fraud signals detected',
+                details: alerts.length > 0
+                    ? `${urgentAlerts} high-priority alerts require review across the monitored transaction window.`
+                    : 'The current ledger and vendor activity stayed within expected risk thresholds.',
+                alertsFound: alerts.length,
+                link: dashboardHref,
+            };
+        }
+        case 'payment-optimizer': {
+            const optimizations = (result.data as PaymentOptimization[] | undefined) ?? [];
+            const savingsAmount = optimizations.reduce((sum, optimization) => sum + Number(optimization.potentialSavings || 0), 0);
+            return {
+                headline: savingsAmount > 0
+                    ? `${formatMoney(savingsAmount)} available in payment timing`
+                    : 'No payment timing gains available right now',
+                details: optimizations.length > 0
+                    ? `Captured ${optimizations.length} active opportunities across pending invoices and contract terms.`
+                    : 'Pending invoices are already aligned with the best current payment windows.',
+                savingsAmount,
+                itemsScanned: optimizations.length,
+                link: dashboardHref,
+            };
+        }
+        case 'demand-forecasting': {
+            const forecasts = (result.data as DemandForecast[] | undefined) ?? [];
+            const volatileSkus = forecasts.filter((forecast) => forecast.trend !== 'stable').length;
+            return {
+                headline: `${forecasts.length} SKUs forecasted`,
+                details: forecasts.length > 0
+                    ? `${volatileSkus} SKUs need closer attention because trend direction is shifting away from baseline demand.`
+                    : 'No historical purchasing signal was strong enough to produce a fresh forecast batch.',
+                itemsScanned: forecasts.length,
+                link: dashboardHref,
+            };
+        }
+        case 'auto-remediation': {
+            const actions = Array.isArray(result.data) ? result.data.length : 0;
+            return {
+                headline: actions > 0 ? `${actions} workflow issues healed` : 'No remediation actions were needed',
+                details: actions > 0
+                    ? 'The remediation engine corrected stale states and closed the highest-friction loops automatically.'
+                    : 'Open requisitions, approvals, and tasks are already inside healthy operating thresholds.',
+                actionsCount: actions,
+                link: dashboardHref,
+            };
+        }
+        case 'predictive-bottleneck': {
+            const bottlenecks = (result.data as WorkflowBottleneck[] | undefined) ?? [];
+            const escalations = bottlenecks.filter((entry) => entry.escalationRequired).length;
+            return {
+                headline: bottlenecks.length > 0 ? `${bottlenecks.length} bottlenecks predicted` : 'Queue flow is stable',
+                details: bottlenecks.length > 0
+                    ? `${escalations} predicted queue blockages already meet escalation criteria and should be triaged first.`
+                    : 'No approval or fulfillment queues are currently projecting a meaningful slowdown.',
+                alertsFound: bottlenecks.length,
+                link: dashboardHref,
+            };
+        }
+        case 'smart-approval-routing': {
+            const approvalData = (result.data as { processed?: number; approved?: number; skipped?: number } | undefined) ?? {};
+            return {
+                headline: `${approvalData.approved ?? 0} approvals auto-routed`,
+                details: `Processed ${approvalData.processed ?? 0} queued requests and safely skipped ${approvalData.skipped ?? 0} that still need manual review.`,
+                actionsCount: approvalData.approved ?? 0,
+                itemsScanned: approvalData.processed ?? 0,
+                link: dashboardHref,
+            };
+        }
+        case 'scenario-modeling': {
+            const scenario = (result.data as { outcomes?: unknown[]; overallImpact?: string } | undefined) ?? {};
+            return {
+                headline: 'Scenario simulation refreshed',
+                details: `${scenario.outcomes?.length ?? 0} projected outcome lines were generated with an overall impact of ${scenario.overallImpact ?? 'neutral'}.`,
+                itemsScanned: scenario.outcomes?.length ?? 0,
+                link: dashboardHref,
+            };
+        }
+        case 'supplier-ecosystem': {
+            const ecosystem = (result.data as {
+                nodes?: unknown[];
+                riskHotspots?: unknown[];
+                overallHealthScore?: number;
+            } | undefined) ?? {};
+            return {
+                headline: `Ecosystem health ${ecosystem.overallHealthScore ?? 0}/100`,
+                details: `Mapped ${ecosystem.nodes?.length ?? 0} suppliers and flagged ${ecosystem.riskHotspots?.length ?? 0} dependency hotspots for follow-up.`,
+                alertsFound: ecosystem.riskHotspots?.length ?? 0,
+                itemsScanned: ecosystem.nodes?.length ?? 0,
+                link: dashboardHref,
+            };
+        }
+        default:
+            return {
+                headline: 'Agent run completed',
+                details: result.reasoning ?? 'The agent finished successfully and handed back a stable response.',
+                link: dashboardHref,
+            };
+    }
+}
+
+async function safeTrackEvent(event: string, action: string, metadata: Record<string, unknown>) {
+    try {
+        await TelemetryService.trackEvent(event, action, metadata);
+    } catch (error) {
+        console.warn(`[AgentDispatcher] Failed to track ${event}:${action}`, error);
+    }
+}
+
+function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Centralized dispatcher for running agents from the UI
  */
-export async function triggerAgentDispatch(agentName: AgentName) {
+export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentDispatchResult> {
     const started = Date.now();
-    console.log(`[AgentDispatcher] Triggering ${agentName}...`);
+    const agentMeta = getAgentMeta(agentName);
 
-    const agentMeta = AGENT_REGISTRY.find(a => a.name === agentName);
     if (!agentMeta) {
         return {
             success: false,
@@ -115,7 +332,14 @@ export async function triggerAgentDispatch(agentName: AgentName) {
             agentName: "system",
             timestamp: new Date(),
             executionTimeMs: Date.now() - started,
-            confidence: 0
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: '/admin/agents',
+            summary: createFailureSummary(
+                'Agent route unavailable',
+                `The system could not locate a registered execution path for ${agentName}.`,
+                '/admin/agents',
+            ),
         };
     }
 
@@ -123,138 +347,165 @@ export async function triggerAgentDispatch(agentName: AgentName) {
     const role = (session?.user as { role?: string } | undefined)?.role ?? 'guest';
 
     if (!session?.user) {
-        await TelemetryService.trackEvent('AgentDispatch', 'blocked_unauthenticated', { agentName });
+        await safeTrackEvent('AgentDispatch', 'blocked_unauthenticated', { agentName });
         return {
             success: false,
             error: "You must be signed in to dispatch AI agents.",
             agentName,
             timestamp: new Date(),
             executionTimeMs: Date.now() - started,
-            confidence: 0
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Authentication required',
+                'Sign in again before launching this agent.',
+                agentMeta.dashboardHref,
+            ),
         };
     }
 
     if (!agentMeta.isEnabled) {
-        await TelemetryService.trackEvent('AgentDispatch', 'blocked_disabled', { agentName, role });
+        await safeTrackEvent('AgentDispatch', 'blocked_disabled', { agentName, role });
         return {
             success: false,
             error: "This agent is currently disabled.",
             agentName,
             timestamp: new Date(),
             executionTimeMs: Date.now() - started,
-            confidence: 0
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Agent disabled',
+                `${agentMeta.displayName} is currently disabled and cannot be dispatched.`,
+                agentMeta.dashboardHref,
+            ),
         };
     }
 
     if (agentMeta.requiresApproval && role !== 'admin') {
-        await TelemetryService.trackEvent('AgentDispatch', 'blocked_requires_approval', { agentName, role });
+        await safeTrackEvent('AgentDispatch', 'blocked_requires_approval', { agentName, role });
         return {
             success: false,
             error: "Admin approval is required before this agent can run. Please request an administrator to dispatch it.",
             agentName,
             timestamp: new Date(),
             executionTimeMs: Date.now() - started,
-            confidence: 0
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Admin approval required',
+                `${agentMeta.displayName} is guarded. Open the workspace route if you need to review the target records first.`,
+                agentMeta.dashboardHref,
+            ),
         };
     }
 
-    const enforceTimeout = <T>(promise: Promise<T>) =>
+    const executor = AGENT_EXECUTORS[agentName];
+
+    if (agentMeta.dispatchMode === 'workspace' || !executor) {
+        await safeTrackEvent('AgentDispatch', 'workspace_required', { agentName, role });
+        return {
+            success: false,
+            error: `${agentMeta.displayName} requires a record-specific workspace before it can run.`,
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Workspace context required',
+                `Open ${agentMeta.focusLabel.toLowerCase()} to launch ${agentMeta.displayName} against a specific record without breaking the route flow.`,
+                agentMeta.dashboardHref,
+            ),
+        };
+    }
+
+    const maxAttempts = Math.max(1, (agentMeta.maxRetries ?? 0) + 1);
+    let lastError = 'Internal execution error';
+
+    const enforceTimeout = <T,>(promise: Promise<T>) =>
         Promise.race([
             promise,
             new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`Agent ${agentName} timed out after ${agentMeta.timeoutMs}ms`)), agentMeta.timeoutMs)
-            )
+                setTimeout(() => reject(new Error(`Agent ${agentName} timed out after ${agentMeta.timeoutMs}ms`)), agentMeta.timeoutMs),
+            ),
         ]);
 
-    try {
-        let result: {
-            success: boolean;
-            error?: string;
-            agentName?: string;
-            timestamp?: Date;
-            executionTimeMs?: number;
-            confidence?: number;
-            reasoning?: string;
-        };
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        await safeTrackEvent('AgentDispatch', 'attempt_started', {
+            agentName,
+            attempt,
+            maxAttempts,
+            role,
+        });
 
-        switch (agentName) {
-            case 'demand-forecasting':
-                result = await enforceTimeout(runDemandForecastingAgent());
-                break;
-            case 'fraud-detection':
-                result = await enforceTimeout(runFraudDetectionAgent());
-                break;
-            case 'payment-optimizer':
-                result = await enforceTimeout(runPaymentOptimizationAgent());
-                break;
-            case 'negotiations-autopilot':
-                // Requires specific context, but we can run a global analysis as a "pilot"
-                result = {
-                    success: false,
-                    error: "Negotiations Autopilot requires a specific RFQ context. Please use the RFQ Detail page.",
-                    agentName: "negotiations-autopilot",
-                    timestamp: new Date(),
-                    executionTimeMs: 0,
-                    confidence: 0
+        try {
+            const result = await enforceTimeout(executor());
+
+            if (result.success) {
+                const summary = createSuccessSummary(agentName, result, agentMeta.dashboardHref);
+                await safeTrackEvent('AgentDispatch', 'completed', {
+                    agentName,
+                    attempt,
+                    executionTimeMs: result.executionTimeMs,
+                    confidence: result.confidence,
+                });
+
+                return {
+                    ...result,
+                    agentName: result.agentName ?? agentName,
+                    timestamp: result.timestamp ?? new Date(),
+                    executionTimeMs: result.executionTimeMs ?? Date.now() - started,
+                    confidence: result.confidence ?? 0,
+                    reasoning: result.reasoning ?? summary.details,
+                    attempts: attempt,
+                    dashboardHref: agentMeta.dashboardHref,
+                    summary,
                 };
-                break;
-            case 'contract-clause-analyzer':
-                result = await enforceTimeout(analyzeContractClauses());
-                break;
-            case 'smart-approval-routing':
-                result = await enforceTimeout(processAutoApprovals());
-                break;
-            case 'predictive-bottleneck':
-                result = await enforceTimeout(detectBottlenecks());
-                break;
-            case 'auto-remediation':
-                result = await enforceTimeout(runAutoRemediation());
-                break;
-            case 'scenario-modeling':
-                result = await enforceTimeout(runScenarioAnalysis({
-                    scenarioType: 'price_change',
-                    description: 'Global 5% market price volatility analysis',
-                    parameters: { percentChange: 5 }
-                }));
-                break;
-            case 'supplier-ecosystem':
-                result = await enforceTimeout(buildSupplierEcosystem());
-                break;
-            default:
-                result = {
-                    success: false,
-                    error: `Dispatcher not implemented for ${agentName}`,
-                    agentName: "system",
-                    timestamp: new Date(),
-                    executionTimeMs: 0,
-                    confidence: 0
-                };
-                break;
+            }
+
+            lastError = result.error ?? 'The agent returned an unsuccessful response.';
+        } catch (error) {
+            lastError = error instanceof Error ? error.message : 'Internal execution error';
         }
 
-        return {
-            ...result,
-            agentName: result.agentName ?? agentName,
-            timestamp: result.timestamp ?? new Date(),
-            executionTimeMs: result.executionTimeMs ?? Date.now() - started,
-            confidence: result.confidence ?? 0
-        };
-    } catch (error) {
-        console.error(`[AgentDispatcher] Error running ${agentName}:`, error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : "Internal execution error",
-            agentName: agentName as string,
-            timestamp: new Date(),
-            executionTimeMs: Date.now() - started,
-            confidence: 0
-        };
+        await safeTrackEvent('AgentDispatch', 'attempt_failed', {
+            agentName,
+            attempt,
+            maxAttempts,
+            error: lastError,
+        });
+
+        if (attempt < maxAttempts) {
+            await delay(Math.min(2400, 250 * (2 ** attempt)));
+        }
     }
+
+    return {
+        success: false,
+        error: lastError,
+        agentName,
+        timestamp: new Date(),
+        executionTimeMs: Date.now() - started,
+        confidence: 0,
+        attempts: maxAttempts,
+        dashboardHref: agentMeta.dashboardHref,
+        summary: createFailureSummary(
+            'Recovery path prepared',
+            `${agentMeta.displayName} exhausted ${maxAttempts} guarded attempts. Review ${agentMeta.focusLabel.toLowerCase()} from the linked workspace and retry from there.`,
+            agentMeta.dashboardHref,
+        ),
+    };
 }
 
-export async function triggerAgentBundle(bundleName: AgentBundleName) {
+export async function triggerAgentBundle(bundleName: AgentBundleName): Promise<AgentBundleDispatchResult> {
+    const bundleMeta = AGENT_BUNDLE_META[bundleName];
     const agents = AGENT_BUNDLES[bundleName];
-    const results: Array<{ agent: AgentName; success: boolean; error?: string; executionTimeMs: number }> = [];
+    const results: AgentBundleDispatchResult['results'] = [];
 
     for (const agent of agents) {
         const started = Date.now();
@@ -264,15 +515,70 @@ export async function triggerAgentBundle(bundleName: AgentBundleName) {
             success: result.success,
             error: result.success ? undefined : result.error,
             executionTimeMs: result.executionTimeMs || Date.now() - started,
+            attempts: result.attempts,
+            dashboardHref: result.dashboardHref,
+            summary: result.summary,
         });
     }
 
     return {
-        success: results.every((r) => r.success),
+        success: results.every((entry) => entry.success),
         bundle: bundleName,
+        displayName: bundleMeta.displayName,
+        description: bundleMeta.description,
+        dashboardHref: bundleMeta.dashboardHref,
         total: results.length,
-        succeeded: results.filter((r) => r.success).length,
-        failed: results.filter((r) => !r.success).length,
+        succeeded: results.filter((entry) => entry.success).length,
+        failed: results.filter((entry) => !entry.success).length,
         results,
+    };
+}
+
+export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapshot> {
+    const panelResults = await Promise.allSettled([
+        getOpenFraudAlerts(),
+        getPaymentOptimizationSummary(),
+        getReplenishmentAlerts(),
+    ]);
+
+    const degradedPanels: string[] = [];
+    const systemWarnings: string[] = [];
+
+    let fraudAlerts = 0;
+    let paymentSavings = 0;
+    let replenishmentAlerts = 0;
+
+    const [fraudResult, paymentResult, replenishmentResult] = panelResults;
+
+    if (fraudResult.status === 'fulfilled') {
+        fraudAlerts = Array.isArray(fraudResult.value) ? fraudResult.value.length : 0;
+    } else {
+        degradedPanels.push('fraud-alerts');
+        systemWarnings.push('Fraud monitoring snapshot could not be refreshed. The route stays available, but data may be stale.');
+    }
+
+    if (paymentResult.status === 'fulfilled') {
+        paymentSavings = Number(paymentResult.value?.totalPotentialSavings || 0);
+    } else {
+        degradedPanels.push('payment-optimizer');
+        systemWarnings.push('Payment optimization summary is temporarily degraded. Retry sync before trusting savings totals.');
+    }
+
+    if (replenishmentResult.status === 'fulfilled') {
+        replenishmentAlerts = Array.isArray(replenishmentResult.value)
+            ? replenishmentResult.value.filter((alert) => alert.urgency === 'high' || alert.urgency === 'critical').length
+            : 0;
+    } else {
+        degradedPanels.push('inventory-forecast');
+        systemWarnings.push('Inventory forecast alerts did not refresh. Use the parts workspace if you need live stock detail.');
+    }
+
+    return {
+        generatedAt: new Date().toISOString(),
+        fraudAlerts,
+        paymentSavings,
+        replenishmentAlerts,
+        degradedPanels,
+        systemWarnings,
     };
 }

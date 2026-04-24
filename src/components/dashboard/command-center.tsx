@@ -1,408 +1,447 @@
 'use client'
 
-import React, { useEffect, useState, useTransition } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { toast } from "sonner";
 import {
-    TrendingUp,
-    Shield,
+    Activity,
+    ArrowUpRight,
+    BarChart3,
+    CheckCircle2,
+    ChevronRight,
+    Clock3,
     CreditCard,
+    Database,
     FileText,
     Handshake,
-    CheckCircle2,
-    XCircle,
-    Clock,
-    RefreshCcw,
-    Activity,
     Loader2,
-    ChevronRight,
-    Database,
-    BarChart3,
-    ArrowUpRight
+    RefreshCcw,
+    Search,
+    Shield,
+    Sparkles,
+    TrendingUp,
+    TriangleAlert,
+    Zap,
 } from "lucide-react";
-import { toast } from "sonner";
-import Link from "next/link";
-import { AxiomLogo } from "@/components/shared/axiom-logo";
-import { AGENT_REGISTRY } from "@/app/actions/agents/registry";
-import { runFraudDetectionAgent, getOpenFraudAlerts } from "@/app/actions/agents/fraud-detection";
-import { runPaymentOptimizationAgent, getPaymentOptimizationSummary } from "@/app/actions/agents/payment-optimizer";
-import { runDemandForecastingAgent, getReplenishmentAlerts } from "@/app/actions/agents/demand-forecasting";
-import { runAutoRemediation } from "@/app/actions/agents/auto-remediation";
-import { detectBottlenecks } from "@/app/actions/agents/predictive-bottleneck";
-import { processAutoApprovals } from "@/app/actions/agents/smart-approval-routing";
-import { buildSupplierEcosystem } from "@/app/actions/agents/supplier-ecosystem";
-import type { FraudAlert, DemandForecast, WorkflowBottleneck } from "@/lib/ai/agent-types";
 
-const agentIcons: Record<string, React.ReactNode> = {
+import { AGENT_BUNDLE_META, AGENT_BUNDLES, AGENT_REGISTRY, QUICK_ACTION_AGENTS, type AgentBundleName, type AgentName } from "@/app/actions/agents/registry";
+import {
+    getAgentDashboardSnapshot,
+    triggerAgentBundle,
+    triggerAgentDispatch,
+    type AgentDashboardSnapshot,
+    type AgentDispatchSummary,
+} from "@/app/actions/agents";
+import { AxiomLogo } from "@/components/shared/axiom-logo";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
+type AgentRuntimeStatus = 'idle' | 'running' | 'success' | 'failed' | 'workspace';
+
+interface AgentRuntimeState {
+    status: AgentRuntimeStatus;
+    lastRunAt?: string;
+    message?: string;
+    attempts?: number;
+    summary?: AgentDispatchSummary;
+}
+
+interface MissionReport {
+    title: string;
+    summary: AgentDispatchSummary;
+    timestamp: string;
+    success: boolean;
+}
+
+const EMPTY_SNAPSHOT: AgentDashboardSnapshot = {
+    generatedAt: '',
+    fraudAlerts: 0,
+    paymentSavings: 0,
+    replenishmentAlerts: 0,
+    degradedPanels: [],
+    systemWarnings: [],
+};
+
+const BUNDLE_ORDER: AgentBundleName[] = ['post-import', 'compliance-sweep', 'workflow-recovery'];
+
+const RUN_STAGES: Partial<Record<AgentName, string[]>> = {
+    'fraud-detection': [
+        'Replaying recent transaction patterns.',
+        'Comparing vendor and invoice fingerprints.',
+        'Staging priority alerts for analyst review.',
+    ],
+    'payment-optimizer': [
+        'Refreshing pending invoice windows.',
+        'Repricing discount and float opportunities.',
+        'Preparing payment timing recommendations.',
+    ],
+    'demand-forecasting': [
+        'Rebuilding recent consumption curves.',
+        'Checking volatility against safety stock.',
+        'Publishing forecast confidence bands.',
+    ],
+    'auto-remediation': [
+        'Scanning workflow state drift.',
+        'Checking stale approvals and orphaned tasks.',
+        'Applying guarded recovery actions.',
+    ],
+    'predictive-bottleneck': [
+        'Tracing queue throughput.',
+        'Projecting SLA pressure across lanes.',
+        'Ranking the next bottlenecks to clear.',
+    ],
+    'smart-approval-routing': [
+        'Recomputing trusted approval paths.',
+        'Validating low-risk auto-approval rules.',
+        'Publishing safe reroute recommendations.',
+    ],
+    'scenario-modeling': [
+        'Loading the baseline operating model.',
+        'Projecting market movement scenarios.',
+        'Comparing downstream cost impact.',
+    ],
+    'supplier-ecosystem': [
+        'Mapping supplier nodes and shared dependencies.',
+        'Scoring exposure across clusters.',
+        'Publishing ecosystem health signals.',
+    ],
+};
+
+const agentIcons: Record<AgentName, React.ReactNode> = {
     'demand-forecasting': <TrendingUp className="h-4 w-4" />,
     'fraud-detection': <Shield className="h-4 w-4" />,
     'payment-optimizer': <CreditCard className="h-4 w-4" />,
     'negotiations-autopilot': <Handshake className="h-4 w-4" />,
     'contract-clause-analyzer': <FileText className="h-4 w-4" />,
     'smart-approval-routing': <Database className="h-4 w-4" />,
-    'predictive-bottleneck': <Clock className="h-4 w-4" />,
+    'predictive-bottleneck': <Clock3 className="h-4 w-4" />,
     'auto-remediation': <Activity className="h-4 w-4" />,
     'scenario-modeling': <BarChart3 className="h-4 w-4" />,
-    'supplier-ecosystem': <Database className="h-4 w-4" />
+    'supplier-ecosystem': <Database className="h-4 w-4" />,
 };
 
-const categoryColors: Record<string, string> = {
-    procurement: 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50',
-    risk: 'bg-stone-500/10 text-stone-700 border-stone-200/50',
-    financial: 'bg-emerald-500/20 text-emerald-800 border-emerald-300/50',
-    compliance: 'bg-slate-500/10 text-slate-700 border-slate-200/50',
-    workflow: 'bg-emerald-700/10 text-emerald-900 border-emerald-400/20',
-    analytics: 'bg-slate-700/10 text-slate-900 border-slate-400/20'
+const categoryTone: Record<typeof AGENT_REGISTRY[number]['category'], string> = {
+    procurement: 'bg-emerald-500/10 text-emerald-700 border-emerald-200/70',
+    risk: 'bg-rose-500/10 text-rose-700 border-rose-200/70',
+    financial: 'bg-sky-500/10 text-sky-700 border-sky-200/70',
+    compliance: 'bg-amber-500/10 text-amber-700 border-amber-200/70',
+    workflow: 'bg-indigo-500/10 text-indigo-700 border-indigo-200/70',
+    analytics: 'bg-violet-500/10 text-violet-700 border-violet-200/70',
 };
 
-interface AgentStatus {
-    name: string;
-    lastRun?: Date;
-    status: 'idle' | 'running' | 'success' | 'failed';
-    result?: string;
+function createInitialRuntimeState(): Record<AgentName, AgentRuntimeState> {
+    return Object.fromEntries(
+        AGENT_REGISTRY.map((agent) => [
+            agent.name,
+            { status: agent.dispatchMode === 'workspace' ? 'workspace' : 'idle' },
+        ]),
+    ) as Record<AgentName, AgentRuntimeState>;
 }
 
-interface AgentRunResult {
-    alertsFound?: number;
-    itemsScanned?: number;
-    savingsAmount?: number;
-    actionsCount?: number;
-    details?: string;
-    link?: string;
+function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatMoney(amount: number) {
+    return `Rs ${Math.round(amount).toLocaleString('en-IN')}`;
+}
+
+function formatClock(timestamp?: string) {
+    if (!timestamp) return 'Ready';
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatRelative(timestamp?: string) {
+    if (!timestamp) return 'No recent run';
+    const delta = Math.max(0, Date.now() - new Date(timestamp).getTime());
+    const minutes = Math.floor(delta / 60000);
+    if (minutes < 1) return 'moments ago';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
 }
 
 export function CommandCenter() {
-    const [agentStatuses, setAgentStatuses] = useState<Map<string, AgentStatus>>(new Map());
-    const [fraudAlerts, setFraudAlerts] = useState<number>(0);
-    const [paymentSavings, setPaymentSavings] = useState<number>(0);
-    const [replenishmentAlerts, setReplenishmentAlerts] = useState<number>(0);
-    const [isLoading, setIsLoading] = useState(false);
-    const [, startTransition] = useTransition();
-    const [runningAgent, setRunningAgent] = useState<string | null>(null);
-    const [lastRunResult, setLastRunResult] = useState<{ agent: string; result: AgentRunResult; timestamp: Date } | null>(null);
+    const [runtime, setRuntime] = useState<Record<AgentName, AgentRuntimeState>>(() => createInitialRuntimeState());
+    const [snapshot, setSnapshot] = useState<AgentDashboardSnapshot>(EMPTY_SNAPSHOT);
+    const [searchValue, setSearchValue] = useState('');
+    const [activeFilter, setActiveFilter] = useState<'all' | 'attention' | typeof AGENT_REGISTRY[number]['category']>('all');
+    const [isBootstrapping, setIsBootstrapping] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [runningAgent, setRunningAgent] = useState<AgentName | null>(null);
+    const [runningBundle, setRunningBundle] = useState<AgentBundleName | null>(null);
     const [progressLogs, setProgressLogs] = useState<string[]>([]);
+    const [missionReport, setMissionReport] = useState<MissionReport | null>(null);
 
-    const addLog = (message: string) => {
-        setProgressLogs(prev => [...prev.slice(-4), message]);
+    const refreshRequestRef = useRef(0);
+    const runRequestRef = useRef(0);
+
+    const appendLog = (message: string) => {
+        setProgressLogs((previous) => [...previous.slice(-4), message]);
     };
 
-    const loadDashboardData = async () => {
-        setIsLoading(true);
+    const refreshSnapshot = async (silent = false) => {
+        const requestId = ++refreshRequestRef.current;
+        if (!silent) {
+            setIsRefreshing(true);
+        }
+
         try {
-            const [fraud, payment, replenishment] = await Promise.all([
-                getOpenFraudAlerts(),
-                getPaymentOptimizationSummary(),
-                getReplenishmentAlerts()
-            ]);
+            const nextSnapshot = await getAgentDashboardSnapshot();
+            if (requestId !== refreshRequestRef.current) {
+                return;
+            }
 
-            setFraudAlerts(fraud.length);
-            setPaymentSavings(payment.totalPotentialSavings);
-            setReplenishmentAlerts(replenishment.filter(r => r.urgency === 'high' || r.urgency === 'critical').length);
-
-            const statuses = new Map<string, AgentStatus>();
-            AGENT_REGISTRY.forEach(agent => {
-                statuses.set(agent.name, { name: agent.name, status: 'idle' });
-            });
-            setAgentStatuses(statuses);
-
+            setSnapshot(nextSnapshot);
         } catch (error) {
-            console.error("Failed to load command center data:", error);
+            if (requestId !== refreshRequestRef.current) {
+                return;
+            }
+
+            toast.error('Dashboard sync failed', {
+                description: error instanceof Error ? error.message : 'Snapshot refresh failed.',
+            });
         } finally {
-            setIsLoading(false);
+            if (requestId === refreshRequestRef.current) {
+                setIsBootstrapping(false);
+                setIsRefreshing(false);
+            }
         }
     };
 
     useEffect(() => {
-        Promise.all([
-            getOpenFraudAlerts(),
-            getPaymentOptimizationSummary(),
-            getReplenishmentAlerts()
-        ]).then(([fraud, payment, replenishment]) => {
-            setFraudAlerts(fraud.length);
-            setPaymentSavings(payment.totalPotentialSavings);
-            setReplenishmentAlerts(replenishment.filter(r => r.urgency === 'high' || r.urgency === 'critical').length);
+        void refreshSnapshot();
 
-            const statuses = new Map<string, AgentStatus>();
-            AGENT_REGISTRY.forEach(agent => {
-                statuses.set(agent.name, { name: agent.name, status: 'idle' });
-            });
-            setAgentStatuses(statuses);
-            setIsLoading(false);
-        }).catch(error => {
-            console.error("Failed to load command center data:", error);
-            setIsLoading(false);
-        });
+        return () => {
+            refreshRequestRef.current += 1;
+            runRequestRef.current += 1;
+        };
     }, []);
 
-    const runAgent = async (agentName: string) => {
+    const failedAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'failed');
+    const stableAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'success');
+    const attentionCount = failedAgents.length + snapshot.degradedPanels.length;
+    const categoryFilters = ['all', 'attention', ...Array.from(new Set(AGENT_REGISTRY.map((agent) => agent.category)))] as Array<'all' | 'attention' | typeof AGENT_REGISTRY[number]['category']>;
+
+    const filteredAgents = AGENT_REGISTRY.filter((agent) => {
+        const matchesSearch = [agent.displayName, agent.description, agent.focusLabel, agent.category]
+            .join(' ')
+            .toLowerCase()
+            .includes(searchValue.trim().toLowerCase());
+
+        if (!matchesSearch) {
+            return false;
+        }
+
+        if (activeFilter === 'all') {
+            return true;
+        }
+
+        if (activeFilter === 'attention') {
+            return runtime[agent.name]?.status === 'failed';
+        }
+
+        return agent.category === activeFilter;
+    });
+
+    const runAgent = async (agentName: AgentName) => {
+        const agent = AGENT_REGISTRY.find((entry) => entry.name === agentName);
+        if (!agent || agent.dispatchMode === 'workspace' || runningAgent || runningBundle) {
+            return;
+        }
+
+        const requestId = ++runRequestRef.current;
+        const stages = RUN_STAGES[agentName] ?? [
+            `Preparing ${agent.displayName}.`,
+            `Running guarded ${agent.focusLabel.toLowerCase()} checks.`,
+            `Finalizing the response package.`,
+        ];
+
         setRunningAgent(agentName);
+        setMissionReport(null);
         setProgressLogs([]);
-        setLastRunResult(null);
+        setRuntime((previous) => ({
+            ...previous,
+            [agentName]: {
+                ...previous[agentName],
+                status: 'running',
+                message: 'Execution in progress.',
+            },
+        }));
 
-        setAgentStatuses(prev => {
-            const updated = new Map(prev);
-            updated.set(agentName, { ...updated.get(agentName)!, status: 'running' });
-            return updated;
-        });
+        appendLog(`${agent.displayName} accepted by the dispatcher.`);
+        for (const stage of stages) {
+            if (requestId !== runRequestRef.current) {
+                return;
+            }
+            await delay(180);
+            appendLog(stage);
+        }
 
-        const agentLabel = agentName.replace(/-/g, ' ');
+        try {
+            const result = await triggerAgentDispatch(agentName);
+            if (requestId !== runRequestRef.current) {
+                return;
+            }
 
-        addLog(`🚀 Starting ${agentLabel}...`);
+            const finishedAt = new Date().toISOString();
+            setRuntime((previous) => ({
+                ...previous,
+                [agentName]: {
+                    status: result.success ? 'success' : 'failed',
+                    lastRunAt: finishedAt,
+                    message: result.success ? result.summary.headline : result.error ?? result.summary.details,
+                    attempts: result.attempts,
+                    summary: result.summary,
+                },
+            }));
 
-        startTransition(async () => {
-            try {
-                // Use a union type that covers all possible agent result shapes
-                type AnyAgentResult = { success: boolean; data?: unknown; error?: string };
-                let result: AnyAgentResult = { success: false };
-                let runResult: AgentRunResult = {};
+            setMissionReport({
+                title: agent.displayName,
+                summary: result.summary,
+                timestamp: finishedAt,
+                success: result.success,
+            });
 
-                switch (agentName) {
-                    case 'fraud-detection': {
-                        addLog(`INIT: Synchronizing transaction ledger...`);
-                        await delay(300);
-                        addLog(`PROC: Executing heuristic anomaly detection...`);
-                        await delay(300);
-                        addLog(`PROC: Cross-referencing vendor bank identifiers...`);
-                        const fraudResult = await runFraudDetectionAgent(30);
-                        result = fraudResult;
-                        if (fraudResult.success && fraudResult.data) {
-                            const fraudData = fraudResult.data as FraudAlert[];
-                            const highSeverity = fraudData.filter((a) => a.severity === 'high' || a.severity === 'critical').length;
-                            runResult = {
-                                alertsFound: fraudData.length,
-                                details: fraudData.length > 0
-                                    ? `Identified ${fraudData.length} anomalies across 30-day lookback. ${highSeverity > 0 ? `HIGH PRIORITY: ${highSeverity} items match risk patterns (Duplicate Invoices/Segregation Violations).` : 'Minor inconsistencies detected in non-critical patterns.'}`
-                                    : 'Exhaustive audit complete. All transactions within 3-sigma variance. No duplicate invoice identifiers or unauthorized vendor high-value patterns detected.',
-                                link: "/admin/fraud-alerts"
-                            };
-                            addLog(`✅ Audit complete: ${fraudData.length} findings`);
-                        }
-                        break;
-                    }
-
-                    case 'payment-optimizer': {
-                        addLog(`INIT: Fetching mature account payables...`);
-                        await delay(300);
-                        addLog(`PROC: Evaluating net-30/net-60 discount elasticity...`);
-                        await delay(300);
-                        addLog(`PROC: Modeling capital float opportunities...`);
-                        const payResult = await runPaymentOptimizationAgent();
-                        result = payResult;
-                        if (payResult.success && payResult.data) {
-                            const opportunities = payResult.data as Array<{ potentialSavings?: number }>;
-                            const totalSavings = opportunities.reduce((sum, o) => sum + (o.potentialSavings || 0), 0);
-                            runResult = {
-                                savingsAmount: totalSavings,
-                                itemsScanned: opportunities.length,
-                                details: totalSavings > 0
-                                    ? `Identified ₹${totalSavings.toLocaleString()} in unrealized discount potential. suggested payment triggers updated based on dynamic cash flow forecasting.`
-                                    : 'Capital utilization optimized. No qualifying invoices found with early-payment discount terms or favorable float windows.'
-                            };
-                            addLog(`✅ Optimization complete: ₹${totalSavings.toLocaleString()} opportunity`);
-                        }
-                        break;
-                    }
-
-                    case 'demand-forecasting': {
-                        addLog(`INIT: Indexing time-series consumption data...`);
-                        await delay(300);
-                        addLog(`PROC: Applying stochastic prediction models...`);
-                        await delay(300);
-                        addLog(`PROC: Verifying safety-stock variance...`);
-                        const demandResult = await runDemandForecastingAgent(undefined, 30);
-                        result = demandResult;
-                        if (demandResult.success && demandResult.data) {
-                            const demandData = demandResult.data as DemandForecast[];
-                            runResult = {
-                                itemsScanned: demandData.length,
-                                details: `Prediction engine verified consumption velocity for ${demandData.length} SKUs. Adjusted reorder triggers for high-volatility categories. Current safety stock sufficient for 30-day window.`
-                            };
-                            addLog(`✅ Forecast updated: ${demandData.length} SKUs synced`);
-                        }
-                        break;
-                    }
-
-                    case 'auto-remediation': {
-                        addLog(`INIT: Scanning for stale requisitions...`);
-                        await delay(300);
-                        addLog(`PROC: Checking RFQs without responses...`);
-                        await delay(300);
-                        addLog(`EXEC: Applying automated remediation protocols...`);
-                        const remResult = await runAutoRemediation();
-                        result = remResult;
-                        if (remResult.success && remResult.data) {
-                            const remData = remResult.data as Array<unknown>;
-                            runResult = {
-                                actionsCount: remData.length,
-                                details: remData.length > 0
-                                    ? `Executed ${remData.length} autonomous corrections. Resolved 4/4 critical state violations in requisition flow.`
-                                    : 'System health optimal. No stale states or circular approval loops detected in active workflows.'
-                            };
-                            addLog(`✅ Remediation complete: ${remData.length} actions`);
-                        }
-                        break;
-                    }
-
-                    case 'predictive-bottleneck': {
-                        addLog(`INIT: Establishing workflow baseline...`);
-                        await delay(300);
-                        addLog(`PROC: Calculating cycle-time variance...`);
-                        await delay(300);
-                        addLog(`EVAL: Predicting queue congestion...`);
-                        const bottleneckResult = await detectBottlenecks();
-                        result = bottleneckResult;
-                        if (bottleneckResult.success && bottleneckResult.data) {
-                            const bottleneckData = bottleneckResult.data as unknown as WorkflowBottleneck[];
-                            runResult = {
-                                alertsFound: bottleneckData.length,
-                                details: bottleneckData.length > 0
-                                    ? `Detected ${bottleneckData.length} predicted bottlenecks. Estimated SLA slippage: 14.2h across Finance approval queues.`
-                                    : 'Flow velocity healthy. Current queue throughput exceeds historical 30-day average by 12%.'
-                            };
-                            addLog(`✅ Analysis complete: ${bottleneckData.length} bottlenecks`);
-                        }
-                        break;
-                    }
-
-                    case 'negotiations-autopilot': {
-                        addLog(`INIT: Parsing competitive bidding landscape...`);
-                        await delay(300);
-                        addLog(`PROC: Cross-referencing historical price benchmarks...`);
-                        await delay(300);
-                        addLog(`GEN: Constructing optimal counter-offer scripts...`);
-                        result = { success: true, data: { suggestedCounterOffer: 450000, leverage: ["Volume", "Payment Terms"] } };
-                        runResult = {
-                            savingsAmount: 50000,
-                            details: `Generated multi-point strategy for active RFQs. Projected capture: 50,000 via payment term restructuring and volume commitments.`
-                        };
-                        addLog(`✅ Strategy generated: Scripts ready`);
-                        break;
-                    }
-
-                    case 'contract-clause-analyzer': {
-                        addLog(`INIT: Indexing standard clause library...`);
-                        await delay(300);
-                        addLog(`PROC: OCR scan of pending contract documents...`);
-                        await delay(300);
-                        addLog(`EVAL: Flagging deviation from corporate policy...`);
-                        result = { success: true, data: { riskyClasses: [1, 2] } };
-                        runResult = {
-                            alertsFound: 2,
-                            details: `Identified 2 critical deviations in Indemnification and Liability caps. Replacement language suggested for compliance alignment.`
-                        };
-                        addLog(`✅ Audit complete: 2 risks flagged`);
-                        break;
-                    }
-
-                    case 'smart-approval-routing': {
-                        addLog(`INIT: Mapping organizational hierarchy...`);
-                        await delay(300);
-                        addLog(`PROC: Evaluating risk-weighted approval paths...`);
-                        await delay(300);
-                        addLog(`EXEC: Synchronizing dynamic routing triggers...`);
-                        const approvalResult = await processAutoApprovals();
-                        result = approvalResult;
-                        if (approvalResult.success && approvalResult.data) {
-                            const approvalData = approvalResult.data;
-                            runResult = {
-                                actionsCount: approvalData.approved,
-                                details: `Optimized routing for ${approvalData.processed} requests. Auto-approved ${approvalData.approved} low-risk transactions within preset thresholds.`
-                            };
-                            addLog(`✅ Routing optimized: ${approvalData.approved} auto-approved`);
-                        }
-                        break;
-                    }
-
-                    case 'scenario-modeling': {
-                        addLog(`INIT: Fetching market price index...`);
-                        await delay(300);
-                        addLog(`PROC: Running Monte Carlo simulations...`);
-                        await delay(300);
-                        addLog(`EVAL: Analyzing budget impact variance...`);
-                        result = { success: true };
-                        runResult = {
-                            details: `Simulated 10% price fluctuation across Tier-1 vendors. Estimated annual impact: 4.2M. Mitigation strategy indexed to scenario-B.`,
-                            link: "/admin/scenarios"
-                        };
-                        addLog(`✅ Simulation complete: Impact quantified`);
-                        break;
-                    }
-
-                    case 'supplier-ecosystem': {
-                        addLog(`INIT: Aggregating 360° supplier intelligence...`);
-                        await delay(300);
-                        addLog(`PROC: Visualizing dependency graph...`);
-                        await delay(300);
-                        addLog(`EVAL: Calculating ecosystem health score...`);
-                        const ecosystemResult = await buildSupplierEcosystem();
-                        result = ecosystemResult;
-                        if (ecosystemResult.success && ecosystemResult.data) {
-                            const ecoData = ecosystemResult.data;
-                            runResult = {
-                                alertsFound: ecoData.riskHotspots.length,
-                                details: `Mapped ${ecoData.nodes.length} suppliers. Ecosystem health: ${ecoData.overallHealthScore}/100. Identified ${ecoData.riskHotspots.length} critical dependency hotspots.`,
-                                link: "/admin/ecosystem"
-                            };
-                            addLog(`✅ Ecosystem mapped: Health ${ecoData.overallHealthScore}/100`);
-                        }
-                        break;
-                    }
-
-                    default:
-                        addLog(`⚙️ Analyzing ${agentLabel} parameters...`);
-                        await delay(1000);
-                        addLog(`✅ Analysis complete: Parameters verified`);
-                        result = { success: true };
-                        runResult = {
-                            details: `System analyzed the ${agentLabel} workflow. Current configuration is within optimal bounds for enterprise operations.`
-                        };
-                }
-
-                setLastRunResult({
-                    agent: agentName,
-                    result: runResult,
-                    timestamp: new Date()
+            if (result.success) {
+                toast.success(`${agent.displayName} completed`, {
+                    description: result.summary.details,
                 });
-
-                setAgentStatuses(prev => {
-                    const updated = new Map(prev);
-                    updated.set(agentName, {
-                        ...updated.get(agentName)!,
-                        status: result.success ? 'success' : 'failed',
-                        lastRun: new Date(),
-                        result: result.success ? 'Completed' : (result.error || 'Failed')
-                    });
-                    return updated;
-                });
-
-                await loadDashboardData();
-
-            } catch (error) {
-                console.error(`Agent ${agentName} error:`, error);
-                addLog(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                toast.error(`${agentName.replace(/-/g, ' ')} failed`, {
-                    description: error instanceof Error ? error.message : 'Unknown error'
-                });
-                setAgentStatuses(prev => {
-                    const updated = new Map(prev);
-                    updated.set(agentName, {
-                        ...updated.get(agentName)!,
-                        status: 'failed',
-                        lastRun: new Date()
-                    });
-                    return updated;
+            } else {
+                toast.error(`${agent.displayName} needs attention`, {
+                    description: result.summary.details,
                 });
             }
-            setRunningAgent(null);
-        });
+
+            await refreshSnapshot(true);
+        } catch (error) {
+            if (requestId !== runRequestRef.current) {
+                return;
+            }
+
+            const finishedAt = new Date().toISOString();
+            setRuntime((previous) => ({
+                ...previous,
+                [agentName]: {
+                    ...previous[agentName],
+                    status: 'failed',
+                    lastRunAt: finishedAt,
+                    message: error instanceof Error ? error.message : 'Unexpected execution failure.',
+                },
+            }));
+
+            toast.error(`${agent.displayName} failed`, {
+                description: error instanceof Error ? error.message : 'Unexpected execution failure.',
+            });
+        } finally {
+            if (requestId === runRequestRef.current) {
+                setRunningAgent(null);
+            }
+        }
     };
 
-    if (isLoading) {
+    const runBundle = async (bundleName: AgentBundleName) => {
+        if (runningAgent || runningBundle) {
+            return;
+        }
+
+        const requestId = ++runRequestRef.current;
+        const bundleMeta = AGENT_BUNDLE_META[bundleName];
+        const bundleAgents = AGENT_BUNDLES[bundleName];
+
+        setRunningBundle(bundleName);
+        setMissionReport(null);
+        setProgressLogs([
+            `${bundleMeta.displayName} initialized.`,
+            `${bundleAgents.length} coordinated agents are being staged.`,
+        ]);
+
+        setRuntime((previous) => {
+            const nextState = { ...previous };
+            for (const agent of bundleAgents) {
+                nextState[agent] = {
+                    ...nextState[agent],
+                    status: 'running',
+                    message: `Included in ${bundleMeta.displayName}.`,
+                };
+            }
+            return nextState;
+        });
+
+        try {
+            const result = await triggerAgentBundle(bundleName);
+            if (requestId !== runRequestRef.current) {
+                return;
+            }
+
+            const finishedAt = new Date().toISOString();
+            setRuntime((previous) => {
+                const nextState = { ...previous };
+                for (const entry of result.results) {
+                    nextState[entry.agent] = {
+                        status: entry.success ? 'success' : 'failed',
+                        lastRunAt: finishedAt,
+                        attempts: entry.attempts,
+                        message: entry.success ? entry.summary.headline : entry.error ?? entry.summary.details,
+                        summary: entry.summary,
+                    };
+                }
+                return nextState;
+            });
+
+            const summary: AgentDispatchSummary = {
+                headline: `${result.succeeded}/${result.total} agents completed`,
+                details: result.failed === 0
+                    ? `${result.displayName} finished cleanly and the fleet is in a stronger operating state.`
+                    : `${result.failed} agents still need manual attention after ${result.displayName}. Review the linked route to continue safely.`,
+                actionsCount: result.succeeded,
+                alertsFound: result.failed || undefined,
+                link: result.dashboardHref,
+            };
+
+            setMissionReport({
+                title: result.displayName,
+                summary,
+                timestamp: finishedAt,
+                success: result.success,
+            });
+
+            if (result.success) {
+                toast.success(`${result.displayName} finished`, {
+                    description: summary.details,
+                });
+            } else {
+                toast.error(`${result.displayName} completed with gaps`, {
+                    description: summary.details,
+                });
+            }
+
+            appendLog(`${result.displayName} processed ${result.total} coordinated agents.`);
+            await refreshSnapshot(true);
+        } catch (error) {
+            if (requestId !== runRequestRef.current) {
+                return;
+            }
+
+            toast.error('Bundle execution failed', {
+                description: error instanceof Error ? error.message : 'Unexpected bundle execution failure.',
+            });
+        } finally {
+            if (requestId === runRequestRef.current) {
+                setRunningBundle(null);
+            }
+        }
+    };
+
+    if (isBootstrapping) {
         return (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="animate-pulse bg-stone-100 dark:bg-stone-800 rounded-xl h-40" />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="h-48 animate-pulse rounded-3xl bg-slate-100" />
                 ))}
             </div>
         );
@@ -410,370 +449,512 @@ export function CommandCenter() {
 
     return (
         <div className="space-y-6">
-            {/* AI Progress Panel - Shows when running */}
-            {runningAgent && (
-                <Card className="bg-slate-900 text-white border-slate-800 overflow-hidden relative shadow-2xl">
-                    <CardContent className="pt-6 relative">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                                <AxiomLogo className="h-6 w-6 text-emerald-400 animate-pulse" />
+            <Card className="overflow-hidden border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.16),transparent_36%),linear-gradient(135deg,#ffffff_0%,#f8fafc_48%,#ecfeff_100%)] shadow-xl">
+                <CardContent className="p-6 lg:p-8">
+                    <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
+                        <div className="space-y-6">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                                    Resilient AI Mission Control
+                                </Badge>
+                                <Badge variant="outline" className="border-slate-200 bg-white/80 text-slate-600">
+                                    {AGENT_REGISTRY.filter((agent) => agent.dispatchMode === 'global').length} direct-launch agents
+                                </Badge>
+                                <Badge variant="outline" className={cn(
+                                    attentionCount === 0
+                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        : 'border-amber-200 bg-amber-50 text-amber-700',
+                                )}>
+                                    {attentionCount === 0 ? 'All routes stable' : `${attentionCount} items need attention`}
+                                </Badge>
                             </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                    <AxiomLogo className="h-4 w-4 text-emerald-600" />
-                                    <h3 className="font-semibold text-lg text-emerald-50">
-                                        Axiom System executing: {runningAgent.replace(/-/g, ' ')}
-                                    </h3>
-                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] animate-pulse">ACTIVE</Badge>
-                                </div>
-                                <div className="mt-2 space-y-1 font-mono text-[11px] opacity-80">
-                                    {progressLogs.map((log, i) => (
-                                        <p key={i} className={i === progressLogs.length - 1 ? 'text-emerald-400' : 'text-slate-400'}>
-                                            {log}
-                                        </p>
-                                    ))}
-                                </div>
-                            </div>
-                            <Loader2 className="h-6 w-6 animate-spin text-emerald-500 opacity-50" />
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
 
-            {/* Data-First Audit Result - Zero Fillers */}
-            {lastRunResult && !runningAgent && (
-                <Card className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-                    <CardHeader className="py-4 border-b bg-slate-50/50 dark:bg-slate-900/50">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                                Audit Finalized: {lastRunResult.agent.replace(/-/g, ' ')}
-                            </CardTitle>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => setLastRunResult(null)}
-                            >
-                                <XCircle className="h-4 w-4 text-slate-300 hover:text-red-500 transition-colors" />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="py-8">
-                        <div className="space-y-8">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                {lastRunResult.result.alertsFound !== undefined && (
-                                    <div className="border-l-2 border-red-500 pl-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Anomalies</p>
-                                        <p className="font-mono text-3xl font-black text-slate-900 dark:text-white">
-                                            {lastRunResult.result.alertsFound}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <AxiomLogo className="h-8 w-8 text-emerald-600" />
+                                    <div>
+                                        <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                                            Stronger agents, cleaner routes, better recovery.
+                                        </h2>
+                                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                                            Every launch now flows through the same guarded dispatcher with retries, timeout fencing, workspace handoffs, and drill-down routes that stay coherent under stress.
                                         </p>
                                     </div>
-                                )}
-                                {lastRunResult.result.savingsAmount !== undefined && (
-                                    <div className="border-l-2 border-emerald-500 pl-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Savings</p>
-                                        <p className="font-mono text-3xl font-black text-emerald-600">
-                                            ₹{lastRunResult.result.savingsAmount.toLocaleString()}
-                                        </p>
-                                    </div>
-                                )}
-                                {lastRunResult.result.actionsCount !== undefined && (
-                                    <div className="border-l-2 border-blue-500 pl-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Actions</p>
-                                        <p className="font-mono text-3xl font-black text-slate-900 dark:text-white">
-                                            {lastRunResult.result.actionsCount}
-                                        </p>
-                                    </div>
-                                )}
-                                {lastRunResult.result.itemsScanned !== undefined && (
-                                    <div className="border-l-2 border-slate-300 dark:border-slate-700 pl-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Audited</p>
-                                        <p className="font-mono text-3xl font-black text-slate-900 dark:text-white">
-                                            {lastRunResult.result.itemsScanned}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 relative">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Activity className="h-3 w-3 text-slate-400" />
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Findings Summary</p>
-                                </div>
-                                <p className="text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
-                                    {lastRunResult.result.details}
-                                </p>
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                                <Link href={
-                                    lastRunResult.agent === 'fraud-detection' ? '/admin/fraud-alerts' :
-                                        lastRunResult.agent === 'payment-optimizer' ? '/sourcing/invoices?mode=match' :
-                                            '/admin/audit'
-                                }>
-                                    <Button className="bg-slate-900 dark:bg-emerald-600 hover:bg-black dark:hover:bg-emerald-700 text-xs font-bold uppercase py-6 px-8 tracking-widest transition-all">
-                                        Access Direct Audit Data
-                                        <ChevronRight className="ml-2 h-4 w-4" />
-                                    </Button>
-                                </Link>
-                                {lastRunResult.result.link && (
-                                    <div className="md:col-span-4 flex justify-start">
-                                        <Link href={lastRunResult.result.link}>
-                                            <Button size="sm" variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 font-bold text-xs">
-                                                <ArrowUpRight className="h-4 w-4" />
-                                                ENTER DRILL-DOWN DASHBOARD
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* KPI Summary */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <Link href="/admin/fraud-alerts">
-                    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900 transition-all cursor-pointer group shadow-sm">
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fraud Alerts</p>
-                                    <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{fraudAlerts}</p>
-                                </div>
-                                <div className="h-12 w-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center group-hover:bg-red-50 dark:group-hover:bg-red-950/20 transition-colors">
-                                    <Shield className="h-6 w-6 text-slate-400 group-hover:text-red-500" />
                                 </div>
                             </div>
-                            <div className="mt-4 h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className={`h-full bg-red-500 transition-all duration-500 ${fraudAlerts > 0 ? 'w-full' : 'w-0'}`} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </Link>
 
-                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-200 dark:hover:border-emerald-900 transition-all shadow-sm group">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Payment Savings</p>
-                                <p className="text-3xl font-black text-emerald-600 mt-1">₹{paymentSavings.toLocaleString()}</p>
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Stable Agents</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{stableAgents.length}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Recovered and ready for another run.</p>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Bundle Plays</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{BUNDLE_ORDER.length}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Coordinated recovery paths for high-pressure moments.</p>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Last Snapshot</p>
+                                    <p className="mt-2 text-2xl font-black text-slate-950">
+                                        {snapshot.generatedAt ? formatClock(snapshot.generatedAt) : 'Waiting'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">Live operational status captured from guarded server actions.</p>
+                                </div>
                             </div>
-                            <div className="h-12 w-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20 transition-colors">
-                                <CreditCard className="h-6 w-6 text-slate-400 group-hover:text-emerald-500" />
-                            </div>
+
+                            {(runningAgent || runningBundle) && (
+                                <div className="rounded-3xl border border-slate-900 bg-slate-950 p-5 text-white shadow-2xl">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <AxiomLogo className="h-4 w-4 text-emerald-400" />
+                                                <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-300">
+                                                    {runningAgent ? 'Single agent execution' : 'Coordinated bundle execution'}
+                                                </p>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-white">
+                                                {runningAgent
+                                                    ? AGENT_REGISTRY.find((agent) => agent.name === runningAgent)?.displayName
+                                                    : AGENT_BUNDLE_META[runningBundle!].displayName}
+                                            </h3>
+                                            <div className="space-y-1 font-mono text-[11px] text-slate-300">
+                                                {progressLogs.map((log, index) => (
+                                                    <p key={index} className={index === progressLogs.length - 1 ? 'text-emerald-300' : ''}>
+                                                        {log}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div className="mt-4 h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className={`h-full bg-emerald-500 transition-all duration-500 ${paymentSavings > 0 ? 'w-full' : 'w-0'}`} />
+
+                        <div className="grid gap-3">
+                            {BUNDLE_ORDER.map((bundleName) => {
+                                const bundleMeta = AGENT_BUNDLE_META[bundleName];
+                                const isBundleRunning = runningBundle === bundleName;
+                                return (
+                                    <Card
+                                        key={bundleName}
+                                        className={cn(
+                                            "overflow-hidden border-slate-200/70 bg-white/80 shadow-sm transition-all",
+                                            isBundleRunning && "border-emerald-300 shadow-lg ring-2 ring-emerald-200",
+                                        )}
+                                    >
+                                        <CardContent className="p-5">
+                                            <div className={cn("mb-4 rounded-2xl bg-gradient-to-r p-3", bundleMeta.accentClass)}>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-700">
+                                                    {bundleMeta.displayName}
+                                                </p>
+                                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                                    {bundleMeta.description}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-slate-500">
+                                                <span>{AGENT_BUNDLES[bundleName].length} linked agents</span>
+                                                <span>{bundleMeta.dashboardHref}</span>
+                                            </div>
+                                            <div className="mt-4 flex gap-2">
+                                                <Button
+                                                    className="flex-1 gap-2"
+                                                    onClick={() => runBundle(bundleName)}
+                                                    disabled={Boolean(runningAgent || runningBundle)}
+                                                >
+                                                    {isBundleRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                                                    {isBundleRunning ? 'Running' : 'Run Bundle'}
+                                                </Button>
+                                                <Link href={bundleMeta.dashboardHref} className="flex-1">
+                                                    <Button variant="outline" className="w-full gap-2">
+                                                        <ArrowUpRight className="h-4 w-4" />
+                                                        Open Route
+                                                    </Button>
+                                                </Link>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
                         </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-200 dark:hover:border-amber-900 transition-all shadow-sm group">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Inventory Alerts</p>
-                                <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{replenishmentAlerts}</p>
-                            </div>
-                            <div className="h-12 w-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20 transition-colors">
-                                <Activity className="h-6 w-6 text-slate-400 group-hover:text-amber-500" />
-                            </div>
-                        </div>
-                        <div className="mt-4 h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className={`h-full bg-amber-500 transition-all duration-500 ${replenishmentAlerts > 0 ? 'w-full' : 'w-0'}`} />
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Quick Actions - Now with visual feedback */}
-            <Card className="bg-slate-50/50 dark:bg-slate-950/20 border-slate-200/60 dark:border-slate-800/40">
-                <CardHeader className="py-4">
-                    <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-slate-500">
-                        <AxiomLogo className="h-4 w-4 text-emerald-600" />
-                        Operational Intelligence
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-6">
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                        <Button
-                            variant="outline"
-                            className={`justify-start gap-3 h-auto py-4 px-4 transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 ${runningAgent === 'fraud-detection'
-                                ? 'ring-2 ring-emerald-500/50 border-emerald-500'
-                                : 'hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10'
-                                }`}
-                            onClick={() => runAgent('fraud-detection')}
-                            disabled={!!runningAgent}
-                        >
-                            <div className={`h-10 w-10 rounded-lg border border-slate-100 dark:border-slate-800 flex items-center justify-center ${runningAgent === 'fraud-detection' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50'
-                                }`}>
-                                {runningAgent === 'fraud-detection' ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> : <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />}
-                            </div>
-                            <div className="text-left flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Security Scan</p>
-                                <p className="text-[10px] text-slate-500">Audit anomalies</p>
-                            </div>
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className={`justify-start gap-3 h-auto py-4 px-4 transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 ${runningAgent === 'payment-optimizer'
-                                ? 'ring-2 ring-emerald-500/50 border-emerald-500'
-                                : 'hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10'
-                                }`}
-                            onClick={() => runAgent('payment-optimizer')}
-                            disabled={!!runningAgent}
-                        >
-                            <div className={`h-10 w-10 rounded-lg border border-slate-100 dark:border-slate-800 flex items-center justify-center ${runningAgent === 'payment-optimizer' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50'
-                                }`}>
-                                {runningAgent === 'payment-optimizer' ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> : <CreditCard className="h-5 w-5 text-slate-600 dark:text-slate-400" />}
-                            </div>
-                            <div className="text-left flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Capital Optimizer</p>
-                                <p className="text-[10px] text-slate-500">Early discounts</p>
-                            </div>
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className={`justify-start gap-3 h-auto py-4 px-4 transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 ${runningAgent === 'demand-forecasting'
-                                ? 'ring-2 ring-emerald-500/50 border-emerald-500'
-                                : 'hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10'
-                                }`}
-                            onClick={() => runAgent('demand-forecasting')}
-                            disabled={!!runningAgent}
-                        >
-                            <div className={`h-10 w-10 rounded-lg border border-slate-100 dark:border-slate-800 flex items-center justify-center ${runningAgent === 'demand-forecasting' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50'
-                                }`}>
-                                {runningAgent === 'demand-forecasting' ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> : <TrendingUp className="h-5 w-5 text-slate-600 dark:text-slate-400" />}
-                            </div>
-                            <div className="text-left flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Supply Intel</p>
-                                <p className="text-[10px] text-slate-500">Demand prediction</p>
-                            </div>
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className={`justify-start gap-3 h-auto py-4 px-4 transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 ${runningAgent === 'auto-remediation'
-                                ? 'ring-2 ring-emerald-500/50 border-emerald-500'
-                                : 'hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10'
-                                }`}
-                            onClick={() => runAgent('auto-remediation')}
-                            disabled={!!runningAgent}
-                        >
-                            <div className={`h-10 w-10 rounded-lg border border-slate-100 dark:border-slate-800 flex items-center justify-center ${runningAgent === 'auto-remediation' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50'
-                                }`}>
-                                {runningAgent === 'auto-remediation' ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> : <Activity className="h-5 w-5 text-slate-600 dark:text-slate-400" />}
-                            </div>
-                            <div className="text-left flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Auto-Healer</p>
-                                <p className="text-[10px] text-slate-500">Workflow fixes</p>
-                            </div>
-                        </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Agent Grid */}
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <AxiomLogo className="h-4 w-4 text-emerald-600" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Axiom Intelligent Fleet</h2>
-                        <Badge variant="outline" className="ml-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 font-bold">
-                            {AGENT_REGISTRY.length} ACTIVE
-                        </Badge>
+            {snapshot.systemWarnings.length > 0 && (
+                <Card className="border-amber-200 bg-amber-50/70 shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base text-amber-900">
+                            <TriangleAlert className="h-4 w-4" />
+                            Recovery Watch
+                        </CardTitle>
+                        <CardDescription className="text-amber-800/80">
+                            The dashboard stayed live, but one or more data surfaces fell back to a degraded snapshot instead of breaking the route.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm text-amber-900">
+                        {snapshot.systemWarnings.map((warning) => (
+                            <div key={warning} className="rounded-xl border border-amber-200/70 bg-white/70 p-3">
+                                {warning}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Fraud Alerts</p>
+                                <p className="mt-2 text-3xl font-black text-slate-950">{snapshot.fraudAlerts}</p>
+                            </div>
+                            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-3 text-rose-600">
+                                <Shield className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Payment Savings</p>
+                                <p className="mt-2 text-3xl font-black text-emerald-600">{formatMoney(snapshot.paymentSavings)}</p>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-emerald-600">
+                                <CreditCard className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Inventory Alerts</p>
+                                <p className="mt-2 text-3xl font-black text-slate-950">{snapshot.replenishmentAlerts}</p>
+                            </div>
+                            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-amber-600">
+                                <Activity className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 bg-white shadow-sm">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Route Shield</p>
+                                <p className="mt-2 text-3xl font-black text-slate-950">
+                                    {snapshot.degradedPanels.length === 0 ? 'Stable' : snapshot.degradedPanels.length}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    {snapshot.degradedPanels.length === 0 ? 'No degraded panels in the current snapshot.' : 'Panels held in a degraded-safe mode instead of hard failing.'}
+                                </p>
+                            </div>
+                            <div className="rounded-2xl border border-sky-100 bg-sky-50 p-3 text-sky-600">
+                                <CheckCircle2 className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Card className="border-slate-200 bg-white shadow-sm">
+                <CardHeader className="gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="space-y-2">
+                        <CardTitle className="text-lg">Interactive Fleet Controls</CardTitle>
+                        <CardDescription>
+                            Search the fleet, focus on a category, or launch the highest-value quick actions without leaving the command surface.
+                        </CardDescription>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={loadDashboardData}
-                        className="gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-emerald-600"
-                        disabled={isLoading}
-                    >
-                        <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                        Sync Data
-                    </Button>
+                    <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row">
+                        <div className="relative min-w-[240px]">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                value={searchValue}
+                                onChange={(event) => setSearchValue(event.target.value)}
+                                placeholder="Search agents, routes, and focus areas"
+                                className="pl-9"
+                            />
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => refreshSnapshot()}
+                            disabled={isRefreshing}
+                        >
+                            <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+                            Sync Snapshot
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                    <div className="flex flex-wrap gap-2">
+                        {categoryFilters.map((filter) => (
+                            <Button
+                                key={filter}
+                                size="sm"
+                                variant={activeFilter === filter ? 'default' : 'outline'}
+                                className="capitalize"
+                                onClick={() => setActiveFilter(filter)}
+                            >
+                                {filter === 'attention' ? 'Needs attention' : filter}
+                            </Button>
+                        ))}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {QUICK_ACTION_AGENTS.map((agentName) => {
+                            const agent = AGENT_REGISTRY.find((entry) => entry.name === agentName);
+                            if (!agent) {
+                                return null;
+                            }
+
+                            const isRunning = runningAgent === agent.name;
+
+                            return (
+                                <Button
+                                    key={agent.name}
+                                    variant="outline"
+                                    className={cn(
+                                        "h-auto items-start justify-between rounded-2xl border-slate-200 p-4 text-left",
+                                        isRunning && "border-emerald-300 ring-2 ring-emerald-200",
+                                    )}
+                                    onClick={() => runAgent(agent.name)}
+                                    disabled={Boolean(runningAgent || runningBundle)}
+                                >
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{agent.focusLabel}</p>
+                                        <p className="text-sm font-bold text-slate-950">{agent.displayName}</p>
+                                    </div>
+                                    {isRunning ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                                </Button>
+                            );
+                        })}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {missionReport && (
+                <Card className={cn(
+                    "overflow-hidden border shadow-sm",
+                    missionReport.success ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40",
+                )}>
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <CardTitle className="text-lg">{missionReport.title}</CardTitle>
+                                <CardDescription>
+                                    Finalized {formatRelative(missionReport.timestamp)} at {formatClock(missionReport.timestamp)}.
+                                </CardDescription>
+                            </div>
+                            <Badge variant="outline" className={cn(
+                                missionReport.success
+                                    ? "border-emerald-200 bg-white text-emerald-700"
+                                    : "border-amber-200 bg-white text-amber-700",
+                            )}>
+                                {missionReport.success ? 'Recovered cleanly' : 'Needs follow-up'}
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                        <div className="grid gap-4 md:grid-cols-4">
+                            {missionReport.summary.alertsFound !== undefined && (
+                                <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Alerts</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{missionReport.summary.alertsFound}</p>
+                                </div>
+                            )}
+                            {missionReport.summary.savingsAmount !== undefined && (
+                                <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Savings</p>
+                                    <p className="mt-2 text-3xl font-black text-emerald-600">{formatMoney(missionReport.summary.savingsAmount)}</p>
+                                </div>
+                            )}
+                            {missionReport.summary.actionsCount !== undefined && (
+                                <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Actions</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{missionReport.summary.actionsCount}</p>
+                                </div>
+                            )}
+                            {missionReport.summary.itemsScanned !== undefined && (
+                                <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Audited</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{missionReport.summary.itemsScanned}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="rounded-3xl border border-white/70 bg-white/80 p-5">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Mission Summary</p>
+                            <p className="mt-3 text-lg font-semibold leading-8 text-slate-900">
+                                {missionReport.summary.details}
+                            </p>
+                        </div>
+
+                        {missionReport.summary.link && (
+                            <div className="flex justify-end">
+                                <Link href={missionReport.summary.link}>
+                                    <Button className="gap-2">
+                                        Open Drill-Down Route
+                                        <ArrowUpRight className="h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            <div>
+                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 className="text-lg font-black uppercase tracking-[0.2em] text-slate-900">Axiom Intelligent Fleet</h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                            {filteredAgents.length} visible agents, {failedAgents.length} currently marked for follow-up.
+                        </p>
+                    </div>
+                    <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-600">
+                        Dispatcher-protected runs only
+                    </Badge>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {AGENT_REGISTRY.map((agent) => {
-                        const status = agentStatuses.get(agent.name);
-                        const isRunning = runningAgent === agent.name;
-                        return (
-                            <Card
-                                key={agent.name}
-                                className={`group transition-all duration-300 border-slate-200 dark:border-slate-800 ${isRunning
-                                    ? 'ring-1 ring-emerald-500 shadow-lg bg-emerald-50/10'
-                                    : 'hover:shadow-md hover:border-emerald-500/30 bg-white dark:bg-slate-900'
-                                    }`}
-                            >
-                                <CardHeader className="pb-3 border-b border-slate-50 dark:border-slate-800/50">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${isRunning ? 'bg-emerald-500 text-white shadow-emerald-500/20 shadow-lg' : 'bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700'
-                                                }`}>
-                                                {isRunning
-                                                    ? <Loader2 className="h-5 w-5 animate-spin" />
-                                                    : <div className="text-slate-600 dark:text-slate-400 group-hover:text-emerald-600 transition-colors">
-                                                        {agentIcons[agent.name] || <AxiomLogo className="h-5 w-5" />}
+                {filteredAgents.length === 0 ? (
+                    <Card className="border-dashed border-slate-300 bg-slate-50/60">
+                        <CardContent className="flex min-h-[180px] flex-col items-center justify-center gap-3 text-center">
+                            <Search className="h-8 w-8 text-slate-400" />
+                            <div>
+                                <p className="text-base font-semibold text-slate-900">No agents match this filter.</p>
+                                <p className="text-sm text-slate-500">Try a broader search or switch back to all categories.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {filteredAgents.map((agent) => {
+                            const bundleActive = runningBundle ? AGENT_BUNDLES[runningBundle].includes(agent.name) : false;
+                            const isRunning = runningAgent === agent.name || bundleActive;
+                            const status = runtime[agent.name];
+                            const statusLabel =
+                                status.status === 'workspace' ? 'Workspace' :
+                                    status.status === 'failed' ? 'Needs attention' :
+                                        status.status === 'success' ? 'Recovered' :
+                                            status.status === 'running' ? 'Running' :
+                                                'Ready';
+
+                            return (
+                                <Card
+                                    key={agent.name}
+                                    className={cn(
+                                        "border-slate-200 bg-white shadow-sm transition-all",
+                                        isRunning && "border-emerald-300 shadow-lg ring-2 ring-emerald-200",
+                                        status.status === 'failed' && "border-amber-200 bg-amber-50/30",
+                                    )}
+                                >
+                                    <CardHeader className="space-y-4 pb-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className={cn(
+                                                    "flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700",
+                                                    isRunning && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                                                )}>
+                                                    {isRunning ? <Loader2 className="h-5 w-5 animate-spin" /> : agentIcons[agent.name]}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <CardTitle className="text-base">{agent.displayName}</CardTitle>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <Badge variant="outline" className={categoryTone[agent.category]}>
+                                                            {agent.category}
+                                                        </Badge>
+                                                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                                                            {statusLabel}
+                                                        </Badge>
+                                                        {agent.dispatchMode === 'workspace' && (
+                                                            <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                                                Context route
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                }
-                                            </div>
-                                            <div className="min-w-0">
-                                                <CardTitle className="text-xs font-black truncate text-slate-900 dark:text-white uppercase tracking-wider">
-                                                    {agent.displayName}
-                                                </CardTitle>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={`text-[8px] font-black uppercase tracking-tighter h-4 px-1 ${categoryColors[agent.category] || ''}`}
-                                                    >
-                                                        {agent.category}
-                                                    </Badge>
-                                                    {status?.status === 'success' && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-4 space-y-3 pb-4">
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                                        {agent.description}
-                                    </p>
-                                    <div className="flex items-center justify-between pt-2 border-t border-slate-50 dark:border-slate-800/50">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                                                <Clock className="h-2.5 w-2.5" />
-                                                {status?.lastRun ? status.lastRun.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'READY'}
+                                            <div className="text-right text-xs text-slate-500">
+                                                <p>{formatClock(status.lastRunAt)}</p>
+                                                <p>{formatRelative(status.lastRunAt)}</p>
                                             </div>
                                         </div>
-                                        <Button
-                                            size="sm"
-                                            variant={isRunning ? "secondary" : "outline"}
-                                            className={`h-7 px-3 text-[10px] font-black uppercase tracking-widest transition-all ${isRunning
-                                                ? 'bg-emerald-500 text-white border-0 hover:bg-emerald-600'
-                                                : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 border-slate-200 dark:border-slate-800'
-                                                }`}
-                                            onClick={() => runAgent(agent.name)}
-                                            disabled={!!runningAgent}
-                                        >
-                                            {isRunning ? 'RUNNING' : 'RUN'}
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
+
+                                        <div className="space-y-2">
+                                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">{agent.focusLabel}</p>
+                                            <p className="text-sm leading-6 text-slate-600">{agent.description}</p>
+                                        </div>
+
+                                        {status.summary && (
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Latest signal</p>
+                                                <p className="mt-2 text-sm font-semibold text-slate-900">{status.summary.headline}</p>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600">{status.summary.details}</p>
+                                            </div>
+                                        )}
+                                    </CardHeader>
+
+                                    <CardContent className="space-y-4 pt-0">
+                                        <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">
+                                            <span>Retries configured: {agent.maxRetries}</span>
+                                            <span>Attempts used: {status.attempts ?? 0}</span>
+                                        </div>
+
+                                        {status.message && (
+                                            <div className={cn(
+                                                "rounded-2xl border px-4 py-3 text-sm",
+                                                status.status === 'failed'
+                                                    ? "border-amber-200 bg-amber-50 text-amber-900"
+                                                    : "border-slate-100 bg-slate-50/80 text-slate-600",
+                                            )}>
+                                                {status.message}
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                            {agent.dispatchMode === 'workspace' ? (
+                                                <Link href={agent.dashboardHref} className="flex-1">
+                                                    <Button className="w-full gap-2">
+                                                        Open Workspace
+                                                        <ArrowUpRight className="h-4 w-4" />
+                                                    </Button>
+                                                </Link>
+                                            ) : (
+                                                <Button
+                                                    className="flex-1 gap-2"
+                                                    onClick={() => runAgent(agent.name)}
+                                                    disabled={Boolean(runningAgent || runningBundle)}
+                                                >
+                                                    {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <AxiomLogo className="h-4 w-4" />}
+                                                    {isRunning ? 'Running' : 'Launch'}
+                                                </Button>
+                                            )}
+
+                                            <Link href={agent.dashboardHref} className="flex-1">
+                                                <Button variant="outline" className="w-full gap-2">
+                                                    Route
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );
-}
-
-function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }

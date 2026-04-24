@@ -2,18 +2,44 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Play, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, Loader2, Play } from 'lucide-react';
 import { triggerAgentDispatch, type AgentName } from '@/app/actions/agents';
 import { toast } from 'sonner';
+import type { AgentDispatchMode } from '@/app/actions/agents/registry';
 
 interface RunAgentButtonProps {
     agentName: AgentName;
     requiresApproval?: boolean;
     isEnabled?: boolean;
+    dispatchMode?: AgentDispatchMode;
+    dashboardHref?: string;
 }
 
-export function RunAgentButton({ agentName, requiresApproval = false, isEnabled = true }: RunAgentButtonProps) {
+export function RunAgentButton({
+    agentName,
+    requiresApproval = false,
+    isEnabled = true,
+    dispatchMode = 'global',
+    dashboardHref,
+}: RunAgentButtonProps) {
     const [isLoading, setIsLoading] = useState(false);
+
+    if (dispatchMode === 'workspace' && dashboardHref) {
+        return (
+            <Link href={dashboardHref} className="flex-1">
+                <Button
+                    size="sm"
+                    className="w-full gap-1"
+                    variant="outline"
+                    disabled={!isEnabled}
+                >
+                    <ArrowUpRight className="h-3 w-3" />
+                    Open Workspace
+                </Button>
+            </Link>
+        );
+    }
 
     const handleRun = async () => {
         setIsLoading(true);
