@@ -74,6 +74,22 @@ export async function runFraudDetectionAgent(
         // Store alerts in database and notify admins for critical ones
         for (const alert of alerts) {
             try {
+                const [existingOpenAlert] = await db
+                    .select({ id: fraudAlerts.id })
+                    .from(fraudAlerts)
+                    .where(and(
+                        eq(fraudAlerts.status, 'open'),
+                        eq(fraudAlerts.entityType, alert.entityType),
+                        eq(fraudAlerts.entityId, alert.entityId),
+                        eq(fraudAlerts.alertType, alert.alertType),
+                        eq(fraudAlerts.description, alert.description)
+                    ))
+                    .limit(1);
+
+                if (existingOpenAlert) {
+                    continue;
+                }
+
                 await db.insert(fraudAlerts).values({
                     entityType: alert.entityType,
                     entityId: alert.entityId,

@@ -152,7 +152,9 @@ export interface AgentBundleDispatchResult {
 export interface AgentDashboardSnapshot {
     generatedAt: string;
     fraudAlerts: number;
+    criticalFraudAlerts: number;
     paymentSavings: number;
+    pendingPaymentOpportunities: number;
     replenishmentAlerts: number;
     degradedPanels: string[];
     systemWarnings: string[];
@@ -196,36 +198,63 @@ function createFailureSummary(
     };
 }
 
-function createSuccessSummary(
+async function createSuccessSummary(
     agentName: AgentName,
     result: AgentResult<unknown>,
     dashboardHref: string,
-): AgentDispatchSummary {
+): Promise<AgentDispatchSummary> {
     switch (agentName) {
         case 'fraud-detection': {
             const alerts = (result.data as FraudAlert[] | undefined) ?? [];
             const urgentAlerts = alerts.filter((alert) => alert.severity === 'high' || alert.severity === 'critical').length;
+            const openAlerts = await getOpenFraudAlerts();
+            const openAlertCount = openAlerts.length;
+            const criticalAlertCount = openAlerts.filter((alert) => alert.severity === 'critical').length;
+
+            if (alerts.length === 0 && openAlertCount > 0) {
+                return {
+                    headline: `No new fraud signals, but ${openAlertCount} open alerts remain`,
+                    details: criticalAlertCount > 0
+                        ? `${criticalAlertCount} critical fraud alerts are still unresolved from earlier runs. The backlog needs review even though this pass did not add new findings.`
+                        : `The current pass did not add new findings, but ${openAlertCount} older fraud alerts are still open and need triage.`,
+                    alertsFound: openAlertCount,
+                    link: dashboardHref,
+                };
+            }
+
             return {
-                headline: alerts.length > 0 ? `${alerts.length} fraud signals surfaced` : 'No fraud signals detected',
+                headline: alerts.length > 0 ? `${alerts.length} new fraud signals surfaced` : 'No fraud signals detected',
                 details: alerts.length > 0
-                    ? `${urgentAlerts} high-priority alerts require review across the monitored transaction window.`
+                    ? `${urgentAlerts} new high-priority alerts require review across the monitored transaction window.${openAlertCount > alerts.length ? ` ${openAlertCount} total open alerts remain in the backlog.` : ''}`
                     : 'The current ledger and vendor activity stayed within expected risk thresholds.',
-                alertsFound: alerts.length,
+                alertsFound: openAlertCount > 0 ? openAlertCount : alerts.length,
                 link: dashboardHref,
             };
         }
         case 'payment-optimizer': {
             const optimizations = (result.data as PaymentOptimization[] | undefined) ?? [];
             const savingsAmount = optimizations.reduce((sum, optimization) => sum + Number(optimization.potentialSavings || 0), 0);
+            const paymentSummary = await getPaymentOptimizationSummary();
+
+            if (optimizations.length === 0 && paymentSummary.opportunityCount > 0) {
+                return {
+                    headline: `No new payment wins, but ${paymentSummary.opportunityCount} pending opportunities remain`,
+                    details: `There are still ${paymentSummary.opportunityCount} saved optimization records worth ${formatMoney(paymentSummary.totalPotentialSavings)} awaiting action.`,
+                    savingsAmount: paymentSummary.totalPotentialSavings,
+                    itemsScanned: paymentSummary.opportunityCount,
+                    link: dashboardHref,
+                };
+            }
+
             return {
                 headline: savingsAmount > 0
                     ? `${formatMoney(savingsAmount)} available in payment timing`
                     : 'No payment timing gains available right now',
                 details: optimizations.length > 0
-                    ? `Captured ${optimizations.length} active opportunities across pending invoices and contract terms.`
+                    ? `Captured ${optimizations.length} active opportunities across pending invoices and contract terms.${paymentSummary.opportunityCount > optimizations.length ? ` ${paymentSummary.opportunityCount} total pending opportunities are still open.` : ''}`
                     : 'Pending invoices are already aligned with the best current payment windows.',
-                savingsAmount,
-                itemsScanned: optimizations.length,
+                savingsAmount: paymentSummary.totalPotentialSavings > 0 ? paymentSummary.totalPotentialSavings : savingsAmount,
+                itemsScanned: paymentSummary.opportunityCount > 0 ? paymentSummary.opportunityCount : optimizations.length,
                 link: dashboardHref,
             };
         }
@@ -447,7 +476,7 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
             const result = await enforceTimeout(executor());
 
             if (result.success) {
-                const summary = createSuccessSummary(agentName, result, agentMeta.dashboardHref);
+                const summary = await createSuccessSummary(agentName, result, agentMeta.dashboardHref);
                 await safeTrackEvent('AgentDispatch', 'completed', {
                     agentName,
                     attempt,
@@ -545,13 +574,18 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
     const systemWarnings: string[] = [];
 
     let fraudAlerts = 0;
+    let criticalFraudAlerts = 0;
     let paymentSavings = 0;
+    let pendingPaymentOpportunities = 0;
     let replenishmentAlerts = 0;
 
     const [fraudResult, paymentResult, replenishmentResult] = panelResults;
 
     if (fraudResult.status === 'fulfilled') {
         fraudAlerts = Array.isArray(fraudResult.value) ? fraudResult.value.length : 0;
+        criticalFraudAlerts = Array.isArray(fraudResult.value)
+            ? fraudResult.value.filter((alert) => alert.severity === 'critical').length
+            : 0;
     } else {
         degradedPanels.push('fraud-alerts');
         systemWarnings.push('Fraud monitoring snapshot could not be refreshed. The route stays available, but data may be stale.');
@@ -559,6 +593,7 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
 
     if (paymentResult.status === 'fulfilled') {
         paymentSavings = Number(paymentResult.value?.totalPotentialSavings || 0);
+        pendingPaymentOpportunities = Number(paymentResult.value?.opportunityCount || 0);
     } else {
         degradedPanels.push('payment-optimizer');
         systemWarnings.push('Payment optimization summary is temporarily degraded. Retry sync before trusting savings totals.');
@@ -576,7 +611,9 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
     return {
         generatedAt: new Date().toISOString(),
         fraudAlerts,
+        criticalFraudAlerts,
         paymentSavings,
+        pendingPaymentOpportunities,
         replenishmentAlerts,
         degradedPanels,
         systemWarnings,

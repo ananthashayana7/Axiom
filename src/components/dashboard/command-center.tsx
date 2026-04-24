@@ -59,7 +59,9 @@ interface MissionReport {
 const EMPTY_SNAPSHOT: AgentDashboardSnapshot = {
     generatedAt: '',
     fraudAlerts: 0,
+    criticalFraudAlerts: 0,
     paymentSavings: 0,
+    pendingPaymentOpportunities: 0,
     replenishmentAlerts: 0,
     degradedPanels: [],
     systemWarnings: [],
@@ -222,9 +224,13 @@ export function CommandCenter() {
         };
     }, []);
 
+    const backlogAttentionCount =
+        snapshot.criticalFraudAlerts +
+        snapshot.replenishmentAlerts +
+        (snapshot.pendingPaymentOpportunities > 0 ? 1 : 0);
     const failedAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'failed');
     const stableAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'success');
-    const attentionCount = failedAgents.length + snapshot.degradedPanels.length;
+    const attentionCount = failedAgents.length + snapshot.degradedPanels.length + backlogAttentionCount;
     const categoryFilters = ['all', 'attention', ...Array.from(new Set(AGENT_REGISTRY.map((agent) => agent.category)))] as Array<'all' | 'attention' | typeof AGENT_REGISTRY[number]['category']>;
 
     const filteredAgents = AGENT_REGISTRY.filter((agent) => {
@@ -242,7 +248,10 @@ export function CommandCenter() {
         }
 
         if (activeFilter === 'attention') {
-            return runtime[agent.name]?.status === 'failed';
+            return runtime[agent.name]?.status === 'failed'
+                || (agent.name === 'fraud-detection' && snapshot.criticalFraudAlerts > 0)
+                || (agent.name === 'payment-optimizer' && snapshot.pendingPaymentOpportunities > 0)
+                || (agent.name === 'demand-forecasting' && snapshot.replenishmentAlerts > 0);
         }
 
         return agent.category === activeFilter;
@@ -396,7 +405,12 @@ export function CommandCenter() {
             const summary: AgentDispatchSummary = {
                 headline: `${result.succeeded}/${result.total} agents completed`,
                 details: result.failed === 0
-                    ? `${result.displayName} finished cleanly and the fleet is in a stronger operating state.`
+                    ? (() => {
+                        const carriedAlerts = result.results.reduce((sum, entry) => sum + (entry.summary.alertsFound ?? 0), 0);
+                        return carriedAlerts > 0
+                            ? `${result.displayName} completed, but ${carriedAlerts} active risk or backlog signals still need review in the linked routes.`
+                            : `${result.displayName} finished cleanly and the fleet is in a stronger operating state.`;
+                    })()
                     : `${result.failed} agents still need manual attention after ${result.displayName}. Review the linked route to continue safely.`,
                 actionsCount: result.succeeded,
                 alertsFound: result.failed || undefined,
@@ -466,7 +480,11 @@ export function CommandCenter() {
                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                                         : 'border-amber-200 bg-amber-50 text-amber-700',
                                 )}>
-                                    {attentionCount === 0 ? 'All routes stable' : `${attentionCount} items need attention`}
+                                    {attentionCount === 0
+                                        ? 'All routes stable'
+                                        : snapshot.criticalFraudAlerts > 0
+                                            ? `${snapshot.criticalFraudAlerts} critical fraud alerts open`
+                                            : `${attentionCount} items need attention`}
                                 </Badge>
                             </div>
 
@@ -491,9 +509,9 @@ export function CommandCenter() {
                                     <p className="mt-1 text-xs text-slate-500">Recovered and ready for another run.</p>
                                 </div>
                                 <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Bundle Plays</p>
-                                    <p className="mt-2 text-3xl font-black text-slate-950">{BUNDLE_ORDER.length}</p>
-                                    <p className="mt-1 text-xs text-slate-500">Coordinated recovery paths for high-pressure moments.</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Risk Backlog</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-950">{backlogAttentionCount}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Open critical risk, inventory, and payment follow-up signals.</p>
                                 </div>
                                 <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
                                     <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Last Snapshot</p>
@@ -611,6 +629,7 @@ export function CommandCenter() {
                             <div>
                                 <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Fraud Alerts</p>
                                 <p className="mt-2 text-3xl font-black text-slate-950">{snapshot.fraudAlerts}</p>
+                                <p className="mt-1 text-xs text-slate-500">{snapshot.criticalFraudAlerts} critical still open</p>
                             </div>
                             <div className="rounded-2xl border border-rose-100 bg-rose-50 p-3 text-rose-600">
                                 <Shield className="h-5 w-5" />
@@ -625,6 +644,7 @@ export function CommandCenter() {
                             <div>
                                 <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-slate-500">Payment Savings</p>
                                 <p className="mt-2 text-3xl font-black text-emerald-600">{formatMoney(snapshot.paymentSavings)}</p>
+                                <p className="mt-1 text-xs text-slate-500">{snapshot.pendingPaymentOpportunities} pending opportunities</p>
                             </div>
                             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-emerald-600">
                                 <CreditCard className="h-5 w-5" />
@@ -868,22 +888,37 @@ export function CommandCenter() {
                                                 )}>
                                                     {isRunning ? <Loader2 className="h-5 w-5 animate-spin" /> : agentIcons[agent.name]}
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <CardTitle className="text-base">{agent.displayName}</CardTitle>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Badge variant="outline" className={categoryTone[agent.category]}>
-                                                            {agent.category}
+                                            <div className="space-y-2">
+                                                <CardTitle className="text-base">{agent.displayName}</CardTitle>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Badge variant="outline" className={categoryTone[agent.category]}>
+                                                        {agent.category}
                                                         </Badge>
                                                         <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
                                                             {statusLabel}
                                                         </Badge>
                                                         {agent.dispatchMode === 'workspace' && (
-                                                            <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
-                                                                Context route
-                                                            </Badge>
-                                                        )}
-                                                    </div>
+                                                        <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                                            Context route
+                                                        </Badge>
+                                                    )}
+                                                    {agent.name === 'fraud-detection' && snapshot.criticalFraudAlerts > 0 && (
+                                                        <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+                                                            {snapshot.criticalFraudAlerts} critical open
+                                                        </Badge>
+                                                    )}
+                                                    {agent.name === 'payment-optimizer' && snapshot.pendingPaymentOpportunities > 0 && (
+                                                        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                                            {snapshot.pendingPaymentOpportunities} pending
+                                                        </Badge>
+                                                    )}
+                                                    {agent.name === 'demand-forecasting' && snapshot.replenishmentAlerts > 0 && (
+                                                        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                                            {snapshot.replenishmentAlerts} inventory alerts
+                                                        </Badge>
+                                                    )}
                                                 </div>
+                                            </div>
                                             </div>
                                             <div className="text-right text-xs text-slate-500">
                                                 <p>{formatClock(status.lastRunAt)}</p>
