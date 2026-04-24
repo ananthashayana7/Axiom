@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Activity, Cpu, Database, Network } from "lucide-react";
+import { Terminal, Activity, Database, Network } from "lucide-react";
 
 interface TraceLog {
     id: string;
@@ -32,33 +32,69 @@ const ACTIONS = [
     'Graphing supplier clusters'
 ];
 
+const LIVE_STATUSES: TraceLog['status'][] = ['INIT', 'PROC', 'EVAL', 'EXEC'];
+const PLACEHOLDER_TRACE_ROWS = Array.from({ length: 5 }, (_, index) => ({
+    id: `placeholder-${index + 1}`,
+    timestamp: '--:--:--',
+    agent: AGENTS[index % AGENTS.length],
+    action: ACTIONS[index % ACTIONS.length],
+    status: 'INIT' as const,
+    details: 'Awaiting live trace sync.',
+}));
+
+function formatTraceTimestamp(date: Date) {
+    return new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    }).format(date);
+}
+
+function createSeedLogs(): TraceLog[] {
+    const now = Date.now();
+
+    return Array.from({ length: 5 }).map((_, index) => ({
+        id: `trace-seed-${index + 1}`,
+        timestamp: formatTraceTimestamp(new Date(now - (5 - index) * 60000)),
+        agent: AGENTS[index % AGENTS.length],
+        action: ACTIONS[index % ACTIONS.length],
+        status: 'COMP',
+        details: 'Execution verified. No drift detected.',
+    }));
+}
+
+function createLiveTraceLog(sequence: number): TraceLog {
+    return {
+        id: `trace-live-${sequence}`,
+        timestamp: formatTraceTimestamp(new Date()),
+        agent: AGENTS[Math.floor(Math.random() * AGENTS.length)],
+        action: ACTIONS[Math.floor(Math.random() * ACTIONS.length)],
+        status: LIVE_STATUSES[Math.floor(Math.random() * LIVE_STATUSES.length)],
+        details: 'Background optimization cycle active.',
+    };
+}
+
 export function AutonomousTrace() {
-    const [logs, setLogs] = useState<TraceLog[]>(() => {
-        return Array.from({ length: 5 }).map((_, i) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            timestamp: new Date(Date.now() - (5 - i) * 60000).toLocaleTimeString(),
-            agent: AGENTS[i % AGENTS.length],
-            action: ACTIONS[i % ACTIONS.length],
-            status: 'COMP',
-            details: 'Execution verified. No drift detected.'
-        }));
-    });
+    const [logs, setLogs] = useState<TraceLog[]>(PLACEHOLDER_TRACE_ROWS);
 
     useEffect(() => {
+        let sequence = 0;
+        const bootstrapTimeout = window.setTimeout(() => {
+            setLogs(createSeedLogs());
+        }, 0);
+
         // Add periodic new logs
         const interval = setInterval(() => {
-            const newLog: TraceLog = {
-                id: Math.random().toString(36).substr(2, 9),
-                timestamp: new Date().toLocaleTimeString(),
-                agent: AGENTS[Math.floor(Math.random() * AGENTS.length)],
-                action: ACTIONS[Math.floor(Math.random() * ACTIONS.length)],
-                status: ['INIT', 'PROC', 'EVAL', 'EXEC'][Math.floor(Math.random() * 4)] as any,
-                details: 'Background optimization cycle active.'
-            };
+            sequence += 1;
+            const newLog = createLiveTraceLog(sequence);
             setLogs(prev => [newLog, ...prev].slice(0, 10));
         }, 5000);
 
-        return () => clearInterval(interval);
+        return () => {
+            window.clearTimeout(bootstrapTimeout);
+            clearInterval(interval);
+        };
     }, []);
 
     return (
