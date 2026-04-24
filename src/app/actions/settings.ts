@@ -1,59 +1,106 @@
 'use server'
 
+import { auth } from "@/auth";
 import { db } from "@/db";
 import { platformSettings, users } from "@/db/schema";
-import { logActivity } from "./activity";
-import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { logActivity } from "./activity";
 
 type SessionUser = {
     role?: string | null;
     email?: string | null;
 };
 
+const AI_ENV_KEYS = [
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_4,
+    process.env.GEMINI_API_KEY_5,
+];
+
 type SettingsUpdateInput = {
     platformName: string;
     defaultCurrency: string;
     isSettingsLocked: string;
     updatedAt: Date;
-    geminiApiKey?: string;
-    geminiApiKeyFallback1?: string;
-    geminiApiKeyFallback2?: string;
 };
 
+function countConfiguredKeys(values: Array<string | null | undefined>) {
+    return values.filter((value) => Boolean(value?.trim())).length;
+}
+
+function getAiCredentialState(settings?: {
+    geminiApiKey?: string | null;
+    geminiApiKeyFallback1?: string | null;
+    geminiApiKeyFallback2?: string | null;
+}) {
+    const databaseKeyCount = countConfiguredKeys([
+        settings?.geminiApiKey,
+        settings?.geminiApiKeyFallback1,
+        settings?.geminiApiKeyFallback2,
+    ]);
+    const environmentKeyCount = countConfiguredKeys(AI_ENV_KEYS);
+    const totalKeyCount = databaseKeyCount + environmentKeyCount;
+
+    let source = "Not configured";
+    if (databaseKeyCount > 0 && environmentKeyCount > 0) {
+        source = "Secure database store + server environment";
+    } else if (databaseKeyCount > 0) {
+        source = "Secure database store";
+    } else if (environmentKeyCount > 0) {
+        source = "Server environment";
+    }
+
+    return {
+        hasCredentials: totalKeyCount > 0,
+        databaseKeyCount,
+        environmentKeyCount,
+        totalKeyCount,
+        source,
+    };
+}
+
+function sanitizeSettingsRecord(settings: typeof platformSettings.$inferSelect) {
+    const {
+        geminiApiKey: _geminiApiKey,
+        geminiApiKeyFallback1: _geminiApiKeyFallback1,
+        geminiApiKeyFallback2: _geminiApiKeyFallback2,
+        ...safeSettings
+    } = settings;
+
+    return safeSettings;
+}
+
 export async function getSettings() {
-    // Resolve the session/role BEFORE the database try/catch so that even if
-    // the DB query fails, we still return the correct role (and don't falsely
-    // show "Admin Access Required" to a legitimately-logged-in admin).
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
 
     try {
-        // Only admins can access settings
         if (!session?.user || role !== 'admin') {
             return {
                 platformName: 'Axiom',
                 defaultCurrency: 'INR',
                 isSettingsLocked: 'no',
-                geminiApiKey: null,
                 role: role || 'user',
-                isTwoFactorEnabled: false
+                isTwoFactorEnabled: false,
+                aiCredentialState: getAiCredentialState(),
             };
         }
 
         const [settings] = await db.select().from(platformSettings).limit(1);
         let isTwoFactorEnabled = false;
 
-        if (session?.user?.id) {
+        if (session.user.id) {
             const [user] = await db.select({
-                isTwoFactorEnabled: users.isTwoFactorEnabled
+                isTwoFactorEnabled: users.isTwoFactorEnabled,
             }).from(users).where(eq(users.id, session.user.id));
             isTwoFactorEnabled = !!user?.isTwoFactorEnabled;
         }
 
         if (!settings) {
-            // Seed default settings if empty
             const [newSettings] = await db.insert(platformSettings).values({
                 platformName: 'Axiom Procurement Intelligence',
                 defaultCurrency: 'INR',
@@ -62,16 +109,18 @@ export async function getSettings() {
             }).returning();
 
             return {
-                ...newSettings,
+                ...sanitizeSettingsRecord(newSettings),
                 role,
-                isTwoFactorEnabled
+                isTwoFactorEnabled,
+                aiCredentialState: getAiCredentialState(newSettings),
             };
         }
 
         return {
-            ...settings,
+            ...sanitizeSettingsRecord(settings),
             role,
-            isTwoFactorEnabled
+            isTwoFactorEnabled,
+            aiCredentialState: getAiCredentialState(settings),
         };
     } catch (error) {
         console.error("Failed to fetch settings:", error);
@@ -79,9 +128,9 @@ export async function getSettings() {
             platformName: 'Axiom',
             defaultCurrency: 'INR',
             isSettingsLocked: 'no',
-            geminiApiKey: null,
             role: role || 'user',
             isTwoFactorEnabled: false,
+            aiCredentialState: getAiCredentialState(),
         };
     }
 }
@@ -93,58 +142,31 @@ export async function updateSettings(formData: FormData) {
             return { success: false, error: "Unauthorized" };
         }
 
-        const platformName = formData.get("siteName") as string;
-        // Currency is now auto-detected from user locale — no manual override from form
-        const geminiApiKey = formData.get("geminiApiKey") as string;
-        const geminiApiKeyFallback1 = formData.get("geminiApiKeyFallback1") as string;
-        const geminiApiKeyFallback2 = formData.get("geminiApiKeyFallback2") as string;
+        const currentSettings = await getSettings();
+        const platformName =
+            (formData.get("platformName") as string) ||
+            currentSettings.platformName ||
+            'Axiom Procurement Intelligence';
         const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';
 
-        const currentSettings = await getSettings();
-
-        // If settings are locked and we're not unlocking, block update
         if (currentSettings.isSettingsLocked === 'yes' && isSettingsLocked !== 'no') {
             return { success: false, error: "Settings are locked. Please unlock them before making changes." };
         }
 
         const updateData: SettingsUpdateInput = {
             platformName,
-            defaultCurrency: (currentSettings as any).defaultCurrency || 'INR', // preserve existing value
+            defaultCurrency: currentSettings.defaultCurrency || 'INR',
             isSettingsLocked: isSettingsLocked === 'on' || isSettingsLocked === 'yes' ? 'yes' : 'no',
-            updatedAt: new Date()
+            updatedAt: new Date(),
         };
-
-        // Only update API key if provided (allow empty to mean "no change" if we wanted, but here we treat empty as "cleared" or "updated value")
-        // Better UX: If input is empty, don't overwrite with empty string unless specific action?
-        // For now, let's say if they send a value (even empty), we update.
-        if (geminiApiKey !== undefined && geminiApiKey !== null) {
-            updateData.geminiApiKey = geminiApiKey;
-        }
-        if (geminiApiKeyFallback1 !== undefined && geminiApiKeyFallback1 !== null) {
-            updateData.geminiApiKeyFallback1 = geminiApiKeyFallback1;
-        }
-        if (geminiApiKeyFallback2 !== undefined && geminiApiKeyFallback2 !== null) {
-            updateData.geminiApiKeyFallback2 = geminiApiKeyFallback2;
-        }
 
         const [existing] = await db.select().from(platformSettings).limit(1);
         if (!existing) {
             await db.insert(platformSettings).values(updateData);
         } else {
-            // Keep existing key when field is blank to avoid accidental key deletion.
-            if ((geminiApiKey ?? '').trim().length === 0) {
-                delete updateData.geminiApiKey;
-            }
-            if ((geminiApiKeyFallback1 ?? '').trim().length === 0) {
-                delete updateData.geminiApiKeyFallback1;
-            }
-            if ((geminiApiKeyFallback2 ?? '').trim().length === 0) {
-                delete updateData.geminiApiKeyFallback2;
-            }
             await db.update(platformSettings).set(updateData);
         }
 
-        // Log the administrative change
         await logActivity('UPDATE', 'system', 'global', `Admin updated system settings: ${platformName}`);
 
         revalidatePath("/admin/settings");
@@ -163,8 +185,6 @@ export async function flushAuthCache() {
             return { success: false, error: "Unauthorized" };
         }
 
-        // In NextAuth + Drizzle setup, "flushing" means revalidating all routes
-        // to ensure session consistency and clearing any cached auth states.
         revalidatePath("/", "layout");
 
         await logActivity('DELETE', 'system', 'cache', `Admin flushed authorization cache: ${session.user?.email}`);

@@ -66,6 +66,11 @@ export default async function Home() {
       : stats.partCount > 0
         ? `On-hand units across ${stats.stockedSkuCount} stocked SKUs`
         : "Parts catalog has not been populated yet.";
+  const dashboardTitle = isAdmin ? "Admin Command Center" : "Operations Workspace";
+  const sessionBadge = isAdmin ? "Admin Console Session" : "Internal User Session";
+  const dashboardSubtitle = isAdmin
+    ? "Restricted intelligence, approvals, and platform control"
+    : "Operational sourcing and requisition workspace";
 
   const roleBadgeClass = isAdmin
     ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -76,14 +81,14 @@ export default async function Home() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase leading-none">Command Center</h1>
+            <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase leading-none">{dashboardTitle}</h1>
             {userRole && (
               <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${roleBadgeClass}`}>
-                {isAdmin ? "Admin" : "User"} logged in
+                {sessionBadge}
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">Enterprise Sourcing & intelligence</p>
+          <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">{dashboardSubtitle}</p>
         </div>
         <div className="flex items-center space-x-3">
           <AutoRefresh />

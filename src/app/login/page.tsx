@@ -9,6 +9,8 @@ import { Eye, EyeOff, ShieldCheck, Zap, BarChart3 } from 'lucide-react';
 import { toast } from "sonner";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 
+type LoginMode = 'admin' | 'user' | 'supplier';
+
 export default function LoginPage() {
     const [errorMessage, formAction, isPending] = useActionState(
         authenticate,
@@ -24,6 +26,7 @@ export default function LoginPage() {
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [displayErrorMessage, setDisplayErrorMessage] = useState('');
+    const [loginMode, setLoginMode] = useState<LoginMode>('user');
 
     useEffect(() => {
         let processedError = '';
@@ -79,6 +82,32 @@ export default function LoginPage() {
         { icon: ShieldCheck, label: "3-Way Invoice Matching", desc: "Automated fraud detection & validation" },
         { icon: BarChart3, label: "Real-time Risk Intelligence", desc: "ESG scoring & supplier risk monitoring" },
     ];
+    const loginModes: Array<{
+        mode: LoginMode;
+        label: string;
+        title: string;
+        description: string;
+    }> = [
+        {
+            mode: 'user',
+            label: 'Internal Workspace',
+            title: 'Internal team sign-in',
+            description: 'For procurement, operations, and business users.',
+        },
+        {
+            mode: 'admin',
+            label: 'Admin Console',
+            title: 'Administrator sign-in',
+            description: 'Restricted control-plane access for platform administrators.',
+        },
+        {
+            mode: 'supplier',
+            label: 'Supplier Portal',
+            title: 'Supplier portal sign-in',
+            description: 'External supplier access for RFQs, orders, and portal tasks.',
+        },
+    ];
+    const activeMode = loginModes.find((entry) => entry.mode === loginMode) ?? loginModes[0];
 
     return (
         <div className="flex min-h-full bg-background">
@@ -142,22 +171,41 @@ export default function LoginPage() {
 
                     <div className="rounded-2xl border bg-card/90 backdrop-blur-sm p-7 shadow-2xl shadow-black/5">
                         <h1 className="mb-1 text-2xl font-black tracking-tight text-foreground">
-                            {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : "Welcome back")}
+                            {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : activeMode.title)}
                         </h1>
                         <p className="mb-6 text-sm text-muted-foreground">
-                            {showSetup2FA ? "Set up 2FA to protect your account" : (show2FA ? "Enter the code from your authenticator app" : "Sign in to your Axiom workspace")}
+                            {showSetup2FA ? "Set up 2FA to protect your account" : (show2FA ? "Enter the code from your authenticator app" : activeMode.description)}
                         </p>
 
                         <form action={formAction} className="space-y-4">
+                            <input type="hidden" name="roleMode" value={loginMode} />
                             {!show2FA && !showSetup2FA ? (
                                 <>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        {loginModes.map((entry) => (
+                                            <button
+                                                key={entry.mode}
+                                                type="button"
+                                                onClick={() => setLoginMode(entry.mode)}
+                                                className={`rounded-xl border px-3 py-2 text-left transition-all ${loginMode === entry.mode
+                                                    ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                                                    : 'border-border bg-background/60 text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                                                    }`}
+                                            >
+                                                <span className="block text-[10px] font-black uppercase tracking-[0.14em]">{entry.label}</span>
+                                                <span className="mt-1 block text-[11px] leading-4">{entry.title}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="identifier" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email Address</Label>
+                                        <Label htmlFor="identifier" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                            {loginMode === 'supplier' ? 'Supplier Email Address' : 'Work Email Address'}
+                                        </Label>
                                         <Input
                                             id="identifier"
                                             name="identifier"
                                             type="email"
-                                            placeholder="you@company.com"
+                                            placeholder={loginMode === 'supplier' ? 'supplier@company.com' : 'you@company.com'}
                                             value={identifier}
                                             onChange={(e) => setIdentifier(e.target.value)}
                                             required
@@ -193,6 +241,18 @@ export default function LoginPage() {
                                                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
+                                    </div>
+                                    <div className={`rounded-xl border px-3 py-2 text-[11px] leading-5 ${loginMode === 'admin'
+                                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                        : loginMode === 'supplier'
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                            : 'border-blue-200 bg-blue-50 text-blue-800'
+                                        }`}>
+                                        {loginMode === 'admin'
+                                            ? 'Admin Console access is limited to platform administrators and protected routes only.'
+                                            : loginMode === 'supplier'
+                                                ? 'Supplier Portal accounts are restricted to vendor-facing RFQs, documents, requests, and order visibility.'
+                                                : 'Internal Workspace accounts can operate the procurement workspace without entering the admin control plane.'}
                                     </div>
                                 </>
                             ) : showSetup2FA ? (

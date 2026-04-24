@@ -21,6 +21,7 @@ export async function authenticate(
         const identifier = formData.get('identifier') as string;
         const password = formData.get('password') as string;
         const code = formData.get('code') as string;
+        const roleMode = ((formData.get('roleMode') as string) || 'user') as 'admin' | 'user' | 'supplier';
 
         // Rate limit login attempts by identifier
         const rateCheck = await consumeRateLimit('auth', identifier.toLowerCase());
@@ -36,6 +37,17 @@ export async function authenticate(
                 .from(users)
                 .where(ilike(users.email, identifier))
                 .limit(1);
+
+            if (userRecord?.role && userRecord.role !== roleMode) {
+                if (roleMode === 'admin') {
+                    return 'Use the Admin Console only with an administrator account.';
+                }
+                if (roleMode === 'supplier') {
+                    return 'Use the Supplier Portal only with a supplier account.';
+                }
+                return 'Use the Internal Workspace only with an internal user account.';
+            }
+
             if (userRecord?.role === 'admin') redirectTo = '/admin';
             else if (userRecord?.role === 'supplier') redirectTo = '/portal';
         } catch { /* fallback to '/' */ }

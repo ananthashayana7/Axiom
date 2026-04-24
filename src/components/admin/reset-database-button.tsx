@@ -25,12 +25,12 @@ export function ResetDatabaseButton() {
         try {
             const res = await resetDatabase()
             if (res.success) {
-                toast.success("Database has been reset to its pristine state.")
+                toast.success(res.message || "Workspace demo data has been cleared.")
                 window.location.reload()
             } else {
                 toast.error(res.error || "Reset failed")
             }
-        } catch (err) {
+        } catch (_err) {
             toast.error("An unexpected error occurred")
         } finally {
             setLoading(false)
@@ -42,7 +42,7 @@ export function ResetDatabaseButton() {
             <AlertDialogTrigger asChild>
                 <Button variant="destructive" className="w-full gap-2 font-bold uppercase tracking-tighter shadow-lg shadow-red-100">
                     <Trash2 size={16} />
-                    Reset Entire Workspace
+                    Clear Demo Data
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="border-red-500/20 shadow-2xl">
@@ -52,8 +52,8 @@ export function ResetDatabaseButton() {
                         <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter">Danger Zone: Irreversible Action</AlertDialogTitle>
                     </div>
                     <AlertDialogDescription className="text-sm font-medium leading-relaxed">
-                        This will permanently delete **ALL** enterprise data, including Suppliers, Purchase Orders, Contracts, and RFQs.
-                        Your admin user and system settings will be preserved, but everything else will be wiped.
+                        This will permanently delete workspace demo data, including suppliers, transactions, sourcing records, alerts, and generated AI artifacts.
+                        Admin accounts and secure system settings will be preserved so you can recover access after the cleanup.
                         <br /><br />
                         <span className="font-bold text-red-600 uppercase">This action cannot be undone.</span>
                     </AlertDialogDescription>

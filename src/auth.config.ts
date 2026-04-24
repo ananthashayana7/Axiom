@@ -20,8 +20,6 @@ export const authConfig = {
             const isOnRegisterPage = nextUrl.pathname === '/portal/register';
             const isOnAdminPage = nextUrl.pathname.startsWith('/admin');
             const isOnPortalPage = nextUrl.pathname.startsWith('/portal');
-            const isOnSuppliersPage = nextUrl.pathname.startsWith('/suppliers');
-            const isOnSourcingPage = nextUrl.pathname.startsWith('/sourcing');
 
             // Allow public access to supplier registration
             if (isOnRegisterPage) return true;
@@ -62,19 +60,6 @@ export const authConfig = {
 
             if (isOnAdminPage) {
                 if (userRole === 'admin') return true;
-
-                // Allow regular users to access specific intelligence and audit pages
-                if (userRole === 'user') {
-                    const isAllowedAdminPage =
-                        nextUrl.pathname.startsWith('/admin/audit') ||
-                        nextUrl.pathname.startsWith('/admin/analytics') ||
-                        nextUrl.pathname.startsWith('/admin/risk') ||
-                        nextUrl.pathname.startsWith('/admin/tasks') ||
-                        nextUrl.pathname.startsWith('/admin/compliance');
-
-                    if (isAllowedAdminPage) return true;
-                }
-
                 return Response.redirect(new URL('/', nextUrl));
             }
 

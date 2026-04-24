@@ -17,12 +17,24 @@ export async function Header() {
     const session = await auth();
     const userName = session?.user?.name || "User";
     const role = (session?.user as SessionUser | undefined)?.role;
+    const workspaceTitle =
+        role === 'admin'
+            ? "Admin Console"
+            : role === 'supplier'
+                ? "Supplier Portal"
+                : "Operations Workspace";
+    const workspaceSubtitle =
+        role === 'admin'
+            ? "Restricted intelligence, controls, and approvals"
+            : role === 'supplier'
+                ? "Vendor-facing RFQs, orders, and requests"
+                : "Internal procurement execution workspace";
 
     const roleBadgeClass =
         role === 'admin'
             ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800"
             : role === 'supplier'
-            ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-800"
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800"
             : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800";
 
     return (
@@ -30,8 +42,8 @@ export async function Header() {
             <div className="flex min-w-0 items-center gap-3 md:gap-6">
                 <MobileNavigation role={role} />
                 <div className="flex flex-col leading-none">
-                    <h2 className="text-[13px] font-bold text-foreground tracking-tight">Intelligence Hub</h2>
-                    <span className="text-[10px] text-muted-foreground/55 font-medium hidden md:block">Procurement Command Center</span>
+                    <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
+                    <span className="text-[10px] text-muted-foreground/55 font-medium hidden md:block">{workspaceSubtitle}</span>
                 </div>
                 <div className="hidden xl:block h-5 w-[1px] bg-border/60" />
                 <div className="hidden md:flex items-center">

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
     LayoutDashboard,
-    Users,
     Package,
     ShoppingCart,
     UserCog,
@@ -74,6 +73,18 @@ export async function Sidebar({ className }: { className?: string }) {
     const role = (session?.user as SessionUser | undefined)?.role;
     const visiblePriorityLinks = role === 'admin' ? adminPriorityLinks : [];
     const visibleOperationalLinks = role === 'admin' ? adminOperationalLinks : [];
+    const workspaceLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Internal Workspace';
+    const workspaceDescription = role === 'admin'
+        ? 'Restricted controls, approvals, and intelligence'
+        : role === 'supplier'
+            ? 'External access limited to vendor-facing work'
+            : 'Operational sourcing and procurement workspace';
+    const workspaceBadgeClass = role === 'admin'
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : role === 'supplier'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : 'border-blue-200 bg-blue-50 text-blue-700';
+    const homeLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Workspace';
 
     return (
         <div className={cn("w-56 xl:w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
@@ -90,11 +101,18 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 </div>
 
+                <div className="mx-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
+                    <span className={cn("inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em]", workspaceBadgeClass)}>
+                        {workspaceLabel}
+                    </span>
+                    <p className="mt-2 text-[12px] font-semibold text-foreground">{workspaceDescription}</p>
+                </div>
+
                 {/* ── Primary Nav ── */}
                 <div className="px-3 mt-2 space-y-0.5">
                     <NavLink href={role === 'supplier' ? '/portal' : '/'} className={navCls}>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Dashboard
+                        {homeLabel}
                     </NavLink>
                     {role !== 'supplier' && (
                         <NavLink href="/suppliers" className={navCls}>

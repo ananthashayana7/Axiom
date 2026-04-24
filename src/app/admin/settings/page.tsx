@@ -1,34 +1,56 @@
 'use client'
 
-import React, { useTransition, useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Shield, Settings as SettingsIcon, Loader2, Lock, Unlock, AlertTriangle, KeyRound } from "lucide-react";
-import { updateSettings, getSettings, flushAuthCache } from "@/app/actions/settings";
-import { toast } from "sonner";
+import React, { useCallback, useEffect, useState, useTransition } from "react";
+import { flushAuthCache, getSettings, updateSettings } from "@/app/actions/settings";
 import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
 import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
-import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+    AlertTriangle,
+    Cpu,
+    Loader2,
+    Lock,
+    Shield,
+    ShieldCheck,
+    Unlock,
+} from "lucide-react";
+import { toast } from "sonner";
+
+type SettingsState = {
+    role?: string;
+    platformName?: string;
+    isSettingsLocked?: string;
+    isTwoFactorEnabled?: boolean;
+    aiCredentialState?: {
+        hasCredentials: boolean;
+        databaseKeyCount: number;
+        environmentKeyCount: number;
+        totalKeyCount: number;
+        source: string;
+    };
+};
 
 export default function AdminSettingsPage() {
     const [isPending, startTransition] = useTransition();
-    const [settings, setSettings] = useState<any>(null);
+    const [settings, setSettings] = useState<SettingsState | null>(null);
     const [isLocked, setIsLocked] = useState(true);
-    const [initialSettings, setInitialSettings] = useState<any>(null);
+    const [initialIsLocked, setInitialIsLocked] = useState(true);
     const [accessDenied, setAccessDenied] = useState(false);
 
     const loadSettings = useCallback(async () => {
         const data = await getSettings();
-        // If role came back as non-admin, deny access
         if (data.role !== 'admin') {
             setAccessDenied(true);
             return;
         }
+
         setSettings(data);
-        setInitialSettings(data);
         setIsLocked(data.isSettingsLocked === 'yes');
+        setInitialIsLocked(data.isSettingsLocked === 'yes');
+        setAccessDenied(false);
     }, []);
 
     useEffect(() => {
@@ -37,18 +59,13 @@ export default function AdminSettingsPage() {
         });
     }, [loadSettings]);
 
-    const isDirty = initialSettings && settings && (
-        (settings.geminiApiKey || '') !== (initialSettings.geminiApiKey || '') ||
-        (settings.geminiApiKeyFallback1 || '') !== (initialSettings.geminiApiKeyFallback1 || '') ||
-        (settings.geminiApiKeyFallback2 || '') !== (initialSettings.geminiApiKeyFallback2 || '') ||
-        isLocked !== (initialSettings.isSettingsLocked === 'yes')
-    );
+    const isDirty = isLocked !== initialIsLocked;
 
     async function handleSubmit(formData: FormData) {
         startTransition(async () => {
             const result = await updateSettings(formData);
             if (result.success) {
-                toast.success("Settings updated successfully");
+                toast.success("Security settings updated successfully.");
                 await loadSettings();
             } else {
                 toast.error(result.error || "Failed to update settings");
@@ -69,27 +86,41 @@ export default function AdminSettingsPage() {
     }
 
     if (!settings) {
-        return <div className="p-4 lg:p-8 flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>;
+        return (
+            <div className="p-4 lg:p-8 flex items-center justify-center h-screen">
+                <Loader2 className="animate-spin" />
+            </div>
+        );
     }
+
+    const aiCredentialState = settings.aiCredentialState ?? {
+        hasCredentials: false,
+        databaseKeyCount: 0,
+        environmentKeyCount: 0,
+        totalKeyCount: 0,
+        source: "Not configured",
+    };
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">Admin Settings</h1>
-                    <p className="text-muted-foreground mt-1">Configure global platform parameters and system preferences.</p>
+                    <p className="text-muted-foreground mt-1">Secure configuration, recovery controls, and demo-environment maintenance.</p>
                 </div>
             </div>
 
             <form action={handleSubmit} className="grid gap-6">
+                <input type="hidden" name="platformName" value={settings.platformName || "Axiom Procurement Intelligence"} />
+
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2">
-                                <SettingsIcon className="h-5 w-5 text-amber-600" />
-                                <CardTitle>General Configuration</CardTitle>
+                                <Shield className="h-5 w-5 text-amber-600" />
+                                <CardTitle>Configuration Guardrail</CardTitle>
                             </div>
-                            <CardDescription>Main system parameters and platform identity.</CardDescription>
+                            <CardDescription>Prevent accidental changes during demos and executive reviews.</CardDescription>
                         </div>
                         <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-lg border">
                             <Label htmlFor="isSettingsLocked" className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
@@ -101,14 +132,14 @@ export default function AdminSettingsPage() {
                                 id="isSettingsLocked"
                                 name="isSettingsLocked"
                                 checked={isLocked}
-                                onChange={(e) => setIsLocked(e.target.checked)}
+                                onChange={(event) => setIsLocked(event.target.checked)}
                                 className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
                             />
                         </div>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            Use the settings lock above to prevent accidental configuration changes. When locked, all configuration fields are read-only.
+                            When the lock is enabled, operational settings stay frozen so the demo surface does not drift during handoffs or live presentations.
                         </p>
                     </CardContent>
                 </Card>
@@ -116,49 +147,55 @@ export default function AdminSettingsPage() {
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <Shield className="h-5 w-5 text-red-500" />
+                            <ShieldCheck className="h-5 w-5 text-red-500" />
                             <CardTitle>Security & Access</CardTitle>
                         </div>
-                        <CardDescription>Authentication rules and RBAC policies.</CardDescription>
+                        <CardDescription>Authentication policy and permission refresh controls.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-4">
+                    <CardContent className="grid gap-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
-                                <Input id="sessionTimeout" name="sessionTimeout" type="number" defaultValue="30" className="bg-background" />
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Session Policy</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">30-minute server session window</p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                    Session duration is enforced server-side. This page shows the active policy but does not expose low-level auth configuration for editing in the browser.
+                                </p>
                             </div>
-                            <div className="grid gap-2">
-                                <Label>Two-Factor Authentication (2FA)</Label>
-                                <TwoFactorSetup
-                                    isEnabled={settings.isTwoFactorEnabled}
-                                    onStatusChange={(enabled) => setSettings((prev: any) => ({ ...prev, isTwoFactorEnabled: enabled }))}
-                                />
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Two-Factor Authentication</p>
+                                <div className="mt-3">
+                                    <TwoFactorSetup
+                                        isEnabled={!!settings.isTwoFactorEnabled}
+                                        onStatusChange={(enabled) =>
+                                            setSettings((previous) => previous ? { ...previous, isTwoFactorEnabled: enabled } : previous)
+                                        }
+                                    />
+                                </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                    Flush Authorization Cache
-                                </Label>
-                                <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 rounded-md p-2 border">
-                                    <strong>What this does:</strong> Revalidates all server-rendered pages and clears any in-memory role/permission caches. Useful after updating user roles, enabling/disabling 2FA, or applying permission changes so they reflect immediately without waiting for cache expiry.
-                                </p>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full text-red-500 hover:text-red-600 hover:bg-red-50/50 border-red-100"
-                                    onClick={async () => {
-                                        const result = await flushAuthCache();
-                                        if (result.success) {
-                                            toast.success("Authorization cache flushed — all pages will re-render with fresh permissions.");
-                                        } else {
-                                            toast.error(result.error);
-                                        }
-                                    }}
-                                >
-                                    Flush Auth Cache
-                                </Button>
-                            </div>
+
+                        <div className="grid gap-2">
+                            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                Flush Authorization Cache
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 rounded-md p-3 border">
+                                Revalidates server-rendered permission checks after role changes, 2FA updates, or access-policy fixes so the UI reflects the latest security posture immediately.
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50/50 border-red-100"
+                                onClick={async () => {
+                                    const result = await flushAuthCache();
+                                    if (result.success) {
+                                        toast.success("Authorization cache flushed. Fresh role rules are now active.");
+                                    } else {
+                                        toast.error(result.error);
+                                    }
+                                }}
+                            >
+                                Flush Auth Cache
+                            </Button>
                         </div>
                     </CardContent>
                 </Card>
@@ -166,58 +203,37 @@ export default function AdminSettingsPage() {
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <KeyRound className="h-5 w-5 text-amber-600" />
-                            <CardTitle>AI Provider Configuration</CardTitle>
+                            <Cpu className="h-5 w-5 text-amber-600" />
+                            <CardTitle>AI Credential Status</CardTitle>
                         </div>
-                        <CardDescription>Configure the Gemini API key used by Axiom Copilot and AI agents. Only you (admin) can view or change this key.</CardDescription>
+                        <CardDescription>Credential presence is visible, but raw keys never render in the browser.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="geminiApiKey">Gemini API Key (Primary)</Label>
-                                <Input
-                                    id="geminiApiKey"
-                                    name="geminiApiKey"
-                                    type="password"
-                                    value={settings.geminiApiKey || ''}
-                                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                                    placeholder="AIza..."
-                                    className="bg-background"
-                                    disabled={isLocked}
-                                    autoComplete="new-password"
-                                />
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className={aiCredentialState.hasCredentials ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}>
+                                {aiCredentialState.hasCredentials ? "AI Ready" : "AI Credentials Missing"}
+                            </Badge>
+                            <Badge variant="outline" className="border-stone-200 bg-stone-50 text-stone-700">
+                                {aiCredentialState.totalKeyCount} credential source{aiCredentialState.totalKeyCount === 1 ? "" : "s"} detected
+                            </Badge>
+                            <Badge variant="outline" className="border-stone-200 bg-white text-stone-600">
+                                {aiCredentialState.source}
+                            </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Secure Storage</p>
+                                <p className="mt-2 text-2xl font-black text-foreground">{aiCredentialState.databaseKeyCount}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Credential records stored server-side.</p>
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="geminiApiKeyFallback1">Fallback Key 1</Label>
-                                <Input
-                                    id="geminiApiKeyFallback1"
-                                    name="geminiApiKeyFallback1"
-                                    type="password"
-                                    value={settings.geminiApiKeyFallback1 || ''}
-                                    onChange={(e) => setSettings({ ...settings, geminiApiKeyFallback1: e.target.value })}
-                                    placeholder="AIza... (optional)"
-                                    className="bg-background"
-                                    disabled={isLocked}
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="geminiApiKeyFallback2">Fallback Key 2</Label>
-                                <Input
-                                    id="geminiApiKeyFallback2"
-                                    name="geminiApiKeyFallback2"
-                                    type="password"
-                                    value={settings.geminiApiKeyFallback2 || ''}
-                                    onChange={(e) => setSettings({ ...settings, geminiApiKeyFallback2: e.target.value })}
-                                    placeholder="AIza... (optional)"
-                                    className="bg-background"
-                                    disabled={isLocked}
-                                    autoComplete="new-password"
-                                />
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Environment Sources</p>
+                                <p className="mt-2 text-2xl font-black text-foreground">{aiCredentialState.environmentKeyCount}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Server environment variables available to the runtime.</p>
                             </div>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                            Configure up to 3 API keys. The platform will automatically fall back to the next key if the primary key fails or exceeds its quota.
+                        <p className="text-[11px] text-muted-foreground">
+                            Sensitive values are intentionally hidden. Provisioning and rotation should happen through secure server configuration, not through browser-visible admin forms.
                         </p>
                     </CardContent>
                 </Card>
@@ -228,15 +244,14 @@ export default function AdminSettingsPage() {
                             <AlertTriangle className="h-5 w-5" />
                             <CardTitle className="font-black uppercase tracking-tighter">System Maintenance</CardTitle>
                         </div>
-                        <CardDescription>Critical system utilities for administrative use only.</CardDescription>
+                        <CardDescription>Reset demo data without losing admin access.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <h4 className="text-sm font-bold text-red-700 uppercase tracking-tight">Warning: Data Purge</h4>
+                                <h4 className="text-sm font-bold text-red-700 uppercase tracking-tight">Workspace Cleanup</h4>
                                 <p className="text-xs text-muted-foreground leading-relaxed">
-                                    Performing a database reset will wipe ALL procurement history, suppliers, and parts.
-                                    Admin and user accounts are preserved. This is typically used during handover or environment migrations.
+                                    Use this only when you need to strip demo data, stale AI outputs, and operational records from the environment before a fresh presentation run.
                                 </p>
                             </div>
                             <div className="flex items-center">
@@ -248,14 +263,14 @@ export default function AdminSettingsPage() {
 
                 <div className="flex justify-end gap-3 mt-4">
                     <Button type="button" variant="ghost" onClick={loadSettings}>Reset</Button>
-                    <Button type="submit" disabled={isPending || !isDirty} className="min-w-[140px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
+                    <Button type="submit" disabled={isPending || !isDirty} className="min-w-[160px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
                         {isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
+                                Applying...
                             </>
                         ) : (
-                            "Save Settings"
+                            "Apply Changes"
                         )}
                     </Button>
                 </div>

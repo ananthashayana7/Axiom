@@ -1,18 +1,27 @@
 'use client'
 
 import { useState, useTransition } from "react";
+import { createUser, deleteUser, updateUser } from "@/app/actions/users";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Plus, Shield as ShieldIcon, Users as UsersIcon, Building2, UserCheck, Mail } from "lucide-react";
+import {
+    Briefcase,
+    Building2,
+    Plus,
+    Shield as ShieldIcon,
+    Store,
+    UserCheck,
+    UserRound,
+    Users as UsersIcon,
+} from "lucide-react";
+import { toast } from "sonner";
 
-import { createUser, deleteUser, updateUser } from "@/app/actions/users";
-
-export const dynamic = 'force-dynamic';
+type UserRole = 'admin' | 'user' | 'supplier';
 
 interface AppUser {
     id: string;
@@ -20,8 +29,15 @@ interface AppUser {
     email: string;
     employeeId: string | null;
     department: string | null;
-    role: 'admin' | 'user' | null;
+    role: UserRole | null;
+    supplierId: string | null;
+    supplierName: string | null;
     createdAt: Date | null;
+}
+
+interface SupplierOption {
+    id: string;
+    name: string;
 }
 
 const DEPARTMENTS = [
@@ -30,24 +46,55 @@ const DEPARTMENTS = [
     "Procurement Team",
     "Inventory Control",
     "IT & Admin",
-    "Executive Leadership"
+    "Executive Leadership",
 ];
 
 interface UsersClientProps {
     users: AppUser[];
+    suppliers: SupplierOption[];
     currentUserRole: string;
 }
 
-export default function UsersClient({ users, currentUserRole }: UsersClientProps) {
+function roleBadgeClass(role: UserRole | null) {
+    if (role === 'admin') return "bg-amber-100 text-amber-700 border-amber-200";
+    if (role === 'supplier') return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    return "bg-blue-100 text-blue-700 border-blue-200";
+}
+
+function accessLabel(user: AppUser) {
+    if (user.role === 'admin') return "Admin Console";
+    if (user.role === 'supplier') return user.supplierName ? `Supplier Portal: ${user.supplierName}` : "Supplier Portal";
+    return "Internal Workspace";
+}
+
+export default function UsersClient({ users, suppliers, currentUserRole }: UsersClientProps) {
     const [open, setOpen] = useState(false);
     const [editUser, setEditUser] = useState<AppUser | null>(null);
+    const [createRole, setCreateRole] = useState<UserRole>('user');
+    const [createSupplierId, setCreateSupplierId] = useState('');
+    const [editRole, setEditRole] = useState<UserRole>('user');
+    const [editSupplierId, setEditSupplierId] = useState('');
     const [isPending, startTransition] = useTransition();
+
+    const adminCount = users.filter((user) => user.role === 'admin').length;
+    const internalUserCount = users.filter((user) => user.role === 'user').length;
+    const supplierAccountCount = users.filter((user) => user.role === 'supplier').length;
+
+    const resetCreateState = () => {
+        setCreateRole('user');
+        setCreateSupplierId('');
+    };
 
     const handleCreateUser = async (formData: FormData) => {
         startTransition(async () => {
             const result = await createUser(formData);
-            if (result.success) setOpen(false);
-            else alert(result.error);
+            if (result.success) {
+                toast.success("Access account created.");
+                setOpen(false);
+                resetCreateState();
+            } else {
+                toast.error(result.error || "Failed to create user");
+            }
         });
     };
 
@@ -55,41 +102,65 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
         if (!editUser) return;
         startTransition(async () => {
             const result = await updateUser(editUser.id, formData);
-            if (result.success) setEditUser(null);
-            else alert(result.error);
+            if (result.success) {
+                toast.success("Access account updated.");
+                setEditUser(null);
+            } else {
+                toast.error(result.error || "Failed to update user");
+            }
         });
     };
 
     const handleDeleteUser = async (id: string) => {
-        if (confirm("Are you sure you want to delete this user?")) {
-            startTransition(async () => {
-                const result = await deleteUser(id);
-                if (!result.success) alert(result.error);
-            });
+        if (!confirm("Are you sure you want to delete this access account?")) {
+            return;
         }
+
+        startTransition(async () => {
+            const result = await deleteUser(id);
+            if (result.success) {
+                toast.success("Access account removed.");
+            } else {
+                toast.error(result.error || "Failed to delete user");
+            }
+        });
+    };
+
+    const openEditDialog = (user: AppUser) => {
+        setEditUser(user);
+        setEditRole((user.role || 'user') as UserRole);
+        setEditSupplierId(user.supplierId || '');
     };
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">Access Control</h1>
-                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-2">Departmental mapping & permissions</p>
+                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">Access & Roles</h1>
+                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-2">Admin, internal user, and supplier access control</p>
                 </div>
 
                 {currentUserRole === 'admin' && (
-                    <Dialog open={open} onOpenChange={setOpen}>
+                    <Dialog
+                        open={open}
+                        onOpenChange={(nextOpen) => {
+                            setOpen(nextOpen);
+                            if (!nextOpen) {
+                                resetCreateState();
+                            }
+                        }}
+                    >
                         <DialogTrigger asChild>
                             <Button className="gap-2 bg-amber-600 hover:bg-amber-700 transition-all shadow-lg shadow-amber-100">
                                 <Plus className="mr-1 h-4 w-4" />
-                                Add User
+                                Add Account
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Create New User</DialogTitle>
+                                <DialogTitle>Create Access Account</DialogTitle>
                                 <DialogDescription>
-                                    Create a new user account. They will use these credentials to log in.
+                                    Provision an admin, internal user, or supplier login for the platform.
                                 </DialogDescription>
                             </DialogHeader>
                             <form action={handleCreateUser} className="grid gap-4 py-4">
@@ -117,8 +188,8 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                     >
                                         <option value="">Select Department</option>
-                                        {DEPARTMENTS.map(dept => (
-                                            <option key={dept} value={dept}>{dept}</option>
+                                        {DEPARTMENTS.map((department) => (
+                                            <option key={department} value={department}>{department}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -128,16 +199,45 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                         id="role"
                                         name="role"
                                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                        defaultValue="user"
+                                        value={createRole}
+                                        onChange={(event) => {
+                                            const nextRole = event.target.value as UserRole;
+                                            setCreateRole(nextRole);
+                                            if (nextRole !== 'supplier') {
+                                                setCreateSupplierId('');
+                                            }
+                                        }}
                                     >
-                                        <option value="user">User</option>
+                                        <option value="user">Internal User</option>
                                         <option value="admin">Admin</option>
+                                        <option value="supplier" disabled={suppliers.length === 0}>Supplier</option>
                                     </select>
                                 </div>
+                                {createRole === 'supplier' && (
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="supplierId">Linked Supplier</Label>
+                                        <select
+                                            id="supplierId"
+                                            name="supplierId"
+                                            required
+                                            value={createSupplierId}
+                                            onChange={(event) => setCreateSupplierId(event.target.value)}
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        >
+                                            <option value="">Select Supplier</option>
+                                            {suppliers.map((supplier) => (
+                                                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Supplier logins are portal-only and must be mapped to an existing supplier record.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="flex justify-end mt-4">
                                     <Button type="submit" disabled={isPending}>
                                         {isPending && <span className="mr-2 h-4 w-4 animate-spin inline-block border-2 border-current border-t-transparent rounded-full" />}
-                                        Create User
+                                        Create Account
                                     </Button>
                                 </div>
                             </form>
@@ -149,29 +249,47 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
                 <Card className="glass-card border-l-4 border-l-indigo-600">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Users</CardTitle>
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Accounts</CardTitle>
                         <UsersIcon className="h-4 w-4 text-indigo-600" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-black text-slate-900">{users.length}</div>
-                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Authorized platform accounts</p>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Authorized platform identities</p>
                     </CardContent>
                 </Card>
 
-                {DEPARTMENTS.slice(0, 3).map((dept) => {
-                    const count = users.filter(u => u.department === dept).length;
-                    return (
-                        <Card key={dept} className="glass-card border-l-4 border-l-slate-400">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{dept.split(' ')[0]}</CardTitle>
-                                <Building2 className="h-4 w-4 text-slate-400" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-black text-slate-900">{count}</div>
-                            </CardContent>
-                        </Card>
-                    );
-                })}
+                <Card className="glass-card border-l-4 border-l-amber-500">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Admins</CardTitle>
+                        <ShieldIcon className="h-4 w-4 text-amber-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black text-slate-900">{adminCount}</div>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Restricted control-plane access</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="glass-card border-l-4 border-l-blue-500">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Internal Users</CardTitle>
+                        <Briefcase className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black text-slate-900">{internalUserCount}</div>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Operational workspace accounts</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="glass-card border-l-4 border-l-emerald-500">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Supplier Logins</CardTitle>
+                        <Store className="h-4 w-4 text-emerald-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black text-slate-900">{supplierAccountCount}</div>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-1">Portal-only external access</p>
+                    </CardContent>
+                </Card>
             </div>
 
             <Card className="glass-card border-none shadow-2xl overflow-hidden">
@@ -181,7 +299,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                         Directory
                     </CardTitle>
                     <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                        Comprehensive list of all platform operators
+                        Role assignments, linked suppliers, and workspace scope
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -192,7 +310,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     <tr className="border-b transition-colors hover:bg-muted/50">
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Name</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Emp ID</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Access Scope</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Department</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Role</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Created</th>
@@ -204,30 +322,49 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                 <tbody className="[&_tr:last-child]:border-0">
                                     {users.map((user) => (
                                         <tr key={user.id} className="border-b transition-colors hover:bg-muted/50">
-                                            <td className="p-4 align-middle font-medium flex items-center gap-2">
-                                                {user.role === 'admin' ? (
-                                                    <span className="text-amber-500 mr-2">🛡️</span>
-                                                ) : (
-                                                    <span className="text-muted-foreground mr-2">👤</span>
-                                                )}
-                                                {user.name}
+                                            <td className="p-4 align-middle font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={cn(
+                                                        "flex h-8 w-8 items-center justify-center rounded-lg border",
+                                                        user.role === 'admin'
+                                                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                            : user.role === 'supplier'
+                                                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                                : "border-blue-200 bg-blue-50 text-blue-700"
+                                                    )}>
+                                                        {user.role === 'admin' ? <ShieldIcon className="h-4 w-4" /> : user.role === 'supplier' ? <Store className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+                                                    </span>
+                                                    <div>
+                                                        <p>{user.name}</p>
+                                                        {user.employeeId ? <p className="text-[11px] text-muted-foreground font-mono">{user.employeeId}</p> : null}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td className="p-4 align-middle font-mono text-xs">{user.email}</td>
-                                            <td className="p-4 align-middle font-mono text-xs">{user.employeeId || '-'}</td>
+                                            <td className="p-4 align-middle text-xs">
+                                                <div className="flex flex-col gap-1">
+                                                    <Badge variant="outline" className="w-fit font-normal bg-muted/50">
+                                                        {accessLabel(user)}
+                                                    </Badge>
+                                                    {user.role === 'supplier' && !user.supplierName ? (
+                                                        <span className="text-[11px] text-red-500">Supplier mapping required</span>
+                                                    ) : null}
+                                                </div>
+                                            </td>
                                             <td className="p-4 align-middle text-xs">
                                                 {user.department ? (
-                                                    <Badge variant="outline" className="font-normal bg-muted/50">{user.department}</Badge>
-                                                ) : '-'}
+                                                    <Badge variant="outline" className="font-normal bg-muted/50">
+                                                        <Building2 className="mr-1 h-3 w-3" />
+                                                        {user.department}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-muted-foreground">-</span>
+                                                )}
                                             </td>
                                             <td className="p-4 align-middle capitalize">
-                                                <Badge className={cn(
-                                                    "uppercase text-[10px] font-black tracking-widest px-3 py-1 rounded-lg",
-                                                    user.role === 'admin'
-                                                        ? 'bg-amber-100 text-amber-700 border-amber-200'
-                                                        : 'bg-stone-100 text-stone-600 border-stone-200'
-                                                )}>
+                                                <Badge className={cn("uppercase text-[10px] font-black tracking-widest px-3 py-1 rounded-lg", roleBadgeClass(user.role))}>
                                                     <ShieldIcon className="mr-1 h-3 w-3" />
-                                                    {user.role}
+                                                    {user.role || 'user'}
                                                 </Badge>
                                             </td>
                                             <td className="p-4 align-middle text-muted-foreground">
@@ -239,10 +376,10 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => setEditUser(user)}
+                                                            onClick={() => openEditDialog(user)}
                                                             className="text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg transition-colors font-bold"
                                                         >
-                                                            <span>Edit</span>
+                                                            Edit
                                                         </Button>
                                                         <Button
                                                             variant="ghost"
@@ -251,7 +388,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                                             disabled={isPending}
                                                             className="text-red-500 hover:text-red-700"
                                                         >
-                                                            <span>Delete</span>
+                                                            Delete
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -260,7 +397,7 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     ))}
                                     {users.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="p-4 text-center text-muted-foreground">No users found.</td>
+                                            <td colSpan={7} className="p-4 text-center text-muted-foreground">No users found.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -270,12 +407,21 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                 </CardContent>
             </Card>
 
-            <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
+            <Dialog
+                open={!!editUser}
+                onOpenChange={(nextOpen) => {
+                    if (!nextOpen) {
+                        setEditUser(null);
+                        setEditRole('user');
+                        setEditSupplierId('');
+                    }
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogTitle>Edit Access Account</DialogTitle>
                         <DialogDescription>
-                            Update name, email, or reset password for {editUser?.name}.
+                            Update profile details, role assignment, or portal access for {editUser?.name}.
                         </DialogDescription>
                     </DialogHeader>
                     {editUser && (
@@ -305,8 +451,8 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     defaultValue={editUser.department || ''}
                                 >
                                     <option value="">Select Department</option>
-                                    {DEPARTMENTS.map(dept => (
-                                        <option key={dept} value={dept}>{dept}</option>
+                                    {DEPARTMENTS.map((department) => (
+                                        <option key={department} value={department}>{department}</option>
                                     ))}
                                 </select>
                             </div>
@@ -316,16 +462,42 @@ export default function UsersClient({ users, currentUserRole }: UsersClientProps
                                     id="edit-role"
                                     name="role"
                                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    defaultValue={editUser.role || 'user'}
+                                    value={editRole}
+                                    onChange={(event) => {
+                                        const nextRole = event.target.value as UserRole;
+                                        setEditRole(nextRole);
+                                        if (nextRole !== 'supplier') {
+                                            setEditSupplierId('');
+                                        }
+                                    }}
                                 >
-                                    <option value="user">User</option>
+                                    <option value="user">Internal User</option>
                                     <option value="admin">Admin</option>
+                                    <option value="supplier" disabled={suppliers.length === 0}>Supplier</option>
                                 </select>
                             </div>
+                            {editRole === 'supplier' && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-supplierId">Linked Supplier</Label>
+                                    <select
+                                        id="edit-supplierId"
+                                        name="supplierId"
+                                        required
+                                        value={editSupplierId}
+                                        onChange={(event) => setEditSupplierId(event.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    >
+                                        <option value="">Select Supplier</option>
+                                        {suppliers.map((supplier) => (
+                                            <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div className="flex justify-end mt-4">
                                 <Button type="submit" disabled={isPending}>
                                     {isPending && <span className="mr-2 h-4 w-4 animate-spin inline-block border-2 border-current border-t-transparent rounded-full" />}
-                                    Update User
+                                    Update Account
                                 </Button>
                             </div>
                         </form>
