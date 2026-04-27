@@ -87,8 +87,8 @@ export async function Sidebar({ className }: { className?: string }) {
     const homeLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Workspace';
 
     return (
-        <div className={cn("w-56 xl:w-72 border-r border-border bg-sidebar flex flex-col h-full overflow-hidden text-sidebar-foreground", className)}>
-            <div className="flex-1 overflow-y-auto min-h-0 pb-2">
+        <div className={cn("flex h-full w-64 flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground xl:w-72", className)}>
+            <div className="show-scrollbar min-h-0 flex-1 overflow-y-auto pb-3">
 
                 {/* ── Brand ── */}
                 <div className="px-4 py-4 flex items-center gap-3 border-b border-border/40 mb-1">

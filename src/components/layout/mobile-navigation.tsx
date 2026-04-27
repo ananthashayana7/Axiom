@@ -45,12 +45,12 @@ export function MobileNavigation({ role }: { role: NavigationRole }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="xl:hidden">
+                <Button variant="outline" size="icon" className="lg:hidden">
                     <Menu className="h-4 w-4" />
                     <span className="sr-only">Open navigation</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="left-0 top-0 grid h-[100dvh] w-[min(92vw,360px)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-r p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none">
+            <DialogContent className="left-0 top-0 grid h-[100dvh] w-[min(92vw,380px)] max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-r p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none">
                 <div className="flex items-center gap-3 border-b px-5 py-4">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/10 bg-primary/5">
                         <AxiomLogo className="h-5 w-5 text-primary" />
@@ -61,7 +61,7 @@ export function MobileNavigation({ role }: { role: NavigationRole }) {
                     </div>
                 </div>
 
-                <div className="min-h-0 overflow-y-auto px-4 py-4">
+                <div className="show-scrollbar min-h-0 overflow-y-auto px-4 py-4">
                     <div className="space-y-6">
                         {sections.map((section) => (
                             <div key={section.id}>

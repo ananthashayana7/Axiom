@@ -308,6 +308,120 @@ async function executeCopilotFunction(
     }
 }
 
+function formatOfflineCurrency(value: number) {
+    return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+
+function buildOfflineCopilotResponse(
+    query: string,
+    context: Awaited<ReturnType<typeof getDatabaseContext>>
+) {
+    const intro = "Axiom Copilot is running in guided demo mode right now because live AI generation is unavailable. I can still answer from the current Axiom workspace snapshot.";
+
+    if (!context) {
+        return [
+            intro,
+            "I could not read the current workspace data snapshot, so the safest next step is to open the target module directly from the sidebar and verify the latest records there.",
+            "Best modules to demo next: Suppliers, Orders, Invoices, Spend Intelligence, Risk Intelligence, and Tasks.",
+        ].join("\n\n");
+    }
+
+    const normalizedQuery = query.toLowerCase();
+    const topCategory = context.topCategories[0];
+    const topRiskySupplier = context.riskySuppliers[0];
+    const recentOrder = context.recentOrders[0];
+    const summaryLine = `Current snapshot: ${context.stats.suppliers} suppliers, ${context.stats.parts} parts, ${context.stats.orders} orders, and total tracked spend of ${context.stats.totalSpend}.`;
+
+    if (/(graph|chart|visual)/.test(normalizedQuery) && context.topCategories.length > 0) {
+        const chart = {
+            type: "chart",
+            chartType: "bar",
+            title: "Top Spend Categories",
+            data: context.topCategories.map((category) => ({
+                name: category.category,
+                value: Number(category.total || 0),
+            })),
+            xAxisKey: "name",
+            keys: ["value"],
+            insight: `${topCategory?.category || "Top category"} is currently leading the spend profile.`,
+        };
+
+        return [
+            intro,
+            summaryLine,
+            "```json",
+            JSON.stringify(chart, null, 2),
+            "```",
+            "(Source: Database Stats)",
+        ].join("\n");
+    }
+
+    if (/(spend|saving|cost|price|budget)/.test(normalizedQuery)) {
+        return [
+            intro,
+            summaryLine,
+            topCategory
+                ? `Spend focus: ${topCategory.category} is the top tracked category at ${formatOfflineCurrency(Number(topCategory.total || 0))}.`
+                : "Spend focus: no category breakdown is available in the current snapshot.",
+            topRiskySupplier
+                ? `Risk note: ${topRiskySupplier.name} is the highest-risk visible supplier with a score of ${topRiskySupplier.score}.`
+                : "Risk note: no supplier is currently above the high-risk threshold in this snapshot.",
+            "Best demo next steps: open Spend Intelligence for the portfolio view, Savings for realized impact, and Sourcing Orders for line-level drill-down.",
+            "(Source: Database Stats)",
+        ].join("\n\n");
+    }
+
+    if (/(risk|fraud|compliance|issue|alert)/.test(normalizedQuery)) {
+        return [
+            intro,
+            summaryLine,
+            topRiskySupplier
+                ? `Highest visible risk: ${topRiskySupplier.name} is currently flagged at ${topRiskySupplier.score}.`
+                : "Highest visible risk: no supplier is currently above the configured high-risk threshold.",
+            "Best demo next steps: open Risk Intelligence for supplier risk posture, Fraud Alerts for anomaly triage, and Compliance for expiring obligations and evidence gaps.",
+            "(Source: Database Stats)",
+        ].join("\n\n");
+    }
+
+    if (/(invoice|payment|receipt|match|payable)/.test(normalizedQuery)) {
+        return [
+            intro,
+            summaryLine,
+            recentOrder
+                ? `Most recent visible order: ${recentOrder.id.slice(0, 8).toUpperCase()} is currently ${recentOrder.status} with a value of ${formatOfflineCurrency(Number(recentOrder.amount || 0))}.`
+                : "There is no recent order visible in the current snapshot.",
+            "Best demo next steps: open Invoice Records for document capture, Financial Matching for three-way match review, and Transactions for a unified finance trail.",
+            "(Source: Database Stats)",
+        ].join("\n\n");
+    }
+
+    if (/(supplier|vendor|source|rfq|order|contract)/.test(normalizedQuery)) {
+        return [
+            intro,
+            summaryLine,
+            topCategory
+                ? `Current sourcing signal: ${topCategory.category} is the strongest spend concentration to talk through in the demo.`
+                : "Current sourcing signal: use Orders, RFQs, and Contracts to walk through the end-to-end process.",
+            "Best demo next steps: Suppliers for profile and scorecards, RFQs for competitive events, Orders for execution, and Contracts for governance.",
+            "(Source: Database Stats)",
+        ].join("\n\n");
+    }
+
+    return [
+        intro,
+        summaryLine,
+        topCategory
+            ? `A good starting story is ${topCategory.category}, since it anchors the current spend profile.`
+            : "A good starting story is the main dashboard, then drill into suppliers, orders, and invoices.",
+        "If you want, ask about spend, supplier risk, invoices, sourcing workflows, or request a chart and I will answer from the current snapshot.",
+        "(Source: Database Stats)",
+    ].join("\n\n");
+}
+
 export async function processCopilotQuery(
     query: string,
     history: { role: 'user' | 'assistant', content: string }[] = [],
@@ -438,11 +552,10 @@ export async function processCopilotQuery(
             return text;
         } catch (error: unknown) {
             await TelemetryService.trackError("AxiomCopilot", "query_failed", error, { query });
-            // Fallback
-            if (query.toLowerCase().includes("risk")) {
-                return `I'm currently operating in offline mode. Based on my last snapshot, I've identified ${context?.riskySuppliers.length || 0} high-risk suppliers.`;
-            }
-            return `Axiom Copilot is temporarily restricted. Please check your AI API configuration in Admin Settings or contact support if the issue persists.`;
+            const fallback = buildOfflineCopilotResponse(query, context);
+            await saveChatMessage('user', query);
+            await saveChatMessage('assistant', fallback);
+            return fallback;
         }
     }, { query_preview: query.substring(0, 30) });
 }
@@ -836,6 +949,41 @@ ${attachmentPreview.extractedText}`);
         console.error("Document processing error, using fallback:", error);
         await TelemetryService.trackError("AxiomCopilot", "document_parse_failed", error, { fileName });
 
+        try {
+            const attachmentPreview = await buildAttachmentPreview(attachment);
+            const decoded = attachmentPreview.extractedText ?? Buffer.from(attachment.data, 'base64').toString('utf-8');
+            const amounts = [...decoded.matchAll(/(?:rs\.?|inr|usd|eur|\$)?\s*([\d,]+(?:\.\d{2})?)/gi)]
+                .map((match) => parseFloat(match[1].replace(/,/g, '')))
+                .filter((value) => !Number.isNaN(value) && value > 0);
+            const dateMatches = [...decoded.matchAll(/\b(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})\b/g)].map((match) => match[1]);
+            const totalAmount = amounts.length > 0 ? Math.max(...amounts) : 0;
+            const guidedFallback = `## Document Analysis: ${fileName}\n\n` +
+                `> Axiom is using guided document review mode, so this is a best-effort extraction built from the file preview.\n\n` +
+                `**Detected Amounts:** ${amounts.length > 0 ? amounts.slice(0, 8).map((amount) => `INR ${amount.toLocaleString()}`).join(', ') : 'None found'}\n\n` +
+                `**Estimated Total:** ${totalAmount ? `INR ${totalAmount.toLocaleString()}` : 'Could not determine'}\n\n` +
+                `**Dates Found:** ${dateMatches.length > 0 ? dateMatches.slice(0, 5).join(', ') : 'None found'}\n\n` +
+                `### Suggested Next Steps\n\n` +
+                `1. Manual review — open the document and cross-reference it with the relevant invoice, order, or supplier record.\n` +
+                `2. Import structured data — use Admin → Import for CSV or workbook driven flows.\n` +
+                `3. Run cost analysis — compare the detected amounts against Savings or Spend Intelligence.\n` +
+                `4. Route follow-up — create a task or support ticket if the document needs team review.\n`;
+
+            await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+            await saveChatMessage('assistant', guidedFallback);
+            return guidedFallback;
+        } catch {
+            const guidedFallback = `## Document Received: ${fileName}\n\n` +
+                `The file is available, but automatic extraction could not complete in this pass. You can still continue in guided review mode.\n\n` +
+                `### Suggested Next Steps\n\n` +
+                `1. Review the file manually against the relevant invoice, order, or supplier record.\n` +
+                `2. Re-upload as .xlsx or .csv if you want row-level parsing.\n` +
+                `3. Continue the workflow through Import, Invoices, or Tasks.\n`;
+
+            await saveChatMessage('user', `[Document: ${fileName}] ${query}`);
+            await saveChatMessage('assistant', guidedFallback);
+            return guidedFallback;
+        }
+
         // Heuristic fallback: try to decode base64 text and extract basic info
         let fallbackText: string;
         try {
@@ -845,7 +993,7 @@ ${attachmentPreview.extractedText}`);
                 .map(m => parseFloat(m[1].replace(/,/g, '')))
                 .filter(n => !Number.isNaN(n) && n > 0);
             const dateMatches = [...decoded.matchAll(/\b(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})\b/g)].map(m => m[1]);
-            const totalAmount = amounts.length > 0 ? Math.max(...amounts) : null;
+            const totalAmount = amounts.length > 0 ? Math.max(...amounts) : 0;
 
             fallbackText = `## 📄 Document Analysis: ${fileName}\n\n` +
                 `> ⚠️ AI model unavailable — showing heuristic extraction.\n\n` +

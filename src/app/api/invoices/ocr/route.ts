@@ -77,7 +77,33 @@ function parseModelJson(responseText: string): unknown {
     throw new Error('Model did not return valid JSON');
 }
 
+function buildManualReviewDraft(file: File) {
+    const fileStem = file.name.replace(/\.[^.]+$/, '').trim();
+    const suggestedInvoiceNumber = /^[A-Za-z0-9._-]{4,120}$/.test(fileStem) ? fileStem : null;
+
+    return normalizeInvoiceExtraction({
+        invoiceNumber: suggestedInvoiceNumber,
+        currency: 'INR',
+        lineItems: [],
+    });
+}
+
+function manualReviewResponse(file: File, warning: string, source = 'Axiom OCR Manual Review') {
+    return NextResponse.json({
+        success: true,
+        data: buildManualReviewDraft(file),
+        source,
+        requiresReview: true,
+        warnings: [
+            warning,
+            'The document is loaded in review mode so you can complete or correct the invoice fields manually.',
+        ],
+    });
+}
+
 export async function POST(req: NextRequest) {
+    let uploadedFile: File | null = null;
+
     try {
         const blocked = enforceMutationFirewall(req);
         if (blocked) return blocked;
@@ -92,6 +118,7 @@ export async function POST(req: NextRequest) {
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
+        uploadedFile = file;
 
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -119,9 +146,9 @@ export async function POST(req: NextRequest) {
             },
         });
         if (!model) {
-            return NextResponse.json(
-                { success: false, error: 'AI model is not configured. Add a Gemini API key before OCR.' },
-                { status: 503 }
+            return manualReviewResponse(
+                file,
+                'Automatic extraction is currently unavailable, but you can continue by reviewing the invoice fields manually.'
             );
         }
 
@@ -168,24 +195,44 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
         try {
             parsed = parseModelJson(responseText);
         } catch {
-            return NextResponse.json({
-                success: false,
-                error: 'Could not extract invoice data from the document',
-                rawResponse: responseText.substring(0, 500),
-            }, { status: 422 });
+            return manualReviewResponse(
+                file,
+                'The invoice was uploaded, but the OCR response was incomplete. Please review the fields before saving.',
+                'Axiom OCR Recovery Mode'
+            );
         }
 
         const extracted = normalizeInvoiceExtraction(parsed);
+        const warnings: string[] = [];
+
+        if (!extracted.invoiceNumber || extracted.amount === null || !extracted.supplierName) {
+            warnings.push('Some core invoice fields need review before saving.');
+        }
+        if (!extracted.lineItems.length) {
+            warnings.push('No line items were confidently extracted from the document.');
+        }
 
         return NextResponse.json({
             success: true,
             data: extracted,
             source: 'Axiom OCR Engine (Gemini Multimodal)',
+            requiresReview: warnings.length > 0,
+            warnings,
         });
     } catch (error) {
         console.error('[OCR] Invoice extraction failed:', error);
+        if (uploadedFile) {
+            return manualReviewResponse(
+                uploadedFile,
+                'The document could not be auto-extracted this time, but manual review mode is ready for the demo.',
+                'Axiom OCR Recovery Mode'
+            );
+        }
         return NextResponse.json(
-            { success: false, error: 'OCR processing failed. Please try another PDF/image or enter the invoice fields manually.' },
+            {
+                success: false,
+                error: 'Invoice upload could not be prepared. Please try the file again.',
+            },
             { status: 502 }
         );
     }

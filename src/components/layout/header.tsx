@@ -38,15 +38,15 @@ export async function Header() {
             : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800";
 
     return (
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border/60 h-14 flex items-center justify-between px-4 lg:px-6 transition-all font-sans shadow-sm shadow-black/[0.03]">
-            <div className="flex min-w-0 items-center gap-3 md:gap-6">
+        <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-3 shadow-sm shadow-black/[0.03] backdrop-blur-md transition-all sm:px-4 lg:px-6">
+            <div className="flex min-w-0 items-center gap-3 lg:gap-6">
                 <MobileNavigation role={role} />
                 <div className="flex flex-col leading-none">
                     <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
-                    <span className="text-[10px] text-muted-foreground/55 font-medium hidden md:block">{workspaceSubtitle}</span>
+                    <span className="hidden text-[10px] font-medium text-muted-foreground/55 md:block">{workspaceSubtitle}</span>
                 </div>
-                <div className="hidden xl:block h-5 w-[1px] bg-border/60" />
-                <div className="hidden md:flex items-center">
+                <div className="hidden h-5 w-px bg-border/60 lg:block" />
+                <div className="hidden items-center lg:flex">
                     <SearchTrigger />
                 </div>
             </div>

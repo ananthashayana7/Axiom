@@ -1,4 +1,16 @@
 import type { Metadata, Viewport } from "next";
+
+import { auth } from "@/auth";
+import { Header } from "@/components/layout/header";
+import { Sidebar } from "@/components/layout/sidebar";
+import { CommandPalette } from "@/components/layout/command-palette";
+import { CurrencyProvider } from "@/components/currency-provider";
+import { InactivityTracker } from "@/components/shared/inactivity-tracker";
+import { PageTransition } from "@/components/shared/page-transition";
+import { SessionProvider } from "@/components/shared/session-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,17 +23,6 @@ export const viewport: Viewport = {
   themeColor: "#10634a",
 };
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { auth } from "@/auth";
-import { Toaster } from "sonner";
-import { CommandPalette } from "@/components/layout/command-palette";
-import { SessionProvider } from "@/components/shared/session-provider";
-import { InactivityTracker } from "@/components/shared/inactivity-tracker";
-import { CurrencyProvider } from "@/components/currency-provider";
-import { PageTransition } from "@/components/shared/page-transition";
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -33,7 +34,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className="antialiased flex h-[100dvh] overflow-hidden"
+        className="min-h-[100dvh] overflow-hidden bg-background text-foreground antialiased"
         suppressHydrationWarning
       >
         <ThemeProvider
@@ -44,40 +45,30 @@ export default async function RootLayout({
         >
           <SessionProvider session={session}>
             <CurrencyProvider>
-            {session ? (
-              <>
-                <Sidebar className="hidden xl:block h-full shrink-0" />
-                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                  <Header />
-                  <main className="flex-1 overflow-auto">
-                    <PageTransition>
-                      {children}
-                    </PageTransition>
-                  </main>
-                  <footer className="hidden border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur lg:px-8">
+              {session ? (
+                <div className="flex min-h-[100dvh] max-h-[100dvh] w-full overflow-hidden">
+                  <Sidebar className="hidden h-full shrink-0 lg:flex" />
+                  <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                    <Header />
+                    <main className="flex-1 min-h-0 overflow-auto">
+                      <PageTransition>{children}</PageTransition>
+                    </main>
+                    <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur lg:px-8">
+                      Axiom Platform • Operational date system: {currentYear}
+                    </footer>
+                    <CommandPalette />
+                  </div>
+                  <InactivityTracker />
+                </div>
+              ) : (
+                <div className="flex min-h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden">
+                  <main className="flex-1 overflow-auto">{children}</main>
+                  <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur">
                     Axiom Platform • Operational date system: {currentYear}
                   </footer>
-                  <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur lg:px-8">
-                    Axiom Platform | Operational date system: {currentYear}
-                  </footer>
-                  <CommandPalette />
                 </div>
-                <InactivityTracker />
-              </>
-            ) : (
-              <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                <main className="flex-1 overflow-auto">
-                  {children}
-                </main>
-                <footer className="hidden border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur">
-                  Axiom Platform • Operational date system: {currentYear}
-                </footer>
-                <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur">
-                  Axiom Platform | Operational date system: {currentYear}
-                </footer>
-              </div>
-            )}
-            <Toaster position="top-right" richColors />
+              )}
+              <Toaster position="top-right" richColors />
             </CurrencyProvider>
           </SessionProvider>
         </ThemeProvider>

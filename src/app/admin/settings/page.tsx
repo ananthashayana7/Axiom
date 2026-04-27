@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { flushAuthCache, getSettings, updateSettings } from "@/app/actions/settings";
 import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
+import { SeedDemoDataButton } from "@/components/admin/seed-demo-data-button";
 import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -254,7 +255,8 @@ export default function AdminSettingsPage() {
                                     Use this only when you need to strip demo data, stale AI outputs, and operational records from the environment before a fresh presentation run.
                                 </p>
                             </div>
-                            <div className="flex items-center">
+                            <div className="grid gap-3">
+                                <SeedDemoDataButton />
                                 <ResetDatabaseButton />
                             </div>
                         </div>

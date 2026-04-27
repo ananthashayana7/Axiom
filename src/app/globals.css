@@ -130,6 +130,8 @@
     height: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    scrollbar-gutter: stable;
   }
 
   * {
@@ -142,6 +144,8 @@
 
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    overflow-x: hidden;
   }
 
   /* Sleek scrollbars */
@@ -158,6 +162,26 @@
 }
 
 @layer components {
+  .show-scrollbar {
+    scrollbar-width: auto;
+    scrollbar-color: oklch(0.55 0.02 240 / 0.45) transparent;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  .show-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .show-scrollbar::-webkit-scrollbar-thumb {
+    background: oklch(0.55 0.02 240 / 0.45);
+    border-radius: 999px;
+  }
+
+  .show-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.45 0.03 240 / 0.6);
+  }
+
   .glass-card {
     @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-slate-800/50 shadow-xl rounded-xl transition-all duration-300;
   }

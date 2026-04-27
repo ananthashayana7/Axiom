@@ -13,6 +13,106 @@ const analyticsOrderItemTotals = db.select({
 
 const analyticsEffectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${analyticsOrderItemTotals.lineTotal} AS numeric), 0)`;
 
+const SUPPLIER_GEO_METADATA: Record<string, { country: string; region: string }> = {
+    AE: { country: "United Arab Emirates", region: "Middle East" },
+    AU: { country: "Australia", region: "Oceania" },
+    BD: { country: "Bangladesh", region: "South Asia" },
+    BE: { country: "Belgium", region: "Europe" },
+    BR: { country: "Brazil", region: "South America" },
+    CA: { country: "Canada", region: "North America" },
+    CH: { country: "Switzerland", region: "Europe" },
+    CN: { country: "China", region: "East Asia" },
+    DE: { country: "Germany", region: "Europe" },
+    DK: { country: "Denmark", region: "Europe" },
+    ES: { country: "Spain", region: "Europe" },
+    FR: { country: "France", region: "Europe" },
+    GB: { country: "United Kingdom", region: "Europe" },
+    ID: { country: "Indonesia", region: "Southeast Asia" },
+    IN: { country: "India", region: "South Asia" },
+    IT: { country: "Italy", region: "Europe" },
+    JP: { country: "Japan", region: "East Asia" },
+    KR: { country: "South Korea", region: "East Asia" },
+    LK: { country: "Sri Lanka", region: "South Asia" },
+    MX: { country: "Mexico", region: "North America" },
+    MY: { country: "Malaysia", region: "Southeast Asia" },
+    NL: { country: "Netherlands", region: "Europe" },
+    NO: { country: "Norway", region: "Europe" },
+    PK: { country: "Pakistan", region: "South Asia" },
+    PL: { country: "Poland", region: "Europe" },
+    SA: { country: "Saudi Arabia", region: "Middle East" },
+    SE: { country: "Sweden", region: "Europe" },
+    SG: { country: "Singapore", region: "Southeast Asia" },
+    TH: { country: "Thailand", region: "Southeast Asia" },
+    TW: { country: "Taiwan", region: "East Asia" },
+    US: { country: "United States", region: "North America" },
+    VN: { country: "Vietnam", region: "Southeast Asia" },
+    ZA: { country: "South Africa", region: "Africa" },
+};
+
+const supplierRegionExpression = sql<string>`
+    CASE UPPER(COALESCE(${suppliers.countryCode}, ''))
+        WHEN 'AE' THEN 'Middle East'
+        WHEN 'AU' THEN 'Oceania'
+        WHEN 'BD' THEN 'South Asia'
+        WHEN 'BE' THEN 'Europe'
+        WHEN 'BR' THEN 'South America'
+        WHEN 'CA' THEN 'North America'
+        WHEN 'CH' THEN 'Europe'
+        WHEN 'CN' THEN 'East Asia'
+        WHEN 'DE' THEN 'Europe'
+        WHEN 'DK' THEN 'Europe'
+        WHEN 'ES' THEN 'Europe'
+        WHEN 'FR' THEN 'Europe'
+        WHEN 'GB' THEN 'Europe'
+        WHEN 'ID' THEN 'Southeast Asia'
+        WHEN 'IN' THEN 'South Asia'
+        WHEN 'IT' THEN 'Europe'
+        WHEN 'JP' THEN 'East Asia'
+        WHEN 'KR' THEN 'East Asia'
+        WHEN 'LK' THEN 'South Asia'
+        WHEN 'MX' THEN 'North America'
+        WHEN 'MY' THEN 'Southeast Asia'
+        WHEN 'NL' THEN 'Europe'
+        WHEN 'NO' THEN 'Europe'
+        WHEN 'PK' THEN 'South Asia'
+        WHEN 'PL' THEN 'Europe'
+        WHEN 'SA' THEN 'Middle East'
+        WHEN 'SE' THEN 'Europe'
+        WHEN 'SG' THEN 'Southeast Asia'
+        WHEN 'TH' THEN 'Southeast Asia'
+        WHEN 'TW' THEN 'East Asia'
+        WHEN 'US' THEN 'North America'
+        WHEN 'VN' THEN 'Southeast Asia'
+        WHEN 'ZA' THEN 'Africa'
+        WHEN '' THEN 'Unknown'
+        ELSE 'Other'
+    END
+`;
+
+function normalizeCountryCode(countryCode: string | null | undefined) {
+    return countryCode?.trim().toUpperCase() || "";
+}
+
+function getSupplierGeo(countryCode: string | null | undefined) {
+    const normalizedCode = normalizeCountryCode(countryCode);
+
+    if (!normalizedCode) {
+        return { country: "Unknown", region: "Unknown", countryCode: "" };
+    }
+
+    const metadata = SUPPLIER_GEO_METADATA[normalizedCode];
+    return {
+        country: metadata?.country || normalizedCode,
+        region: metadata?.region || "Other",
+        countryCode: normalizedCode,
+    };
+}
+
+function uniqueSorted(values: Array<string | null | undefined>) {
+    return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())))]
+        .sort((left, right) => left.localeCompare(right));
+}
+
 /* ─── Legacy function kept for sourcing page compatibility ─── */
 export async function getSpendStats() {
     const session = await auth();
@@ -93,17 +193,18 @@ export async function getFilterOptions() {
     const session = await auth();
     if (!session?.user) return { regions: [], suppliers: [], categories: [], countries: [] };
     try {
-        const [regionRows, supplierRows, categoryRows, countryRows] = await Promise.all([
-            db.selectDistinct({ region: suppliers.region }).from(suppliers).where(sql`${suppliers.region} IS NOT NULL`),
+        const [supplierGeoRows, supplierRows, categoryRows] = await Promise.all([
+            db.selectDistinct({ countryCode: suppliers.countryCode }).from(suppliers),
             db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(suppliers.name),
             db.selectDistinct({ category: parts.category }).from(parts).where(sql`${parts.category} IS NOT NULL`).orderBy(parts.category),
-            db.selectDistinct({ country: suppliers.country }).from(suppliers).where(sql`${suppliers.country} IS NOT NULL`),
         ]);
+
+        const geoRows = supplierGeoRows.map((row) => getSupplierGeo(row.countryCode));
         return {
-            regions: regionRows.map(r => r.region).filter(Boolean) as string[],
+            regions: uniqueSorted(geoRows.map((row) => row.region)),
             suppliers: supplierRows.map(s => ({ id: s.id, name: s.name })),
             categories: categoryRows.map(c => c.category).filter(Boolean) as string[],
-            countries: countryRows.map(c => c.country).filter(Boolean) as string[],
+            countries: uniqueSorted(geoRows.map((row) => row.country)),
         };
     } catch {
         return { regions: [], suppliers: [], categories: [], countries: [] };
@@ -113,7 +214,7 @@ export async function getFilterOptions() {
 /** Build WHERE conditions for procurement_orders table */
 function buildOrderConditions(filters: AnalyticsFilters) {
     const validOrderStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'sent', 'fulfilled', 'cancelled'] as const;
-    const conds: ReturnType<typeof gte | typeof lte | typeof inArray>[] = [];
+    const conds: any[] = [];
     if (filters.dateFrom) conds.push(gte(procurementOrders.createdAt, new Date(filters.dateFrom)));
     if (filters.dateTo) conds.push(lte(procurementOrders.createdAt, new Date(filters.dateTo)));
     if (filters.supplierIds?.length) conds.push(inArray(procurementOrders.supplierId, filters.supplierIds));
@@ -127,7 +228,7 @@ function buildOrderConditions(filters: AnalyticsFilters) {
 /** Build WHERE conditions for invoices table */
 function buildInvoiceConditions(filters: AnalyticsFilters) {
     const validInvoiceStatuses = ['pending', 'matched', 'disputed', 'paid'] as const;
-    const conds: ReturnType<typeof gte | typeof lte | typeof inArray>[] = [];
+    const conds: any[] = [];
     if (filters.dateFrom) conds.push(gte(invoices.createdAt, new Date(filters.dateFrom)));
     if (filters.dateTo) conds.push(lte(invoices.createdAt, new Date(filters.dateTo)));
     if (filters.supplierIds?.length) conds.push(inArray(invoices.supplierId, filters.supplierIds));
@@ -138,7 +239,7 @@ function buildInvoiceConditions(filters: AnalyticsFilters) {
     return conds;
 }
 
-function whereAnd(conditions: ReturnType<typeof eq | typeof gte | typeof lte | typeof inArray>[] | ReturnType<typeof and>[]) {
+function whereAnd(conditions: any[]) {
     if (conditions.length === 0) return undefined;
     if (conditions.length === 1) return conditions[0];
     return and(...conditions);
@@ -227,7 +328,7 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
 
         // ── 5. Spend by Supplier (top 20) ────────────────────────
         const suppConds = [...orderConds];
-        if (filters.regions?.length) suppConds.push(inArray(suppliers.region, filters.regions));
+        if (filters.regions?.length) suppConds.push(inArray(supplierRegionExpression, filters.regions));
         const spendBySupplier = await db.select({
             name: suppliers.name,
             spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
@@ -241,21 +342,8 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
             .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`)
             .limit(20);
 
-        // ── 6. Spend by Region ───────────────────────────────────
-        const spendByRegion = await db.select({
-            region: suppliers.region,
-            spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
-            supplierCount: sql<string>`COUNT(DISTINCT ${suppliers.id})`,
-        }).from(procurementOrders)
-            .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
-            .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
-            .where(orderWhere)
-            .groupBy(suppliers.region)
-            .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`);
-
         // ── 7. Spend by Country ──────────────────────────────────
-        const spendByCountry = await db.select({
-            country: suppliers.country,
+        const spendByCountryRows = await db.select({
             countryCode: suppliers.countryCode,
             spend: sql<string>`COALESCE(SUM(${analyticsEffectiveOrderTotal}), 0)`,
             supplierCount: sql<string>`COUNT(DISTINCT ${suppliers.id})`,
@@ -264,8 +352,29 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
             .leftJoin(analyticsOrderItemTotals, eq(analyticsOrderItemTotals.orderId, procurementOrders.id))
             .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
             .where(orderWhere)
-            .groupBy(suppliers.country, suppliers.countryCode)
+            .groupBy(suppliers.countryCode)
             .orderBy(sql`SUM(${analyticsEffectiveOrderTotal}) DESC`);
+
+        const spendByCountry = spendByCountryRows.map((row) => {
+            const geo = getSupplierGeo(row.countryCode);
+            return {
+                country: geo.country,
+                region: geo.region,
+                countryCode: geo.countryCode,
+                spend: parseFloat(row.spend),
+                supplierCount: Number(row.supplierCount),
+                orderCount: Number(row.orderCount),
+            };
+        });
+
+        const spendByRegion = [...spendByCountry.reduce((regionMap, row) => {
+            const existing = regionMap.get(row.region) ?? { region: row.region, spend: 0, supplierCount: 0 };
+            existing.spend += row.spend;
+            existing.supplierCount += row.supplierCount;
+            regionMap.set(row.region, existing);
+            return regionMap;
+        }, new Map<string, { region: string; spend: number; supplierCount: number }>()).values()]
+            .sort((left, right) => right.spend - left.spend);
 
         // ── 8. Invoice Distribution ──────────────────────────────
         const invoiceDistribution = await db.select({
@@ -295,7 +404,7 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
 
         // ── 11. Supplier Performance Scatter ─────────────────────
         const perfConds: any[] = [];
-        if (filters.regions?.length) perfConds.push(inArray(suppliers.region, filters.regions));
+        if (filters.regions?.length) perfConds.push(inArray(supplierRegionExpression, filters.regions));
         if (filters.supplierIds?.length) perfConds.push(inArray(suppliers.id, filters.supplierIds));
         const supplierPerformance = await db.select({
             name: suppliers.name,
@@ -374,8 +483,8 @@ export async function getIntelligenceData(filters: AnalyticsFilters = {}) {
             quarterlyTrend: quarterlyTrend.map(r => ({ quarter: r.quarter, spend: parseFloat(r.spend), savings: parseFloat(r.savings), orders: Number(r.orders) })),
             spendByCategory: spendByCategory.map(r => ({ category: r.category, spend: parseFloat(r.spend), itemCount: Number(r.itemCount) })),
             spendBySupplier: spendBySupplier.map(r => ({ name: r.name, spend: parseFloat(r.spend), orders: Number(r.orders), savings: parseFloat(r.savings) })),
-            spendByRegion: spendByRegion.map(r => ({ region: r.region || 'Unknown', spend: parseFloat(r.spend), supplierCount: Number(r.supplierCount) })),
-            spendByCountry: spendByCountry.map(r => ({ country: r.country || 'Unknown', countryCode: r.countryCode || '', spend: parseFloat(r.spend), supplierCount: Number(r.supplierCount), orderCount: Number(r.orderCount) })),
+            spendByRegion,
+            spendByCountry,
             invoiceDistribution: invoiceDistribution.map(r => ({ status: r.status || 'unknown', count: Number(r.count), totalAmount: parseFloat(r.totalAmount) })),
             invoiceByRegion: invoiceByRegion.map(r => ({ region: r.region || 'Unknown', count: Number(r.count), totalAmount: parseFloat(r.totalAmount) })),
             orderDistribution: orderDistribution.map(r => ({ status: r.status || 'unknown', count: Number(r.count), totalAmount: parseFloat(r.totalAmount) })),

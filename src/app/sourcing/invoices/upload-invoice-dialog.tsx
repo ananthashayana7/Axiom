@@ -26,6 +26,15 @@ interface OCRData {
     purchaseOrderRef: string | null;
 }
 
+interface OCRResponse {
+    success: boolean;
+    data?: OCRData;
+    source?: string;
+    warnings?: string[];
+    requiresReview?: boolean;
+    error?: string;
+}
+
 interface UploadInvoiceDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -34,6 +43,20 @@ interface UploadInvoiceDialogProps {
 }
 
 const SUPPORTED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp']);
+
+const EMPTY_OCR_DATA: OCRData = {
+    invoiceNumber: null,
+    amount: null,
+    currency: 'INR',
+    supplierName: null,
+    invoiceDate: null,
+    dueDate: null,
+    taxAmount: null,
+    subtotal: null,
+    lineItems: [],
+    paymentTerms: null,
+    purchaseOrderRef: null,
+};
 
 function isSupportedInvoiceFile(file: File) {
     if (file.type.startsWith('image/') || file.type === 'application/pdf') return true;
@@ -47,6 +70,8 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
     const [uploading, setUploading] = useState(false);
     const [ocrData, setOcrData] = useState<OCRData | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [ocrSource, setOcrSource] = useState<string>('');
+    const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
     const [supplierId, setSupplierId] = useState('');
     const [editableData, setEditableData] = useState<Record<string, string>>({});
     const fileRef = useRef<HTMLInputElement>(null);
@@ -56,12 +81,48 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
         setUploading(false);
         setOcrData(null);
         setSelectedFile(null);
+        setOcrSource('');
+        setOcrWarnings([]);
         setSupplierId('');
         setEditableData({});
     };
 
     const formatLineNumber = (value: number | null | undefined) =>
         typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '-';
+
+    const prepareReviewState = (data: OCRData, options?: { source?: string; warnings?: string[] }) => {
+        setOcrData(data);
+        setOcrSource(options?.source || 'Manual Review');
+        setOcrWarnings(options?.warnings || []);
+        setEditableData({
+            invoiceNumber: data.invoiceNumber || '',
+            amount: data.amount?.toString() || '',
+            currency: data.currency || 'INR',
+            invoiceDate: data.invoiceDate || '',
+            dueDate: data.dueDate || '',
+            taxAmount: data.taxAmount?.toString() || '',
+            subtotal: data.subtotal?.toString() || '',
+            paymentTerms: data.paymentTerms || '',
+            purchaseOrderRef: data.purchaseOrderRef || '',
+        });
+
+        const matchedSupplierId = data.supplierName
+            ? suppliers.find((supplier) =>
+                supplier.name.toLowerCase().includes(data.supplierName!.toLowerCase()) ||
+                data.supplierName!.toLowerCase().includes(supplier.name.toLowerCase())
+            )?.id
+            : '';
+
+        setSupplierId(matchedSupplierId || '');
+        setStep('review');
+    };
+
+    const startManualReview = (warning?: string) => {
+        prepareReviewState(EMPTY_OCR_DATA, {
+            source: 'Manual Review Workspace',
+            warnings: warning ? [warning] : ['Automatic extraction was skipped. Fill the invoice fields below to continue.'],
+        });
+    };
 
     const handleFileSelect = async (file: File) => {
         if (!isSupportedInvoiceFile(file)) {
@@ -81,44 +142,33 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             formData.append('file', file);
 
             const res = await fetch('/api/invoices/ocr', { method: 'POST', body: formData });
-            const json = await res.json().catch(() => ({
+            const json = await res.json().catch((): OCRResponse => ({
                 success: false,
                 error: "OCR service returned an unreadable response",
             }));
 
             if (!res.ok || !json.success) {
-                toast.error(json.error || "OCR extraction failed");
+                startManualReview(json.error || "Automatic extraction could not complete. Review the invoice manually.");
+                toast.warning(json.error || "OCR extraction needs manual review");
                 setUploading(false);
                 return;
             }
 
-            const data = json.data as OCRData;
-            setOcrData(data);
-            setEditableData({
-                invoiceNumber: data.invoiceNumber || '',
-                amount: data.amount?.toString() || '',
-                currency: data.currency || 'INR',
-                invoiceDate: data.invoiceDate || '',
-                dueDate: data.dueDate || '',
-                taxAmount: data.taxAmount?.toString() || '',
-                subtotal: data.subtotal?.toString() || '',
-                paymentTerms: data.paymentTerms || '',
-                purchaseOrderRef: data.purchaseOrderRef || '',
+            const data = json.data || EMPTY_OCR_DATA;
+            prepareReviewState(data, {
+                source: json.source || 'Axiom OCR',
+                warnings: json.warnings || [],
             });
 
-            // Auto-match supplier by name
-            if (data.supplierName) {
-                const match = suppliers.find(s =>
-                    s.name.toLowerCase().includes(data.supplierName!.toLowerCase()) ||
-                    data.supplierName!.toLowerCase().includes(s.name.toLowerCase())
-                );
-                if (match) setSupplierId(match.id);
+            if (json.warnings?.length) {
+                toast.warning("Invoice loaded with fields to review");
+            } else {
+                toast.success("Invoice extracted and ready for review");
             }
-
-            setStep('review');
         } catch (error) {
             console.error("Invoice OCR upload failed:", error);
-            toast.error("Failed to process document. Please try another file or enter the fields manually.");
+            startManualReview("The document could not be auto-extracted this time. Manual review mode is ready.");
+            toast.warning("Document loaded in manual review mode");
         } finally {
             setUploading(false);
         }
@@ -191,11 +241,12 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                 {step === 'upload' && (
                     <div className="space-y-4">
                         <div
-                            className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
-                            onClick={() => fileRef.current?.click()}
+                            className="border-2 border-dashed rounded-lg p-8 sm:p-12 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                            onClick={() => { if (!uploading) fileRef.current?.click(); }}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
                                 e.preventDefault();
+                                if (uploading) return;
                                 const file = e.dataTransfer.files[0];
                                 if (file) handleFileSelect(file);
                             }}
@@ -224,19 +275,45 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                                 if (file) handleFileSelect(file);
                             }}
                         />
+                        <div className="flex justify-end">
+                            <Button type="button" variant="outline" onClick={() => startManualReview()}>
+                                Enter Manually Instead
+                            </Button>
+                        </div>
                     </div>
                 )}
 
                 {step === 'review' && ocrData && (
                     <div className="space-y-4">
-                        <Card className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
-                            <CardContent className="py-3 px-4 flex items-center gap-2 text-sm">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                                    Data extracted from {selectedFile?.name}
-                                </span>
-                            </CardContent>
-                        </Card>
+                        {ocrWarnings.length > 0 ? (
+                            <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+                                <CardContent className="space-y-2 px-4 py-3 text-sm">
+                                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <span className="font-semibold">
+                                            Review needed for {selectedFile?.name || 'manual invoice entry'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-amber-700/90 dark:text-amber-200/90">
+                                        Source: {ocrSource}
+                                    </p>
+                                    <div className="space-y-1 text-xs text-amber-700/90 dark:text-amber-200/90">
+                                        {ocrWarnings.map((warning) => (
+                                            <p key={warning}>{warning}</p>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
+                                <CardContent className="py-3 px-4 flex items-center gap-2 text-sm">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                                        Data prepared from {selectedFile?.name || 'manual invoice entry'} via {ocrSource || 'Axiom OCR'}
+                                    </span>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
