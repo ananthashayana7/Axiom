@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 import { auth } from "@/auth";
+import { db } from "@/db";
+import { platformSettings } from "@/db/schema";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -30,6 +32,13 @@ export default async function RootLayout({
 }>) {
   const session = await auth();
   const currentYear = new Date().getFullYear();
+  const [settings] = await db
+    .select({
+      defaultCurrency: platformSettings.defaultCurrency,
+      exchangeRates: platformSettings.exchangeRates,
+    })
+    .from(platformSettings)
+    .limit(1);
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -44,7 +53,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider session={session}>
-            <CurrencyProvider>
+            <CurrencyProvider initialSettings={settings}>
               {session ? (
                 <div className="flex min-h-[100dvh] max-h-[100dvh] w-full overflow-hidden">
                   <Sidebar className="hidden h-full shrink-0 lg:flex" />

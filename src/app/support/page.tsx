@@ -23,9 +23,9 @@ export default function SupportPage() {
                     <p className="text-muted-foreground mt-1 font-medium">Browse common guidance and support contacts in one shared help center.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <a href="mailto:pma.axiom.support@gmail.com" className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-card hover:bg-muted text-sm font-semibold transition">
+                    <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2 text-sm font-semibold">
                         <Mail className="h-4 w-4 text-primary" /> pma.axiom.support@gmail.com
-                    </a>
+                    </div>
                     {canManageTickets && (
                         <Button asChild className="gap-2">
                             <Link href="/admin/support">
@@ -47,7 +47,7 @@ export default function SupportPage() {
                     <div className="rounded-lg border bg-card p-4">
                         <h2 className="font-semibold text-sm">Need additional help?</h2>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Use this page to find product guidance first. If your question is still open, contact your administrator or email the support inbox for follow-up.
+                            Use this page to find product guidance first. If your question is still open, contact your administrator or use the support inbox shown above for follow-up.
                         </p>
                     </div>
                     <div className="rounded-lg border bg-card p-4">

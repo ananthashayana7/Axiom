@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SendEmailButton } from "@/components/shared/send-email-button";
 import { toast } from "sonner";
-import { Users, Mail, Phone, Globe, Plus, Search, Download, X, Filter, ExternalLink } from "lucide-react";
+import { Users, Phone, Globe, Plus, Search, Download, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getContacts, createContact, updateContactStatus } from "@/app/actions/contacts";
 
@@ -194,11 +195,7 @@ export default function ContactsPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-1.5 text-sm text-muted-foreground">
-                                    <a href={`mailto:${contact.email}`} className="flex items-center gap-2 hover:text-primary transition-colors group">
-                                        <Mail className="h-3.5 w-3.5 shrink-0" />
-                                        <span className="truncate">{contact.email}</span>
-                                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                                    </a>
+                                    <SendEmailButton email={contact.email} name={contact.name} className="flex items-center gap-2 text-sm hover:text-primary transition-colors" />
                                     {contact.phone && (
                                         <div className="flex items-center gap-2">
                                             <Phone className="h-3.5 w-3.5 shrink-0" />

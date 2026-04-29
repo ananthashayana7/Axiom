@@ -4,6 +4,7 @@ import { platformSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { isCronAuthorized } from '@/lib/api-security';
 import { withPgAdvisoryLock } from '@/lib/db-locks';
+import { mergeFinanceSettings } from '@/lib/finance';
 
 const ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 
@@ -61,7 +62,11 @@ export async function GET(req: Request) {
             if (existing) {
                 await db
                     .update(platformSettings)
-                    .set({ exchangeRates: JSON.stringify(fxRates) })
+                    .set({
+                        exchangeRates: mergeFinanceSettings(existing.exchangeRates, existing.defaultCurrency, {
+                            liveRates: fxRates,
+                        }),
+                    })
                     .where(eq(platformSettings.id, existing.id));
             }
 

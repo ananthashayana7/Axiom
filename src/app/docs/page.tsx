@@ -164,7 +164,7 @@ const SECTIONS = [
         steps: [
             "Unified Directory — Capture Name, Email, Phone, Company, Job Title, and notes in a single indexed table.",
             "Regional Tagging — Every contact can be tagged by Country, Region, Continent, and preferred Currency for faster routing.",
-            "Actionable Profiles — One-click `mailto:` links and status switches reduce handoffs between buyers and category managers.",
+            "Actionable Profiles — In-app messaging threads and status switches reduce handoffs between buyers and category managers.",
             "Exportability — Contacts can be exported to CSV for governance, audits, and cross-system synchronization.",
             "Data Hygiene — Active/Inactive/On Hold lifecycle states keep stale contacts from polluting operational communication."
         ]

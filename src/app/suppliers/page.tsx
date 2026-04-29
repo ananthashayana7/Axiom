@@ -9,10 +9,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSuppliers, addSupplier, updateSupplier, deleteSupplier } from "@/app/actions/suppliers";
-import { Plus, Search, Loader, Globe, Wallet, Activity, ShieldAlert, FileText, BarChart3, Pencil, Trash2 } from "lucide-react";
+import { Plus, Loader, Globe, Wallet, ShieldAlert, FileText, BarChart3, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { MessageSupplierButton } from "@/components/suppliers/message-supplier-button";
 
 export default function SuppliersPage() {
     const [isPending, startTransition] = useTransition();
@@ -267,9 +268,9 @@ export default function SuppliersPage() {
                                             <td className="p-4 align-middle">
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-foreground text-base">{supplier.name}</span>
-                                                    <a href={`mailto:${supplier.contactEmail}`} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                                                    <span className="text-xs text-muted-foreground">
                                                         {supplier.contactEmail}
-                                                    </a>
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="p-4 align-middle">
@@ -329,6 +330,14 @@ export default function SuppliersPage() {
                                             </td>
                                             <td className="p-4 align-middle text-right">
                                                 <div className="flex justify-end items-center gap-2">
+                                                    <MessageSupplierButton
+                                                        supplierId={supplier.id}
+                                                        supplierName={supplier.name}
+                                                        supplierEmail={supplier.contactEmail}
+                                                        iconOnly
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                                    />
                                                     <Link href={`/suppliers/${supplier.id}`}>
                                                         <Button variant="outline" size="sm" className="h-8">Details</Button>
                                                     </Link>

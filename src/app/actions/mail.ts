@@ -3,6 +3,15 @@
 import { sendEmail } from "@/lib/services/email";
 import { auth } from "@/auth";
 import { createNotification } from "./notifications";
+import { db } from "@/db";
+import { comments, suppliers, users } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { logActivity } from "./activity";
+import { revalidatePath } from "next/cache";
+
+function buildAppBaseUrl() {
+    return process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+}
 
 export async function sendUserEmail(to: string, userName: string) {
     const session = await auth();
@@ -96,5 +105,113 @@ Axiom Procurement Platform
         notificationDelivered: notification.success,
         emailDelivered: emailResult.success,
         warning: !emailResult.success ? emailResult.error : undefined,
+    };
+}
+
+export async function sendSupplierMessage(data: {
+    supplierId: string;
+    subject: string;
+    body: string;
+}) {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role === 'supplier') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    const subject = data.subject.trim();
+    const body = data.body.trim();
+    if (!subject || !body) {
+        return { success: false, error: "Subject and message are required." };
+    }
+
+    const [supplier] = await db
+        .select({
+            id: suppliers.id,
+            name: suppliers.name,
+            contactEmail: suppliers.contactEmail,
+        })
+        .from(suppliers)
+        .where(eq(suppliers.id, data.supplierId))
+        .limit(1);
+
+    if (!supplier) {
+        return { success: false, error: "Supplier not found." };
+    }
+
+    const supplierPortalUsers = await db
+        .select({
+            id: users.id,
+            email: users.email,
+        })
+        .from(users)
+        .where(and(eq(users.role, 'supplier'), eq(users.supplierId, supplier.id)));
+
+    const senderName = session.user.name || session.user.email || "Axiom procurement";
+    const senderEmail = session.user.email || undefined;
+    const threadReference = `SUP-${supplier.id.slice(0, 8).toUpperCase()}`;
+    const portalUrl = `${buildAppBaseUrl()}/portal/profile`;
+    const threadBody = `Subject: ${subject}\n\n${body}`;
+
+    await db.insert(comments).values({
+        userId: session.user.id,
+        entityType: 'supplier_message',
+        entityId: supplier.id,
+        text: threadBody,
+    });
+
+    const notificationResults = await Promise.allSettled(
+        supplierPortalUsers.map((user) =>
+            createNotification({
+                userId: user.id,
+                title: `New message from ${senderName}`,
+                message: `${subject} — open Axiom to review the supplier thread.`,
+                type: 'info',
+                link: '/portal/profile',
+            }),
+        ),
+    );
+
+    const deliveredPortalNotifications = notificationResults.filter(
+        (result) => result.status === 'fulfilled' && result.value.success,
+    ).length;
+
+    const emailResult = await sendEmail({
+        to: supplier.contactEmail,
+        replyTo: senderEmail,
+        subject: `[Axiom] ${subject}`,
+        body: [
+            `Hello ${supplier.name},`,
+            ``,
+            `${senderName} sent a procurement message from Axiom.`,
+            ``,
+            `Subject: ${subject}`,
+            ``,
+            body,
+            ``,
+            `Axiom thread reference: ${threadReference}`,
+            `Open the shared supplier thread: ${portalUrl}`,
+            ``,
+            `Regards,`,
+            `Axiom Procurement Intelligence`,
+        ].join('\n'),
+    });
+
+    await logActivity(
+        'MESSAGE',
+        'supplier',
+        supplier.id,
+        `Sent supplier message "${subject}" to ${supplier.contactEmail}. Thread ${threadReference}. ${emailResult.success ? 'Email delivered.' : 'Email pending SMTP configuration or retry.'}`,
+    );
+
+    revalidatePath(`/suppliers/${supplier.id}`);
+    revalidatePath("/suppliers");
+    revalidatePath("/portal/profile");
+
+    return {
+        success: true,
+        portalRecipients: deliveredPortalNotifications,
+        emailDelivered: emailResult.success,
+        warning: emailResult.success ? undefined : emailResult.error,
+        threadReference,
     };
 }

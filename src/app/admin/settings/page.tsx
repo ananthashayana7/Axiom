@@ -10,9 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { getSuggestedBookRateCurrencies, parseFinanceSettings, type FinanceSettings } from "@/lib/finance";
 import {
     AlertTriangle,
     Cpu,
+    Landmark,
     Loader2,
     Lock,
     Shield,
@@ -24,8 +26,11 @@ import { toast } from "sonner";
 type SettingsState = {
     role?: string;
     platformName?: string;
+    defaultCurrency?: string;
     isSettingsLocked?: string;
+    updatedAt?: string | Date;
     isTwoFactorEnabled?: boolean;
+    finance?: FinanceSettings;
     aiCredentialState?: {
         hasCredentials: boolean;
         databaseKeyCount: number;
@@ -39,7 +44,6 @@ export default function AdminSettingsPage() {
     const [isPending, startTransition] = useTransition();
     const [settings, setSettings] = useState<SettingsState | null>(null);
     const [isLocked, setIsLocked] = useState(true);
-    const [initialIsLocked, setInitialIsLocked] = useState(true);
     const [accessDenied, setAccessDenied] = useState(false);
 
     const loadSettings = useCallback(async () => {
@@ -51,7 +55,6 @@ export default function AdminSettingsPage() {
 
         setSettings(data);
         setIsLocked(data.isSettingsLocked === 'yes');
-        setInitialIsLocked(data.isSettingsLocked === 'yes');
         setAccessDenied(false);
     }, []);
 
@@ -61,13 +64,11 @@ export default function AdminSettingsPage() {
         });
     }, [loadSettings]);
 
-    const isDirty = isLocked !== initialIsLocked;
-
     async function handleSubmit(formData: FormData) {
         startTransition(async () => {
             const result = await updateSettings(formData);
             if (result.success) {
-                toast.success("Security settings updated successfully.");
+                toast.success("Admin settings updated successfully.");
                 await loadSettings();
             } else {
                 toast.error(result.error || "Failed to update settings");
@@ -102,6 +103,9 @@ export default function AdminSettingsPage() {
         totalKeyCount: 0,
         source: "Not configured",
     };
+    const finance = settings.finance ?? parseFinanceSettings(null, settings.defaultCurrency || 'INR');
+    const bookRateCurrencies = getSuggestedBookRateCurrencies(settings.defaultCurrency || 'INR', finance.reportingCurrency);
+    const formKey = `${settings.updatedAt ?? 'settings'}:${settings.defaultCurrency ?? 'INR'}:${finance.reportingCurrency}`;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
@@ -112,7 +116,7 @@ export default function AdminSettingsPage() {
                 </div>
             </div>
 
-            <form action={handleSubmit} className="grid gap-6">
+            <form key={formKey} action={handleSubmit} className="grid gap-6">
                 <input type="hidden" name="platformName" value={settings.platformName || "Axiom Procurement Intelligence"} />
 
                 <Card className="hover:shadow-md transition-shadow">
@@ -205,6 +209,117 @@ export default function AdminSettingsPage() {
                 <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <div className="flex items-center gap-2">
+                            <Landmark className="h-5 w-5 text-blue-600" />
+                            <CardTitle>Finance Console</CardTitle>
+                        </div>
+                        <CardDescription>Normalize procurement reporting with fixed book rates while preserving live FX feeds for local lenses.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-6">
+                        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="defaultCurrency">Functional Currency</Label>
+                                <select
+                                    id="defaultCurrency"
+                                    name="defaultCurrency"
+                                    defaultValue={settings.defaultCurrency || 'INR'}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    {['INR', 'USD', 'EUR', 'GBP', 'HUF', 'CNY', 'JPY', 'MXN'].map((currency) => (
+                                        <option key={currency} value={currency}>{currency}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="reportingCurrency">Reporting Currency</Label>
+                                <select
+                                    id="reportingCurrency"
+                                    name="reportingCurrency"
+                                    defaultValue={finance.reportingCurrency}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    {['USD', 'EUR', 'GBP', 'INR', 'HUF', 'CNY', 'JPY', 'MXN'].map((currency) => (
+                                        <option key={currency} value={currency}>{currency}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="bookRatePeriod">Book Rate Cadence</Label>
+                                <select
+                                    id="bookRatePeriod"
+                                    name="bookRatePeriod"
+                                    defaultValue={finance.bookRatePeriod}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                </select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="bookRateEffectiveDate">Effective From</Label>
+                                <input
+                                    id="bookRateEffectiveDate"
+                                    name="bookRateEffectiveDate"
+                                    type="date"
+                                    defaultValue={finance.bookRateEffectiveDate}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            {bookRateCurrencies.map((currency) => (
+                                <div key={currency} className="rounded-xl border bg-background/80 p-4">
+                                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                        {currency} book rate
+                                    </p>
+                                    <Label htmlFor={`bookRate_${currency}`} className="mt-3 block text-sm font-medium">
+                                        1 {currency} in {finance.reportingCurrency}
+                                    </Label>
+                                    <input
+                                        id={`bookRate_${currency}`}
+                                        name={`bookRate_${currency}`}
+                                        type="number"
+                                        step="0.000001"
+                                        min="0"
+                                        disabled={currency === finance.reportingCurrency}
+                                        defaultValue={currency === finance.reportingCurrency ? 1 : finance.bookRates[currency] ?? ''}
+                                        className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-muted"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Reporting Formula</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">Local spend x fixed book rate = {finance.reportingCurrency} reporting view</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Use fixed period rates so savings do not drift with daily FX noise during audit review.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Live FX Snapshot</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                    {finance.liveRates?.date || "No live rates captured yet"}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Daily ECB feed stays intact and now coexists with the CFO book-rate layer instead of overwriting it.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">App Lens</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">Header toggle switches between local and reporting currency views</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Internal users can flip from user-local currency conversion to fixed reporting-book rates without changing source data.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
                             <Cpu className="h-5 w-5 text-amber-600" />
                             <CardTitle>AI Credential Status</CardTitle>
                         </div>
@@ -267,7 +382,7 @@ export default function AdminSettingsPage() {
 
                 <div className="flex justify-end gap-3 mt-4">
                     <Button type="button" variant="ghost" onClick={loadSettings}>Reset</Button>
-                    <Button type="submit" disabled={isPending || !isDirty} className="min-w-[160px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
+                    <Button type="submit" disabled={isPending} className="min-w-[160px] bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-100 disabled:opacity-50">
                         {isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

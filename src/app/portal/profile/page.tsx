@@ -1,15 +1,17 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Factory, Globe, Leaf, Mail, MapPin, Save, Scale, Shield, Wallet } from "lucide-react";
+import { CheckCircle2, Factory, Globe, Leaf, Mail, MapPin, MessageSquare, Save, Scale, Shield, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { getSupplierProfile, updateSupplierProfile } from "@/app/actions/portal";
+import { getComments } from "@/app/actions/activity";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CommentsSection } from "@/components/shared/comments";
 
 const CERTIFICATION_OPTIONS = [
     "ISO 9001",
@@ -23,6 +25,7 @@ const CERTIFICATION_OPTIONS = [
 
 export default function SupplierProfilePage() {
     const [profile, setProfile] = useState<any>(null);
+    const [threadComments, setThreadComments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -30,6 +33,10 @@ export default function SupplierProfilePage() {
         async function load() {
             const supplierProfile = await getSupplierProfile();
             setProfile(supplierProfile);
+            if (supplierProfile?.id) {
+                const thread = await getComments('supplier_message', supplierProfile.id);
+                setThreadComments(thread);
+            }
             setLoading(false);
         }
 
@@ -329,6 +336,24 @@ export default function SupplierProfilePage() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {profile?.id && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                <MessageSquare className="h-4 w-4 text-primary" />
+                                Procurement Inbox
+                            </div>
+                            <CommentsSection
+                                entityType="supplier_message"
+                                entityId={profile.id}
+                                initialComments={threadComments}
+                                title="Shared Supplier Thread"
+                                placeholder="Reply to the buyer or share an update for the procurement team..."
+                                buttonLabel="Send Reply"
+                                emptyState="No procurement messages yet. When buyers contact you through Axiom, the conversation will appear here."
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

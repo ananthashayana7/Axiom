@@ -8,6 +8,8 @@ import { SearchTrigger } from "./search-trigger";
 import { signOut } from "@/auth";
 import { cn } from "@/lib/utils";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
+import { CurrencyDisplayToggle } from "@/components/layout/currency-display-toggle";
+import { EnvironmentPill } from "@/components/shared/environment-pill";
 
 type SessionUser = {
     role?: string | null;
@@ -46,6 +48,7 @@ export async function Header() {
                     <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
                     <span className="hidden text-[10px] font-medium text-muted-foreground/55 md:block">{workspaceSubtitle}</span>
                 </div>
+                <EnvironmentPill className="hidden lg:inline-flex" />
                 {role !== 'supplier' && (
                     <>
                         <div className="hidden h-5 w-px bg-border/60 lg:block" />
@@ -57,6 +60,7 @@ export async function Header() {
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
+                {role !== 'supplier' && <CurrencyDisplayToggle />}
                 <ThemeToggle />
                 <NotificationBell />
                 <div className="h-5 w-[1px] bg-border/60 hidden sm:block" />

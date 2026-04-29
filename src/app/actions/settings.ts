@@ -6,6 +6,7 @@ import { platformSettings, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
+import { mergeFinanceSettings, parseFinanceSettings } from "@/lib/finance";
 
 type SessionUser = {
     role?: string | null;
@@ -25,8 +26,15 @@ type SettingsUpdateInput = {
     platformName: string;
     defaultCurrency: string;
     isSettingsLocked: string;
+    exchangeRates: string;
     updatedAt: Date;
 };
+
+function readBookRate(formData: FormData, currency: string) {
+    const rawValue = formData.get(`bookRate_${currency.toUpperCase()}`);
+    const parsedValue = Number(rawValue);
+    return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null;
+}
 
 function countConfiguredKeys(values: Array<string | null | undefined>) {
     return values.filter((value) => Boolean(value?.trim())).length;
@@ -86,6 +94,7 @@ export async function getSettings() {
                 isSettingsLocked: 'no',
                 role: role || 'user',
                 isTwoFactorEnabled: false,
+                finance: parseFinanceSettings(null, 'INR'),
                 aiCredentialState: getAiCredentialState(),
             };
         }
@@ -106,12 +115,17 @@ export async function getSettings() {
                 defaultCurrency: 'INR',
                 isSettingsLocked: 'no',
                 geminiApiKey: null,
+                exchangeRates: mergeFinanceSettings(null, 'INR', {
+                    reportingCurrency: 'USD',
+                    bookRatePeriod: 'monthly',
+                }),
             }).returning();
 
             return {
                 ...sanitizeSettingsRecord(newSettings),
                 role,
                 isTwoFactorEnabled,
+                finance: parseFinanceSettings(newSettings.exchangeRates, newSettings.defaultCurrency),
                 aiCredentialState: getAiCredentialState(newSettings),
             };
         }
@@ -120,6 +134,7 @@ export async function getSettings() {
             ...sanitizeSettingsRecord(settings),
             role,
             isTwoFactorEnabled,
+            finance: parseFinanceSettings(settings.exchangeRates, settings.defaultCurrency),
             aiCredentialState: getAiCredentialState(settings),
         };
     } catch (error) {
@@ -130,6 +145,7 @@ export async function getSettings() {
             isSettingsLocked: 'no',
             role: role || 'user',
             isTwoFactorEnabled: false,
+            finance: parseFinanceSettings(null, 'INR'),
             aiCredentialState: getAiCredentialState(),
         };
     }
@@ -147,16 +163,56 @@ export async function updateSettings(formData: FormData) {
             (formData.get("platformName") as string) ||
             currentSettings.platformName ||
             'Axiom Procurement Intelligence';
+        const defaultCurrency = ((formData.get("defaultCurrency") as string) || currentSettings.defaultCurrency || 'INR').toUpperCase();
+        const reportingCurrency = ((formData.get("reportingCurrency") as string) || currentSettings.finance?.reportingCurrency || defaultCurrency).toUpperCase();
+        const bookRatePeriod = formData.get("bookRatePeriod") === "quarterly" ? "quarterly" : "monthly";
+        const bookRateEffectiveDate =
+            (formData.get("bookRateEffectiveDate") as string) ||
+            currentSettings.finance?.bookRateEffectiveDate ||
+            new Date().toISOString().slice(0, 10);
         const isSettingsLocked = formData.get("isSettingsLocked") as string || 'no';
+        const bookRateCurrencies = Array.from(new Set([
+            defaultCurrency,
+            reportingCurrency,
+            'USD',
+            'EUR',
+            'GBP',
+            'HUF',
+            'CNY',
+            'JPY',
+            'MXN',
+        ]));
 
         if (currentSettings.isSettingsLocked === 'yes' && isSettingsLocked !== 'no') {
             return { success: false, error: "Settings are locked. Please unlock them before making changes." };
         }
 
+        const bookRates = bookRateCurrencies.reduce<Record<string, number>>((accumulator, currency) => {
+            const submittedRate = readBookRate(formData, currency);
+            if (submittedRate) {
+                accumulator[currency] = submittedRate;
+                return accumulator;
+            }
+
+            const existingRate = currentSettings.finance?.bookRates?.[currency];
+            if (existingRate) {
+                accumulator[currency] = existingRate;
+            }
+
+            return accumulator;
+        }, {});
+        bookRates[reportingCurrency] = 1;
+
         const updateData: SettingsUpdateInput = {
             platformName,
-            defaultCurrency: currentSettings.defaultCurrency || 'INR',
+            defaultCurrency,
             isSettingsLocked: isSettingsLocked === 'on' || isSettingsLocked === 'yes' ? 'yes' : 'no',
+            exchangeRates: mergeFinanceSettings(currentSettings.exchangeRates, defaultCurrency, {
+                reportingCurrency,
+                bookRatePeriod,
+                bookRateEffectiveDate,
+                bookRates,
+            }),
             updatedAt: new Date(),
         };
 
@@ -167,9 +223,15 @@ export async function updateSettings(formData: FormData) {
             await db.update(platformSettings).set(updateData);
         }
 
-        await logActivity('UPDATE', 'system', 'global', `Admin updated system settings: ${platformName}`);
+        await logActivity(
+            'UPDATE',
+            'system',
+            'global',
+            `Admin updated system settings: ${platformName}. Finance book rates now report in ${reportingCurrency} using ${bookRatePeriod} book rates.`,
+        );
 
         revalidatePath("/admin/settings");
+        revalidatePath("/", "layout");
         return { success: true };
     } catch (error) {
         console.error("Failed to update settings:", error);

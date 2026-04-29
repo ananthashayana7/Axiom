@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +18,28 @@ interface CommentsSectionProps {
     entityType: string;
     entityId: string;
     initialComments: Comment[];
+    title?: string;
+    placeholder?: string;
+    buttonLabel?: string;
+    emptyState?: string;
 }
 
-export function CommentsSection({ entityType, entityId, initialComments }: CommentsSectionProps) {
+export function CommentsSection({
+    entityType,
+    entityId,
+    initialComments,
+    title = "Team Collaboration",
+    placeholder = "Add a comment or note...",
+    buttonLabel = "Post Comment",
+    emptyState = "No comments yet. Start the conversation!",
+}: CommentsSectionProps) {
     const [comments, setComments] = useState(initialComments);
     const [text, setText] = useState("");
     const [isPending, startTransition] = useTransition();
+
+    useEffect(() => {
+        setComments(initialComments);
+    }, [initialComments]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,17 +48,13 @@ export function CommentsSection({ entityType, entityId, initialComments }: Comme
         startTransition(async () => {
             const result = await postComment(entityType, entityId, text);
             if (result.success) {
-                // Optimistically update or just clear and let revalidation handle it?
-                // For better UX, we'll wait for revalidation or manually update state for now
                 setText("");
-                // Realistically, revalidatePath will refresh the server component data
-                // But since we are in a client component, we might want to manually prepend
-                setComments([{
-                    id: Math.random().toString(), // temporary id
+                setComments((currentComments) => [{
+                    id: Math.random().toString(),
                     text,
                     createdAt: new Date(),
-                    userName: "You", // Will be refreshed on next load
-                }, ...comments]);
+                    userName: "You",
+                }, ...currentComments]);
             }
         });
     };
@@ -52,26 +64,26 @@ export function CommentsSection({ entityType, entityId, initialComments }: Comme
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    Team Collaboration
+                    {title}
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                 <form onSubmit={handleSubmit} className="space-y-2">
                     <Textarea
-                        placeholder="Add a comment or note..."
+                        placeholder={placeholder}
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         className="min-h-[100px]"
                     />
                     <Button type="submit" disabled={isPending || !text.trim()}>
-                        {isPending ? "Posting..." : "Post Comment"}
+                        {isPending ? "Posting..." : buttonLabel}
                     </Button>
                 </form>
 
                 <div className="space-y-4">
                     {comments.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">
-                            No comments yet. Start the conversation!
+                            {emptyState}
                         </p>
                     )}
                     {comments.map((comment) => (

@@ -156,6 +156,22 @@ export function getGeoLocale(countryCode?: string): GeoLocale {
     };
 }
 
+export function getGeoLocaleForCurrency(currencyCode: string, fallbackCountry = 'IN'): GeoLocale {
+    const normalizedCurrency = currencyCode.toUpperCase();
+    const countryEntry = Object.entries(COUNTRY_CURRENCY_MAP).find(([, value]) => value.code === normalizedCurrency);
+
+    if (countryEntry) {
+        return getGeoLocale(countryEntry[0]);
+    }
+
+    const fallback = getGeoLocale(fallbackCountry);
+    return {
+        ...fallback,
+        currencyCode: normalizedCurrency,
+        currencySymbol: normalizedCurrency,
+    };
+}
+
 /** Format a number as currency for the detected/specified locale */
 export function formatLocalCurrency(
     amount: number | string | null | undefined,

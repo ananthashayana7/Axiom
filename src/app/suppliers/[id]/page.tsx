@@ -1,9 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getSupplierById, getSupplierOrders, getSupplierPerformanceMetrics } from "@/app/actions/suppliers";
-import { getAuditLogs, getComments } from "@/app/actions/activity";
+import { getComments, getTimelineEvents } from "@/app/actions/activity";
 import { CommentsSection } from "@/components/shared/comments";
-import { AuditLogList } from "@/components/shared/audit-log";
 import { auth } from "@/auth";
 import { ArrowLeft, Building2, Mail, AlertTriangle, Target, Activity } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -20,6 +19,8 @@ import { DocumentList } from "@/components/shared/document-list";
 import { getSupplierEnterpriseReadiness } from "@/app/actions/enterprise-readiness";
 import { SupplierEnterpriseReadiness } from "@/components/suppliers/supplier-enterprise-readiness";
 import { EnrichSupplierButton } from "@/components/suppliers/enrich-supplier-button";
+import { MessageSupplierButton } from "@/components/suppliers/message-supplier-button";
+import { TimelineList } from "@/components/shared/timeline-list";
 
 type LifecycleStatus = 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated';
 type SupplierMetrics = {
@@ -56,12 +57,13 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
 
-    const [supplier, orders, docs, initialComments, auditLogs, performanceData, readinessSnapshot] = await Promise.all([
+    const [supplier, orders, docs, initialComments, supplierThreadComments, timelineEntries, performanceData, readinessSnapshot] = await Promise.all([
         getSupplierById(id),
         getSupplierOrders(id),
         getDocuments('supplier', id),
         getComments('supplier', id),
-        isAdmin ? getAuditLogs('supplier', id) : Promise.resolve([]),
+        getComments('supplier_message', id),
+        getTimelineEvents('supplier', id),
         getSupplierPerformanceMetrics(id),
         getSupplierEnterpriseReadiness(id),
     ]);
@@ -98,10 +100,16 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                             {supplier.name}
                         </h1>
                         <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-                            <a href={`mailto:${supplier.contactEmail}`} className="flex items-center gap-1.5 text-sm hover:text-primary transition-colors">
+                            <div className="flex items-center gap-1.5 text-sm">
                                 <Mail className="h-4 w-4" />
                                 {supplier.contactEmail}
-                            </a>
+                            </div>
+                            <MessageSupplierButton
+                                supplierId={id}
+                                supplierName={supplier.name}
+                                supplierEmail={supplier.contactEmail}
+                                triggerLabel="Message Supplier"
+                            />
                             <Badge variant={supplier.status === 'active' ? 'default' : 'destructive'}>
                                 {supplier.status?.toUpperCase()}
                             </Badge>
@@ -345,18 +353,33 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_360px]">
+                <div className="space-y-8">
+                    <CommentsSection
+                        entityType="supplier_message"
+                        entityId={id}
+                        initialComments={supplierThreadComments}
+                        title="Supplier Inbox"
+                        placeholder="Write the next supplier-facing update or respond inside the shared thread..."
+                        buttonLabel="Post to Supplier Thread"
+                        emptyState="No supplier messages yet. Use the message button above to start the auditable thread."
+                    />
+                    <CommentsSection
+                        entityType="supplier"
+                        entityId={id}
+                        initialComments={initialComments}
+                        title="Internal Notes"
+                        placeholder="Add an internal note for buyers, approvers, and admin teammates..."
+                        buttonLabel="Save Internal Note"
+                        emptyState="No internal notes logged yet."
+                    />
+                    <TimelineList entries={timelineEntries} />
+                </div>
                 <DocumentList
                     supplierId={id}
                     documents={docs as SupplierDocument[]}
                     isAdmin={isAdmin}
                 />
-                <CommentsSection
-                    entityType="supplier"
-                    entityId={id}
-                    initialComments={initialComments}
-                />
-                {isAdmin && <AuditLogList logs={auditLogs} />}
             </div>
         </div>
     );

@@ -4,7 +4,7 @@ import { useMemo, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Mail, MessageSquare, ShieldAlert, Users, CreditCard } from "lucide-react"
+import { MessageSquare, ShieldAlert, Users, CreditCard } from "lucide-react"
 import { toast } from "sonner"
 import { sendEscalationPing } from "@/app/actions/mail"
 
@@ -149,14 +149,6 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
                                 disabled={isPending}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                                onClick={() => window.open(`mailto:${dept.email}`)}
-                            >
-                                <Mail className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
