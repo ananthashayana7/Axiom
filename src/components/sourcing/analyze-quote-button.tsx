@@ -65,7 +65,7 @@ export function AnalyzeQuoteButton({ rfqSupplierId, hasAnalysis }: AnalyzeQuoteB
                 ) : (
                     <FileUp className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
                 )}
-                {hasAnalysis ? "Update Analysis" : "AI Analyze Quote"}
+                {hasAnalysis ? "Replace Quote File" : "Upload Quote File"}
             </Button>
         </>
     );

@@ -67,7 +67,16 @@ export async function getAiModel(modelName: string = "gemini-2.5-flash", config?
             for (const apiKey of apiKeys) {
                 try {
                     const genAI = new GoogleGenerativeAI(apiKey);
-                    const model = genAI.getGenerativeModel({ model: modelName, ...config });
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        ...config,
+                        generationConfig: {
+                            temperature: 0.1,
+                            topP: 0.1,
+                            topK: 1,
+                            ...((config?.generationConfig as Record<string, unknown> | undefined) ?? {}),
+                        },
+                    });
                     return await model.generateContent(request as Parameters<typeof model.generateContent>[0]);
                 } catch (error) {
                     lastError = error;

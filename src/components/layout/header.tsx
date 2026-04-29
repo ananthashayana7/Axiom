@@ -29,6 +29,7 @@ export async function Header() {
             : role === 'supplier'
                 ? "Vendor-facing RFQs, orders, and requests"
                 : "Internal procurement execution workspace";
+    const profileHref = role === 'supplier' ? "/portal/profile" : "/profile";
 
     const roleBadgeClass =
         role === 'admin'
@@ -45,10 +46,14 @@ export async function Header() {
                     <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
                     <span className="hidden text-[10px] font-medium text-muted-foreground/55 md:block">{workspaceSubtitle}</span>
                 </div>
-                <div className="hidden h-5 w-px bg-border/60 lg:block" />
-                <div className="hidden items-center lg:flex">
-                    <SearchTrigger />
-                </div>
+                {role !== 'supplier' && (
+                    <>
+                        <div className="hidden h-5 w-px bg-border/60 lg:block" />
+                        <div className="hidden items-center lg:flex">
+                            <SearchTrigger />
+                        </div>
+                    </>
+                )}
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
@@ -57,7 +62,7 @@ export async function Header() {
                 <div className="h-5 w-[1px] bg-border/60 hidden sm:block" />
                 <div className="flex min-w-0 items-center gap-2">
                     <Link
-                        href="/profile"
+                        href={profileHref}
                         className="flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-muted/80 border border-transparent hover:border-border/60"
                     >
                         <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-black text-[11px] shadow-sm shadow-primary/20">

@@ -123,10 +123,12 @@ export async function Sidebar({ className }: { className?: string }) {
                 </div>
                 {/* AI Features - highlighted */}
                 <div className="px-3 mt-2 space-y-1">
-                    <NavLink href="/copilot" className={cn(navCls, "bg-primary/8 text-primary border border-primary/15 hover:bg-primary/12 font-semibold")}>
-                        <AxiomLogo className="mr-2 h-4 w-4 text-primary" />
-                        Axiom Copilot
-                    </NavLink>
+                    {role !== 'supplier' && (
+                        <NavLink href="/copilot" className={cn(navCls, "bg-primary/8 text-primary border border-primary/15 hover:bg-primary/12 font-semibold")}>
+                            <AxiomLogo className="mr-2 h-4 w-4 text-primary" />
+                            Axiom Copilot
+                        </NavLink>
+                    )}
                     {role === 'admin' && (
                         <Link href="/admin/agents">
                             <span className="flex items-center rounded-md px-3 py-1.5 text-[13px] font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/40 dark:bg-emerald-950/15 text-emerald-700 dark:text-emerald-400 transition-all border border-emerald-200/60 dark:border-emerald-800/40">

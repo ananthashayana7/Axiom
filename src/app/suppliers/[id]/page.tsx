@@ -19,6 +19,7 @@ import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
 import { getSupplierEnterpriseReadiness } from "@/app/actions/enterprise-readiness";
 import { SupplierEnterpriseReadiness } from "@/components/suppliers/supplier-enterprise-readiness";
+import { EnrichSupplierButton } from "@/components/suppliers/enrich-supplier-button";
 
 type LifecycleStatus = 'prospect' | 'onboarding' | 'active' | 'suspended' | 'terminated';
 type SupplierMetrics = {
@@ -74,12 +75,17 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <Link href="/suppliers" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Suppliers
                 </Link>
-                {isAdmin && <RecordPerformanceModal supplierId={id} />}
+                {isAdmin && (
+                    <div className="flex flex-wrap gap-3">
+                        <EnrichSupplierButton supplierId={id} />
+                        <RecordPerformanceModal supplierId={id} />
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-10">

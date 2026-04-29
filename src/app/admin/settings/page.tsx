@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { flushAuthCache, getSettings, updateSettings } from "@/app/actions/settings";
+import { ClearInventoryButton } from "@/components/admin/clear-inventory-button";
 import { ResetDatabaseButton } from "@/components/admin/reset-database-button";
 import { SeedDemoDataButton } from "@/components/admin/seed-demo-data-button";
 import { TwoFactorSetup } from "@/components/admin/two-factor-setup";
@@ -257,6 +258,7 @@ export default function AdminSettingsPage() {
                             </div>
                             <div className="grid gap-3">
                                 <SeedDemoDataButton />
+                                <ClearInventoryButton />
                                 <ResetDatabaseButton />
                             </div>
                         </div>

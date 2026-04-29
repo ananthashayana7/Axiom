@@ -78,7 +78,7 @@ export function PartCharts({ parts }: PartChartsProps) {
             <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-black uppercase tracking-wide">Top Parts — Stock vs Reorder Point</CardTitle>
-                    <CardDescription>Blue = current stock, amber = reorder threshold</CardDescription>
+                    <CardDescription>Current stock benchmarked against the reorder trigger for your busiest SKUs.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={220}>
@@ -91,6 +91,16 @@ export function PartCharts({ parts }: PartChartsProps) {
                             <Bar dataKey="reorder" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Reorder Point" />
                         </BarChart>
                     </ResponsiveContainer>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                            <span className="h-2 w-2 rounded-full bg-blue-500" />
+                            Current stock
+                        </span>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            Reorder trigger
+                        </span>
+                    </div>
                 </CardContent>
             </Card>
 

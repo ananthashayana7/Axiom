@@ -7,6 +7,184 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
+import { getAiModel } from "@/lib/ai-provider";
+
+const GENERIC_EMAIL_DOMAINS = new Set([
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com",
+    "protonmail.com",
+]);
+
+const CATEGORY_KEYWORDS: Array<{ category: string; keywords: string[] }> = [
+    { category: "Electronics", keywords: ["electronics", "pcb", "sensor", "semiconductor", "embedded"] },
+    { category: "Machining", keywords: ["machining", "cnc", "milling", "turning", "metal fabrication"] },
+    { category: "Logistics", keywords: ["logistics", "transport", "freight", "warehouse", "shipping"] },
+    { category: "Plastics", keywords: ["plastic", "polymer", "molding", "injection moulding"] },
+    { category: "Fasteners", keywords: ["fastener", "bolt", "screw", "nut", "washer"] },
+    { category: "Packaging", keywords: ["packaging", "carton", "label", "corrugated"] },
+    { category: "Chemicals", keywords: ["chemical", "coating", "adhesive", "solvent"] },
+    { category: "Industrial Services", keywords: ["maintenance", "calibration", "field service", "industrial service"] },
+];
+
+function extractEmailDomain(email: string) {
+    return email.split("@")[1]?.trim().toLowerCase() || "";
+}
+
+function stripHtml(html: string) {
+    return html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function extractMetaDescription(html: string) {
+    const match = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+    return match?.[1]?.trim() || "";
+}
+
+function extractTitle(html: string) {
+    const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    return match?.[1]?.trim() || "";
+}
+
+function inferCountryCodeFromDomain(domain: string) {
+    const tld = domain.split(".").pop()?.toUpperCase() || "";
+    return tld.length === 2 ? tld : null;
+}
+
+function buildHeuristicSupplierEnrichment(text: string, domain: string) {
+    const normalized = text.toLowerCase();
+    const categories = CATEGORY_KEYWORDS
+        .filter((entry) => entry.keywords.some((keyword) => normalized.includes(keyword)))
+        .map((entry) => entry.category);
+    const isoCertifications = Array.from(new Set(
+        [...normalized.matchAll(/\biso[\s-]?\d{4,5}\b/gi)].map((match) => match[0].toUpperCase().replace(/\s+/g, " "))
+    ));
+
+    return {
+        categories,
+        isoCertifications,
+        countryCode: inferCountryCodeFromDomain(domain),
+        city: null as string | null,
+        conflictMineralsStatus: normalized.includes("conflict minerals policy") ? "compliant" : "unknown",
+        modernSlaveryStatement: normalized.includes("modern slavery") ? "yes" : "no",
+        summary: "Heuristic public-web enrichment applied.",
+    };
+}
+
+async function fetchPublicCompanyProfile(domain: string) {
+    const urls = [`https://${domain}`, `http://${domain}`];
+
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    "User-Agent": "AxiomSupplierEnrichment/1.0",
+                },
+                redirect: "follow",
+            });
+
+            if (!response.ok) {
+                continue;
+            }
+
+            const html = await response.text();
+            const plainText = stripHtml(html).slice(0, 12000);
+            return {
+                url,
+                title: extractTitle(html),
+                description: extractMetaDescription(html),
+                plainText,
+            };
+        } catch {
+            continue;
+        }
+    }
+
+    return null;
+}
+
+async function inferSupplierProfileFromPublicWeb(args: {
+    name: string;
+    domain: string;
+    pageTitle: string;
+    description: string;
+    plainText: string;
+}) {
+    const heuristic = buildHeuristicSupplierEnrichment(
+        `${args.pageTitle}\n${args.description}\n${args.plainText}`,
+        args.domain
+    );
+
+    try {
+        const model = await getAiModel("gemini-2.5-flash");
+        if (!model) {
+            return heuristic;
+        }
+
+        const prompt = `
+You are enriching a supplier master record for Axiom using ONLY the public company webpage excerpt below.
+
+Company: ${args.name}
+Domain: ${args.domain}
+Title: ${args.pageTitle}
+Meta description: ${args.description}
+Excerpt:
+${args.plainText.slice(0, 8000)}
+
+Return JSON only in this shape:
+{
+  "categories": string[],
+  "countryCode": string | null,
+  "city": string | null,
+  "isoCertifications": string[],
+  "conflictMineralsStatus": "compliant" | "non_compliant" | "unknown",
+  "modernSlaveryStatement": "yes" | "no",
+  "summary": string
+}
+
+Rules:
+- Use only facts or very high-confidence inferences from the excerpt.
+- If a field is unclear, return null or an empty array.
+- Prefer procurement-relevant categories such as Electronics, Machining, Logistics, Plastics, Fasteners, Packaging, Chemicals, Industrial Services.
+        `;
+
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            return heuristic;
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]) as {
+            categories?: string[];
+            countryCode?: string | null;
+            city?: string | null;
+            isoCertifications?: string[];
+            conflictMineralsStatus?: 'compliant' | 'non_compliant' | 'unknown';
+            modernSlaveryStatement?: 'yes' | 'no';
+            summary?: string;
+        };
+
+        return {
+            categories: parsed.categories?.filter(Boolean) || heuristic.categories,
+            isoCertifications: parsed.isoCertifications?.filter(Boolean) || heuristic.isoCertifications,
+            countryCode: parsed.countryCode || heuristic.countryCode,
+            city: parsed.city || heuristic.city,
+            conflictMineralsStatus: parsed.conflictMineralsStatus || heuristic.conflictMineralsStatus,
+            modernSlaveryStatement: parsed.modernSlaveryStatement || heuristic.modernSlaveryStatement,
+            summary: parsed.summary || heuristic.summary,
+        };
+    } catch (error) {
+        console.warn("Supplier enrichment AI path failed, using heuristic fallback.", error);
+        return heuristic;
+    }
+}
 
 export async function calculateABCAnalysis() {
     const session = await auth();
@@ -218,6 +396,13 @@ export async function addSupplier(formData: FormData) {
         const city = formData.get("city") as string;
         const latitude = parseFloat(formData.get("latitude") as string);
         const longitude = parseFloat(formData.get("longitude") as string);
+        const isoCertifications = Array.from(new Set([
+            ...formData.getAll("iso").map((value) => String(value).trim()).filter(Boolean),
+            ...String(formData.get("customCertifications") || "")
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean),
+        ]));
 
         if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) {
             return { success: false, error: "Country code must be a valid 2-letter ISO code" };
@@ -245,7 +430,7 @@ export async function addSupplier(formData: FormData) {
             abcClassification: "None",
             conflictMineralsStatus: "unknown",
             tierLevel: ((formData.get("tier") as 'tier_1' | 'tier_2' | 'tier_3' | 'critical' | null) || "tier_3"),
-            isoCertifications: formData.getAll("iso") as string[],
+            isoCertifications,
             esgEnvironmentScore: parseInt(formData.get("esg_env") as string) || 0,
             esgSocialScore: parseInt(formData.get("esg_soc") as string) || 0,
             esgGovernanceScore: parseInt(formData.get("esg_gov") as string) || 0,
@@ -264,6 +449,72 @@ export async function addSupplier(formData: FormData) {
     } catch (error) {
         console.error("Failed to add supplier:", error);
         return { success: false, error: "Failed to add supplier" };
+    }
+}
+
+export async function enrichSupplierFromPublicProfile(supplierId: string) {
+    const session = await auth();
+    if (!session || session.user.role === 'supplier') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+        if (!supplier) {
+            return { success: false, error: "Supplier not found" };
+        }
+
+        const domain = extractEmailDomain(supplier.contactEmail);
+        if (!domain || GENERIC_EMAIL_DOMAINS.has(domain)) {
+            return { success: false, error: "A company email domain is required before public-web enrichment can run." };
+        }
+
+        const profile = await fetchPublicCompanyProfile(domain);
+        if (!profile) {
+            return { success: false, error: `Could not reach a public company profile for ${domain}.` };
+        }
+
+        const inferred = await inferSupplierProfileFromPublicWeb({
+            name: supplier.name,
+            domain,
+            pageTitle: profile.title,
+            description: profile.description,
+            plainText: profile.plainText,
+        });
+
+        const mergedCategories = Array.from(new Set([...(supplier.categories || []), ...(inferred.categories || [])]));
+        const mergedCertifications = Array.from(new Set([...(supplier.isoCertifications || []), ...(inferred.isoCertifications || [])]));
+
+        await db.update(suppliers)
+            .set({
+                categories: mergedCategories,
+                isoCertifications: mergedCertifications,
+                countryCode: supplier.countryCode || inferred.countryCode,
+                city: supplier.city || inferred.city,
+                conflictMineralsStatus: supplier.conflictMineralsStatus === 'unknown' ? inferred.conflictMineralsStatus : supplier.conflictMineralsStatus,
+                modernSlaveryStatement: supplier.modernSlaveryStatement === 'no' ? inferred.modernSlaveryStatement : supplier.modernSlaveryStatement,
+            })
+            .where(eq(suppliers.id, supplierId));
+
+        await logActivity('UPDATE', 'supplier', supplierId, `Supplier record enriched from public web profile (${domain}). ${inferred.summary}`);
+
+        revalidatePath(`/suppliers/${supplierId}`);
+        revalidatePath("/suppliers");
+
+        return {
+            success: true,
+            summary: inferred.summary,
+            domain,
+            updatedFields: {
+                categories: mergedCategories,
+                isoCertifications: mergedCertifications,
+                countryCode: supplier.countryCode || inferred.countryCode,
+                city: supplier.city || inferred.city,
+            },
+        };
+    } catch (error) {
+        console.error("Failed to enrich supplier from public profile:", error);
+        return { success: false, error: "Failed to enrich supplier from public profile" };
     }
 }
 

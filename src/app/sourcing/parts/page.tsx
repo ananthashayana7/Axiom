@@ -25,7 +25,7 @@ export default async function PartsPage() {
 
   return (
     <div className="p-4 lg:p-8 bg-muted/40 min-h-full">
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-primary font-outfit uppercase">Parts Intelligence</h1>
           <p className="text-muted-foreground mt-1 font-medium">
@@ -36,8 +36,8 @@ export default async function PartsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <div className="bg-card p-6 rounded-2xl border shadow-sm border-blue-100 bg-blue-50/30">
+      <div className="mb-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Total Inventory</p>
@@ -51,7 +51,7 @@ export default async function PartsPage() {
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-2xl border shadow-sm border-amber-100 bg-amber-50/30">
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/30 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Low Stock</p>
@@ -65,7 +65,7 @@ export default async function PartsPage() {
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-2xl border shadow-sm border-red-100 bg-red-50/30">
+        <div className="rounded-2xl border border-red-100 bg-red-50/30 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Critical</p>
@@ -79,7 +79,7 @@ export default async function PartsPage() {
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-2xl border shadow-sm border-green-100 bg-green-50/30">
+        <div className="rounded-2xl border border-green-100 bg-green-50/30 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Categories</p>
@@ -94,10 +94,10 @@ export default async function PartsPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-8">
+      <div className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="bg-card p-6 rounded-2xl border shadow-sm">
           <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">Linked Transaction Coverage</p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border bg-blue-50/40 border-blue-100 p-4">
               <p className="text-xs text-muted-foreground uppercase font-bold">Order Links</p>
               <p className="text-3xl font-black text-blue-700">{totalOrderLinks}</p>
@@ -111,18 +111,18 @@ export default async function PartsPage() {
 
         <div className="bg-card p-6 rounded-2xl border shadow-sm">
           <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">Top Linked Parts</p>
-          <div className="space-y-2 max-h-40 overflow-auto pr-1">
+          <div className="show-scrollbar space-y-3 max-h-64 overflow-auto pr-1">
             {partsWithLinks
               .slice()
               .sort((a, b) => (b.orderCount + b.invoiceCount) - (a.orderCount + a.invoiceCount))
               .slice(0, 5)
               .map((part) => (
-                <div key={part.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
+                <div key={part.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <p className="font-semibold text-sm">{part.name}</p>
                     <p className="text-xs text-muted-foreground">{part.sku}</p>
                   </div>
-                  <div className="flex gap-2 text-xs font-bold">
+                  <div className="flex flex-wrap gap-2 text-xs font-bold">
                     <span className="px-2 py-1 rounded bg-blue-100 text-blue-700">Orders: {part.orderCount || 0}</span>
                     <span className="px-2 py-1 rounded bg-amber-100 text-amber-700">Invoices: {part.invoiceCount || 0}</span>
                     <span className="px-2 py-1 rounded bg-violet-100 text-violet-700">RFQs: {part.rfqCount || 0}</span>

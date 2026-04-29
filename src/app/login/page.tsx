@@ -110,9 +110,10 @@ export default function LoginPage() {
     const activeMode = loginModes.find((entry) => entry.mode === loginMode) ?? loginModes[0];
 
     return (
-        <div className="flex min-h-full bg-background">
+        <div className="min-h-full bg-background">
+            <div className="mx-auto grid min-h-full w-full max-w-[1680px] lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)]">
             {/* Left panel — branding */}
-            <div className="hidden lg:flex flex-col justify-between w-[420px] xl:w-[460px] bg-primary p-10 relative overflow-hidden shrink-0">
+            <div className="relative hidden min-h-full shrink-0 overflow-hidden bg-primary p-8 lg:flex lg:flex-col lg:justify-between xl:p-10">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.1)_0%,_transparent_60%)] pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-full h-1/2 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(0,0,0,0.15)_0%,_transparent_70%)] pointer-events-none" />
                 {/* Decorative grid */}
@@ -155,9 +156,9 @@ export default function LoginPage() {
             </div>
 
             {/* Right panel — form */}
-            <div className="flex-1 flex items-center justify-center p-6 lg:p-10 relative bg-gradient-to-br from-background via-background to-primary/5">
+            <div className="relative flex min-h-full items-start justify-center overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5 px-4 py-6 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/4 rounded-full blur-3xl pointer-events-none" />
-                <div className="w-full max-w-sm relative z-10">
+                <div className="relative z-10 w-full max-w-[480px] py-2 sm:py-4">
                     {/* Mobile logo */}
                     <div className="flex items-center gap-3 mb-8 lg:hidden">
                         <div className="h-9 w-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
@@ -169,7 +170,7 @@ export default function LoginPage() {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border bg-card/90 backdrop-blur-sm p-7 shadow-2xl shadow-black/5">
+                    <div className="rounded-2xl border bg-card/90 p-6 shadow-2xl shadow-black/5 backdrop-blur-sm sm:p-7">
                         <h1 className="mb-1 text-2xl font-black tracking-tight text-foreground">
                             {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : activeMode.title)}
                         </h1>
@@ -187,7 +188,7 @@ export default function LoginPage() {
                                                 key={entry.mode}
                                                 type="button"
                                                 onClick={() => setLoginMode(entry.mode)}
-                                                className={`rounded-xl border px-3 py-2 text-left transition-all ${loginMode === entry.mode
+                                                className={`min-h-[76px] rounded-xl border px-3 py-2 text-left transition-all ${loginMode === entry.mode
                                                     ? 'border-primary bg-primary/10 text-primary shadow-sm'
                                                     : 'border-border bg-background/60 text-muted-foreground hover:border-primary/30 hover:text-foreground'
                                                     }`}
@@ -357,6 +358,7 @@ export default function LoginPage() {
                         Secured by Axiom &middot; Enterprise Procurement Platform
                     </p>
                 </div>
+            </div>
             </div>
         </div>
     );

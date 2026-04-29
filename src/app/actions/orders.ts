@@ -25,6 +25,19 @@ function roundCurrency(value: number) {
     return Math.round(value * 100) / 100;
 }
 
+function getStructuredQuoteAmount(aiAnalysis: string | null | undefined) {
+    if (!aiAnalysis) {
+        return 0;
+    }
+
+    try {
+        const parsed = JSON.parse(aiAnalysis) as { totalAmount?: number | string };
+        return toNumber(parsed.totalAmount);
+    } catch {
+        return 0;
+    }
+}
+
 async function incrementInventoryForOrder(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], orderId: string) {
     const items = await tx.select({
         partId: orderItems.partId,
@@ -229,7 +242,12 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                 }
 
                 // 1. Fetch winning quote and RFQ data
-                const [quote] = await tx.select()
+                const [quote] = await tx.select({
+                    quoteAmount: rfqSuppliers.quoteAmount,
+                    aiAnalysis: rfqSuppliers.aiAnalysis,
+                    supplierId: rfqSuppliers.supplierId,
+                    rfqId: rfqSuppliers.rfqId,
+                })
                     .from(rfqSuppliers)
                     .where(and(eq(rfqSuppliers.rfqId, rfqId), eq(rfqSuppliers.supplierId, supplierId)));
 
@@ -256,13 +274,24 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                   .where(eq(rfqItems.rfqId, rfqId));
 
                 // 2. Create Order
-                const totalAmount = parseFloat(quote.quoteAmount || "0");
-                if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
-                    return { success: false, error: "Quoted amount must be greater than zero before converting this RFQ." };
-                }
-
                 if (items.length === 0) {
                     return { success: false, error: "RFQ must contain at least one item before conversion." };
+                }
+
+                let totalAmount = toNumber(quote.quoteAmount);
+                if (totalAmount <= 0) {
+                    totalAmount = getStructuredQuoteAmount(quote.aiAnalysis);
+                }
+
+                if (totalAmount <= 0) {
+                    totalAmount = roundCurrency(items.reduce((sum, item) => {
+                        const fallbackUnitPrice = toNumber(item.partPrice);
+                        return sum + (fallbackUnitPrice * item.quantity);
+                    }, 0));
+                }
+
+                if (totalAmount <= 0) {
+                    return { success: false, error: "This RFQ does not have a usable quoted amount yet. Ask the supplier to submit a quote or upload a quotation file first." };
                 }
 
                 const quoteAmounts = allQuotes.map((entry) => toNumber(entry.quoteAmount)).filter((amount) => amount > 0);

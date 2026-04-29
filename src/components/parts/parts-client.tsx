@@ -1,29 +1,102 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus, Search, Filter, X, Repeat } from "lucide-react";
-import { PartMenuActions } from "./part-menu-actions";
-import { formatCurrency } from "@/lib/utils/currency";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Trash2, Loader2, AlertTriangle } from "lucide-react";
-import { deleteAllParts } from "@/app/actions/parts";
-import { toast } from "sonner";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import React, { Suspense, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { AlertTriangle, Filter, Loader2, Minus, Repeat, Search, TrendingDown, TrendingUp, X } from "lucide-react";
 
-export function PartsClient({ initialParts }: { initialParts: any[] }) {
+import { processLowStockAlerts } from "@/app/actions/parts";
+import { PartMenuActions } from "./part-menu-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import type { Part } from "@/db/schema";
+import { formatCurrency } from "@/lib/utils/currency";
+import { toast } from "sonner";
+
+type InventoryPart = Part & {
+    orderCount?: number;
+    invoiceCount?: number;
+    rfqCount?: number;
+};
+
+type TrendMeta = {
+    label: string;
+    badgeClassName: string;
+    Icon: typeof TrendingUp;
+    narrative: string;
+};
+
+function getTrendMeta(part: InventoryPart): TrendMeta {
+    const sharedNarrative = "Source: Axiom internal benchmark and recent pricing snapshot.";
+
+    switch (part.marketTrend?.toLowerCase()) {
+        case 'up':
+            return {
+                label: 'Rising',
+                badgeClassName: 'text-red-500 border-red-200 bg-red-50',
+                Icon: TrendingUp,
+                narrative: `This SKU is running above its recent baseline. Review fresh supplier quotes before placing the next order. ${sharedNarrative}`,
+            };
+        case 'down':
+            return {
+                label: 'Falling',
+                badgeClassName: 'text-green-600 border-green-200 bg-green-50',
+                Icon: TrendingDown,
+                narrative: `Recent pricing is easing for this SKU. This is a good candidate for re-bid or volume negotiation. ${sharedNarrative}`,
+            };
+        case 'volatile':
+            return {
+                label: 'Volatile',
+                badgeClassName: 'text-amber-600 border-amber-200 bg-amber-50',
+                Icon: AlertTriangle,
+                narrative: `Pricing is inconsistent across recent benchmarks. Keep this item in an RFQ-driven workflow instead of auto-awarding it. ${sharedNarrative}`,
+            };
+        default:
+            return {
+                label: 'Stable',
+                badgeClassName: 'text-blue-600 border-blue-200 bg-blue-50',
+                Icon: Minus,
+                narrative: `Pricing is tracking close to the current baseline, so standard reorder logic is safe here. ${sharedNarrative}`,
+            };
+    }
+}
+
+function getSuggestedReorders(parts: InventoryPart[]) {
+    return parts
+        .filter((part) => part.stockLevel <= (part.reorderPoint || 50))
+        .map((part) => {
+            const reorderPoint = part.reorderPoint || 50;
+            const minStockLevel = part.minStockLevel || 20;
+            const targetStock = reorderPoint * 2;
+            const recommendedQty = Math.max(targetStock - part.stockLevel, 1);
+            const severity = part.stockLevel <= minStockLevel ? 'critical' : 'low';
+
+            return {
+                ...part,
+                reorderPoint,
+                minStockLevel,
+                targetStock,
+                recommendedQty,
+                severity,
+            };
+        })
+        .sort((left, right) => {
+            if (left.severity !== right.severity) {
+                return left.severity === 'critical' ? -1 : 1;
+            }
+            return left.stockLevel - right.stockLevel;
+        });
+}
+
+export function PartsClient({ initialParts }: { initialParts: InventoryPart[] }) {
     return (
         <Suspense fallback={<div className="p-20 text-center">Loading inventory...</div>}>
             <PartsTable initialParts={initialParts} />
@@ -31,7 +104,7 @@ export function PartsClient({ initialParts }: { initialParts: any[] }) {
     );
 }
 
-function PartsTable({ initialParts }: { initialParts: any[] }) {
+function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const filterParam = searchParams.get('filter');
@@ -39,16 +112,21 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
+    const [reviewOpen, setReviewOpen] = useState(false);
+    const [isProcessingReorders, setIsProcessingReorders] = useState(false);
+    const [expandedTrendPartId, setExpandedTrendPartId] = useState<string | null>(null);
+
     const itemsPerPage = 10;
-    const [showDeleteAllAlert, setShowDeleteAllAlert] = useState(false);
 
     const categories = useMemo(() => {
-        const cats = new Set(initialParts.map(p => p.category));
+        const cats = new Set(initialParts.map((part) => part.category));
         return ["All", ...Array.from(cats)];
     }, [initialParts]);
 
+    const reorderSuggestions = useMemo(() => getSuggestedReorders(initialParts), [initialParts]);
+
     const filteredParts = useMemo(() => {
-        return initialParts.filter(part => {
+        return initialParts.filter((part) => {
             const matchesSearch =
                 part.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 part.sku.toLowerCase().includes(searchQuery.toLowerCase());
@@ -64,9 +142,8 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
 
             return matchesSearch && matchesCategory && matchesStockStatus;
         });
-    }, [initialParts, searchQuery, categoryFilter, filterParam]);
+    }, [categoryFilter, filterParam, initialParts, searchQuery]);
 
-    // Pagination Logic
     const totalPages = Math.ceil(filteredParts.length / itemsPerPage);
     const paginatedParts = filteredParts.slice(
         (currentPage - 1) * itemsPerPage,
@@ -79,152 +156,167 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
         }
     };
 
-    const renderTrend = (trend: string | null) => {
-        switch (trend?.toLowerCase()) {
-            case 'up':
-                return <Badge variant="outline" className="text-red-500 border-red-200 bg-red-50 flex items-center gap-1"><TrendingUp size={12} /> Rising</Badge>;
-            case 'down':
-                return <Badge variant="outline" className="text-green-500 border-green-200 bg-green-50 flex items-center gap-1"><TrendingDown size={12} /> Falling</Badge>;
-            case 'volatile':
-                return <Badge variant="outline" className="text-amber-500 border-amber-200 bg-amber-50 flex items-center gap-1"><AlertTriangle size={12} /> Volatile</Badge>;
-            default:
-                return <Badge variant="outline" className="text-blue-500 border-blue-200 bg-blue-50 flex items-center gap-1"><Minus size={12} /> Stable</Badge>;
+    const handleProcessReorders = async () => {
+        setIsProcessingReorders(true);
+        try {
+            const result = await processLowStockAlerts();
+            if (result.success) {
+                toast.success(result.message);
+                setReviewOpen(false);
+                router.refresh();
+            } else {
+                toast.error(result.error || "Failed to create reorder drafts");
+            }
+        } catch (_error) {
+            toast.error("An unexpected error occurred while creating draft reorders.");
+        } finally {
+            setIsProcessingReorders(false);
         }
     };
 
     return (
-        <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
-            <div className="p-6 border-b bg-muted/20">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <h2 className="text-lg font-semibold shrink-0">Parts Inventory</h2>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                        <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search by name or SKU..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 bg-background"
-                            />
+        <>
+            <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+                <div className="border-b bg-muted/20 p-6">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold">Parts Inventory</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Review stock health, benchmark pricing signals, and linked sourcing activity in one place.
+                            </p>
                         </div>
-                        <div className="relative">
-                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground poiner-events-none" />
-                            <select
-                                className="pl-9 pr-4 py-2 border rounded-md text-sm bg-background appearance-none min-w-[140px] focus:ring-2 focus:ring-primary cursor-pointer"
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                            >
-                                {categories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {filterParam && (
+                        <div className="flex w-full flex-col gap-2 lg:flex-row xl:w-auto">
+                            <div className="relative flex-1 lg:min-w-[240px] xl:w-64">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search by name or SKU..."
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    className="bg-background pl-9"
+                                />
+                            </div>
+                            <div className="relative lg:min-w-[160px]">
+                                <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <select
+                                    className="min-w-[160px] appearance-none rounded-md border bg-background py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-primary"
+                                    value={categoryFilter}
+                                    onChange={(event) => setCategoryFilter(event.target.value)}
+                                >
+                                    {categories.map((category) => (
+                                        <option key={category} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {filterParam && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => router.push('/sourcing/parts')}
+                                    className="h-10 gap-2 px-3 text-xs font-bold"
+                                >
+                                    <X size={14} /> Clear Status: {filterParam.toUpperCase()}
+                                </Button>
+                            )}
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => router.push('/sourcing/parts')}
-                                className="h-9 px-3 text-xs font-bold gap-2"
+                                onClick={() => setReviewOpen(true)}
+                                className="h-10 gap-2 border-amber-200 bg-amber-50 px-4 font-bold text-amber-700 hover:bg-amber-100"
                             >
-                                <X size={14} /> Clear Status: {filterParam.toUpperCase()}
+                                <Repeat className="h-4 w-4" />
+                                Review {reorderSuggestions.length} Suggested Reorders
                             </Button>
-                        )}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                                const { processLowStockAlerts } = await import("@/app/actions/parts");
-                                const res = await processLowStockAlerts();
-                                if (res.success) toast.success(res.message);
-                                else toast.error(res.error);
-                            }}
-                            className="h-9 px-4 font-bold border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        >
-                            <Repeat className="h-4 w-4 mr-2" /> Process Reorders
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setShowDeleteAllAlert(true)}
-                            className="h-9 px-4 font-bold bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            <Trash2 className="h-4 w-4 mr-2" /> Delete All
-                        </Button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-muted/50 border-b">
-                        <tr>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">SKU</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">Part Name</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">Category</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Stock</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">Current Price</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">Market Trend</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                            <th className="sticky right-0 bg-muted px-6 py-4 text-right text-xs font-bold text-muted-foreground uppercase tracking-widest shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)] z-10">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                        {paginatedParts.map((part) => (
-                            <tr key={part.id} className="hover:bg-muted/30 transition-colors group">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-primary">{part.sku}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{part.name}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                                    <Badge variant="secondary" className="font-semibold bg-secondary/50">{part.category}</Badge>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                    <span className={`inline-block px-2 py-1 rounded-md font-bold ${part.stockLevel <= (part.minStockLevel || 20) ? 'bg-red-100 text-red-700' :
-                                        part.stockLevel <= (part.reorderPoint || 50) ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                                        }`}>
-                                        {part.stockLevel}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground font-black text-lg">
-                                    {formatCurrency(part.price || 0)}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    {renderTrend(part.marketTrend)}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-2 text-xs font-black uppercase">
-                                            <div className={`h-2 w-2 rounded-full ${part.stockLevel <= (part.minStockLevel || 20) ? 'bg-red-500 animate-pulse' : part.stockLevel <= (part.reorderPoint || 50) ? 'bg-amber-500' : 'bg-green-500'}`} />
-                                            {part.stockLevel <= (part.minStockLevel || 20) ? 'CRITICAL' : part.stockLevel <= (part.reorderPoint || 50) ? 'LOW STOCK' : 'AVAILABLE'}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                                            Min: {part.minStockLevel || 20} | Reorder: {part.reorderPoint || 50}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="sticky right-0 bg-card px-6 py-4 whitespace-nowrap text-right shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)] z-10 group-hover:bg-muted transition-colors">
-                                    <PartMenuActions part={part} />
-                                </td>
-                            </tr>
-                        ))}
-                        {filteredParts.length === 0 && (
+                <div className="show-scrollbar overflow-x-auto">
+                    <table className="w-full min-w-[980px]">
+                        <thead className="border-b bg-muted/50">
                             <tr>
-                                <td colSpan={8} className="text-center py-20 text-muted-foreground">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <Search size={48} className="opacity-20" />
-                                        <p className="text-xl font-bold">No parts found</p>
-                                        <p className="text-sm">Try adjusting your search or filters.</p>
-                                    </div>
-                                </td>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">SKU</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">Part Name</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">Category</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-widest text-muted-foreground">Stock</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">Current Price</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">Market Trend</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</th>
+                                <th className="sticky right-0 z-10 bg-muted px-6 py-4 text-right text-xs font-bold uppercase tracking-widest text-muted-foreground shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)]">Actions</th>
                             </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                            {paginatedParts.map((part) => {
+                                const trendMeta = getTrendMeta(part);
+                                const stockIsCritical = part.stockLevel <= (part.minStockLevel || 20);
+                                const stockIsLow = !stockIsCritical && part.stockLevel <= (part.reorderPoint || 50);
+                                const trendExpanded = expandedTrendPartId === part.id;
 
-            {/* Pagination Controls */}
-            {
-                totalPages > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20">
-                        <p className="text-sm text-muted-foreground font-medium">
+                                return (
+                                    <tr key={part.id} className="group transition-colors hover:bg-muted/30">
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm font-mono font-bold text-primary">{part.sku}</td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">{part.name}</td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                                            <Badge variant="secondary" className="bg-secondary/50 font-semibold">{part.category}</Badge>
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
+                                            <span className={`inline-block rounded-md px-2 py-1 font-bold ${stockIsCritical ? 'bg-red-100 text-red-700' : stockIsLow ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                {part.stockLevel}
+                                            </span>
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-lg font-black text-foreground">
+                                            {formatCurrency(part.price || 0)}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpandedTrendPartId((current) => current === part.id ? null : part.id)}
+                                                aria-expanded={trendExpanded}
+                                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95 ${trendMeta.badgeClassName}`}
+                                            >
+                                                <trendMeta.Icon size={12} />
+                                                {trendMeta.label}
+                                            </button>
+                                            {trendExpanded && (
+                                                <p className="mt-2 max-w-[240px] text-[11px] leading-4 text-muted-foreground">
+                                                    {trendMeta.narrative}
+                                                </p>
+                                            )}
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2 text-xs font-black uppercase">
+                                                    <div className={`h-2 w-2 rounded-full ${stockIsCritical ? 'bg-red-500 animate-pulse' : stockIsLow ? 'bg-amber-500' : 'bg-green-500'}`} />
+                                                    {stockIsCritical ? 'Critical' : stockIsLow ? 'Low Stock' : 'Available'}
+                                                </div>
+                                                <div className="text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
+                                                    Min: {part.minStockLevel || 20} | Reorder: {part.reorderPoint || 50}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="sticky right-0 z-10 whitespace-nowrap bg-card px-6 py-4 text-right shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-muted">
+                                            <PartMenuActions part={part} />
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {filteredParts.length === 0 && (
+                                <tr>
+                                    <td colSpan={8} className="py-20 text-center text-muted-foreground">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Search size={48} className="opacity-20" />
+                                            <p className="text-xl font-bold">No parts found</p>
+                                            <p className="text-sm">Try adjusting your search or filters.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="flex flex-col gap-3 border-t bg-muted/20 px-6 py-4 md:flex-row md:items-center md:justify-between">
+                        <p className="text-sm font-medium text-muted-foreground">
                             Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredParts.length)} of {filteredParts.length} entries
                         </p>
                         <div className="flex items-center gap-2">
@@ -238,23 +330,24 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                                 Previous
                             </Button>
                             <div className="flex items-center gap-1">
-                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    // Simple logic to show first few pages or surrounding current page
-                                    // For now, just show first 5 or logic can be improved
-                                    let p = i + 1;
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, index) => {
+                                    let page = index + 1;
                                     if (totalPages > 5 && currentPage > 3) {
-                                        p = currentPage - 2 + i;
-                                        if (p > totalPages) p = totalPages - (4 - i);
+                                        page = currentPage - 2 + index;
+                                        if (page > totalPages) {
+                                            page = totalPages - (4 - index);
+                                        }
                                     }
+
                                     return (
                                         <Button
-                                            key={p}
-                                            variant={currentPage === p ? "default" : "outline"}
+                                            key={page}
+                                            variant={currentPage === page ? "default" : "outline"}
                                             size="sm"
-                                            onClick={() => handlePageChange(p)}
-                                            className={`h-8 w-8 p-0 ${currentPage === p ? 'bg-primary text-primary-foreground' : ''}`}
+                                            onClick={() => handlePageChange(page)}
+                                            className={`h-8 w-8 p-0 ${currentPage === page ? 'bg-primary text-primary-foreground' : ''}`}
                                         >
-                                            {p}
+                                            {page}
                                         </Button>
                                     );
                                 })}
@@ -270,59 +363,64 @@ function PartsTable({ initialParts }: { initialParts: any[] }) {
                             </Button>
                         </div>
                     </div>
-                )
-            }
+                )}
+            </div>
 
-            <DeleteAllDialog open={showDeleteAllAlert} onOpenChange={setShowDeleteAllAlert} />
-        </div >
-    );
-}
+            <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Suggested Reorders Review</DialogTitle>
+                        <DialogDescription>
+                            Axiom reviewed current stock against reorder thresholds. Draft requisitions are only created after you confirm this list.
+                        </DialogDescription>
+                    </DialogHeader>
 
-function DeleteAllDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
-    const [isDeleting, setIsDeleting] = useState(false);
+                    {reorderSuggestions.length === 0 ? (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                            Inventory is healthy right now. No reorder drafts are required.
+                        </div>
+                    ) : (
+                        <div className="show-scrollbar max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+                            {reorderSuggestions.map((part) => (
+                                <div key={part.id} className="rounded-xl border bg-muted/20 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="font-semibold text-foreground">{part.name}</p>
+                                                <Badge variant="outline" className="font-mono text-[10px]">{part.sku}</Badge>
+                                                <Badge className={part.severity === 'critical' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                                                    {part.severity === 'critical' ? 'Critical attention' : 'Low stock'}
+                                                </Badge>
+                                            </div>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                Current stock is {part.stockLevel}. Reorder trigger is {part.reorderPoint}, with a recommended target stock of {part.targetStock}.
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border bg-background px-4 py-3 text-right">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Recommended Qty</p>
+                                            <p className="text-2xl font-black text-foreground">{part.recommendedQty}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
-    const handleDelete = async () => {
-        setIsDeleting(true);
-        try {
-            const result = await deleteAllParts();
-            if (result.success) {
-                const removedParts = 'partCount' in result ? result.partCount ?? 0 : 0;
-                toast.success(`Removed ${removedParts} parts and cleared linked inventory records.`);
-                onOpenChange(false);
-            } else {
-                toast.error(result.error || "Failed to delete parts");
-            }
-        } catch (error) {
-            toast.error("An error occurred");
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    return (
-        <AlertDialog open={open} onOpenChange={onOpenChange}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete <span className="font-bold text-red-600">ALL</span> parts from the inventory.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={(e) => {
-                            e.preventDefault();
-                            handleDelete();
-                        }}
-                        className="bg-red-600 hover:bg-red-700"
-                        disabled={isDeleting}
-                    >
-                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete All Data
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setReviewOpen(false)}>
+                            Close
+                        </Button>
+                        <Button
+                            onClick={handleProcessReorders}
+                            disabled={reorderSuggestions.length === 0 || isProcessingReorders}
+                            className="bg-amber-600 text-white hover:bg-amber-700"
+                        >
+                            {isProcessingReorders ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Repeat className="mr-2 h-4 w-4" />}
+                            Create Draft Requisitions
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

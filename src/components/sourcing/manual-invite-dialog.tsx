@@ -38,7 +38,16 @@ export function ManualInviteDialog({ rfqId, suppliers, alreadyInvitedIds }: Manu
         try {
             const res = await inviteSupplierToRFQ(rfqId, supplierId);
             if (res.success) {
-                toast.success("Supplier invited successfully");
+                const emailDelivered = 'emailDelivered' in res ? res.emailDelivered : false;
+                const emailWarning = 'emailWarning' in res ? res.emailWarning : undefined;
+                toast.success("Supplier invited successfully", {
+                    description: emailDelivered
+                        ? "Portal access and email communication were both sent."
+                        : emailWarning
+                            ? `Portal access is live. Email status: ${emailWarning}`
+                            : "Portal access is live for this supplier.",
+                });
+                setOpen(false);
             } else {
                 toast.error(res.error || "Failed to invite supplier");
             }

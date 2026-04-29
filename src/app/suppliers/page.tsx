@@ -35,6 +35,13 @@ export default function SuppliersPage() {
             let result;
             if (selectedSupplier) {
                 // Formatting data for update
+                const isoCertifications = Array.from(new Set([
+                    ...formData.getAll("iso").map((value) => String(value).trim()).filter(Boolean),
+                    ...String(formData.get("customCertifications") || "")
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                ]));
                 const data = {
                     name: formData.get("name") as string,
                     contactEmail: formData.get("email") as string,
@@ -47,7 +54,7 @@ export default function SuppliersPage() {
                     esgScore: parseInt(formData.get("esg") as string) || 0,
                     financialScore: parseInt(formData.get("financial") as string) || 0,
                     tierLevel: formData.get("tier") as any,
-                    isoCertifications: formData.getAll("iso") as string[],
+                    isoCertifications,
                     modernSlaveryStatement: formData.get("modern_slavery") === "on" ? "yes" : "no",
                     esgEnvironmentScore: parseInt(formData.get("esg_env") as string) || 0,
                     esgSocialScore: parseInt(formData.get("esg_soc") as string) || 0,
@@ -201,6 +208,26 @@ export default function SuppliersPage() {
                                         <input type="checkbox" name="iso" value="ISO 44001" className="rounded border-gray-300" defaultChecked={selectedSupplier?.isoCertifications?.includes("ISO 44001")} />
                                         ISO 44001 (Collab)
                                     </label>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" name="iso" value="ISO 27001" className="rounded border-gray-300" defaultChecked={selectedSupplier?.isoCertifications?.includes("ISO 27001")} />
+                                        ISO 27001 (Security)
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" name="iso" value="ISO 45001" className="rounded border-gray-300" defaultChecked={selectedSupplier?.isoCertifications?.includes("ISO 45001")} />
+                                        ISO 45001 (Safety)
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" name="iso" value="ISO 50001" className="rounded border-gray-300" defaultChecked={selectedSupplier?.isoCertifications?.includes("ISO 50001")} />
+                                        ISO 50001 (Energy)
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" name="iso" value="IATF 16949" className="rounded border-gray-300" defaultChecked={selectedSupplier?.isoCertifications?.includes("IATF 16949")} />
+                                        IATF 16949 (Automotive)
+                                    </label>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="customCertifications" className="text-xs text-muted-foreground">Additional Certifications</Label>
+                                    <Input id="customCertifications" name="customCertifications" placeholder="RoHS, REACH, TISAX" />
                                 </div>
                             </div>
                             <div className="flex justify-end mt-4">

@@ -53,7 +53,7 @@ export function getNavigationSections(role: NavigationRole): NavigationSection[]
             links: [
                 { label: workspaceLabel, icon: LayoutDashboard, href: role === 'supplier' ? '/portal' : '/' },
                 ...(role !== 'supplier' ? [{ label: 'Suppliers', icon: Users, href: '/suppliers' }] : []),
-                { label: 'Axiom Copilot', icon: Sparkles, href: '/copilot', emphasis: 'copilot' },
+                ...(role !== 'supplier' ? [{ label: 'Axiom Copilot', icon: Sparkles, href: '/copilot', emphasis: 'copilot' as const }] : []),
                 ...(role === 'admin' ? [{ label: 'AI Agents', icon: Sparkles, href: '/admin/agents', emphasis: 'agents' as const }] : []),
             ],
         },

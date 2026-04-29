@@ -164,6 +164,11 @@ export async function deletePart(id: string) {
 }
 
 export async function deleteAllParts() {
+    const session = await auth();
+    if (!session || session.user.role !== 'admin') {
+        return { success: false, error: "Unauthorized. Admin rights required." };
+    }
+
     try {
         const result = await db.transaction(async (tx) => {
             const [{ count: orderItemCount }] = await tx.select({
@@ -235,7 +240,11 @@ export async function processLowStockAlerts() {
         }
 
         revalidatePath("/sourcing/requisitions");
-        return { success: true, count: createdCount, message: `Successfully generated ${createdCount} requisitions.` };
+        return {
+            success: true,
+            count: createdCount,
+            message: `Created ${createdCount} draft requisition${createdCount === 1 ? "" : "s"} from the reviewed reorder recommendations.`,
+        };
     } catch (error) {
         console.error("Auto-reorder failed:", error);
         return { success: false, error: "Failed to process reorders." };

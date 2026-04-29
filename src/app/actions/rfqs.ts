@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents, notifications, sourcingEvents } from "@/db/schema";
+import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents, sourcingEvents } from "@/db/schema";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -9,6 +9,7 @@ import { createNotification } from "./notifications";
 import { auth } from "@/auth";
 import { parseOffer } from "./ai-agents";
 import { users as usersTable } from "@/db/schema";
+import { sendEmail } from "@/lib/services/email";
 
 const HEURISTIC_CONFIDENCE_NUMERIC = 55; // we trust extracted numeric signals moderately
 const HEURISTIC_CONFIDENCE_DEFAULT = 35; // base confidence when only structural parsing succeeds
@@ -27,6 +28,116 @@ type QuoteAnalysis = {
     notes?: string;
     submissionSource?: string;
 };
+
+type RfqSupplierCommunicationStage = 'invited' | 'launched';
+
+function getAppBaseUrl() {
+    return (process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+function formatDeadline(deadline: Date | null | undefined) {
+    if (!deadline) {
+        return "the deadline published in your Axiom portal";
+    }
+
+    return deadline.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+}
+
+function parseStructuredQuoteAnalysis(value: string | null | undefined) {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(value) as Partial<QuoteAnalysis>;
+    } catch {
+        return null;
+    }
+}
+
+async function notifySupplierForRfq(params: {
+    rfqId: string;
+    supplierId: string;
+    stage: RfqSupplierCommunicationStage;
+    deadline?: Date | null;
+}) {
+    const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, params.rfqId)).limit(1);
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, params.supplierId)).limit(1);
+
+    if (!rfq || !supplier) {
+        return {
+            portalRecipients: 0,
+            emailDelivered: false,
+            emailWarning: "RFQ or supplier details could not be loaded for communications.",
+        };
+    }
+
+    const supplierUsers = await db.select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.supplierId, params.supplierId));
+
+    const portalLink = `/portal/rfqs/${params.rfqId}`;
+    const absolutePortalLink = `${getAppBaseUrl()}${portalLink}`;
+    const deadlineLabel = formatDeadline(params.deadline ?? rfq.deadline);
+
+    const portalTitle = params.stage === 'launched'
+        ? 'RFQ Open for Quote Submission'
+        : 'RFQ Invitation Created';
+    const portalMessage = params.stage === 'launched'
+        ? `A sourcing event is now live for "${rfq.title}". Submit your quote in the supplier portal by ${deadlineLabel}.`
+        : `You have been shortlisted for "${rfq.title}". The request is now visible in your supplier portal and will accept quotes once sourcing is launched.`;
+
+    for (const supplierUser of supplierUsers) {
+        await createNotification({
+            userId: supplierUser.id,
+            title: portalTitle,
+            message: portalMessage,
+            type: 'info',
+            link: portalLink,
+        });
+    }
+
+    const emailSubject = params.stage === 'launched'
+        ? `Axiom RFQ Open for Quote Submission: ${rfq.title}`
+        : `Axiom RFQ Invitation: ${rfq.title}`;
+    const emailBody = `
+Hello ${supplier.name},
+
+${params.stage === 'launched'
+            ? `A sourcing event is now live in Axiom for "${rfq.title}".`
+            : `You have been invited to a sourcing event in Axiom for "${rfq.title}".`}
+
+RFQ reference: ${rfq.id.split('-')[0].toUpperCase()}
+Portal link: ${absolutePortalLink}
+${params.stage === 'launched' ? `Submission deadline: ${deadlineLabel}` : 'You can review the requirement in the supplier portal now. Quote submission opens when the sourcing event is launched.'}
+
+What we need from you:
+- Review the requested parts and quantities
+- Confirm lead time and payment terms
+- Submit your official quote through the supplier portal
+
+If you have questions, reply to this email or contact the procurement team through Axiom Support.
+
+Regards,
+Axiom Procurement Platform
+    `.trim();
+
+    const emailResult = await sendEmail({
+        to: supplier.contactEmail,
+        subject: emailSubject,
+        body: emailBody,
+    });
+
+    return {
+        portalRecipients: supplierUsers.length,
+        emailDelivered: emailResult.success,
+        emailWarning: emailResult.success ? undefined : emailResult.error,
+    };
+}
 
 function heuristicQuotationSummary(quoteText: string) {
     const text = quoteText || "";
@@ -346,6 +457,11 @@ export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
 
         if (existing.length > 0) return { success: false, error: "Supplier already invited" };
 
+        const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rfqId)).limit(1);
+        if (!rfq) {
+            return { success: false, error: "RFQ not found" };
+        }
+
         await db.insert(rfqSuppliers).values({
             rfqId,
             supplierId,
@@ -355,7 +471,14 @@ export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
         await logActivity('UPDATE', 'rfq', rfqId, `Manually invited supplier ${supplierId}`);
         revalidatePath(`/sourcing/rfqs/${rfqId}`);
 
-        return { success: true };
+        const communication = await notifySupplierForRfq({
+            rfqId,
+            supplierId,
+            stage: rfq.status === 'open' ? 'launched' : 'invited',
+            deadline: rfq.deadline,
+        });
+
+        return { success: true, ...communication };
     } catch (error) {
         console.error("Failed to invite supplier:", error);
         return { success: false, error: "Failed to invite supplier" };
@@ -393,7 +516,7 @@ export async function launchRFQSourcingEvent(rfqId: string) {
     if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        return await db.transaction(async (tx) => {
+        const result = await db.transaction(async (tx) => {
             const [rfq] = await tx.select().from(rfqs).where(eq(rfqs.id, rfqId)).limit(1);
             if (!rfq) {
                 return { success: false, error: "RFQ not found" };
@@ -434,22 +557,6 @@ export async function launchRFQSourcingEvent(rfqId: string) {
                 supplierId: rfqSuppliers.supplierId,
             }).from(rfqSuppliers).where(eq(rfqSuppliers.rfqId, rfqId));
 
-            for (const invitedSupplier of invitedSuppliers) {
-                const supplierUsers = await tx.select({ id: usersTable.id })
-                    .from(usersTable)
-                    .where(eq(usersTable.supplierId, invitedSupplier.supplierId));
-
-                for (const supplierUser of supplierUsers) {
-                    await tx.insert(notifications).values({
-                        userId: supplierUser.id,
-                        title: 'Sourcing Event Launched',
-                        message: `A new sourcing event is now open for bidding. Please submit your quote by ${bidDeadline.toISOString().split('T')[0]}.`,
-                        type: 'info',
-                        link: `/portal/rfqs/${rfqId}`,
-                    });
-                }
-            }
-
             await logActivity('UPDATE', 'rfq', rfqId, `RFQ launched for supplier bidding. Deadline: ${bidDeadline.toISOString().split('T')[0]}.`);
 
             revalidatePath("/sourcing/rfqs");
@@ -457,8 +564,39 @@ export async function launchRFQSourcingEvent(rfqId: string) {
             revalidatePath("/portal/rfqs");
             revalidatePath(`/portal/rfqs/${rfqId}`);
 
-            return { success: true };
+            return {
+                success: true,
+                bidDeadline,
+                invitedSupplierIds: invitedSuppliers.map((supplierRow) => supplierRow.supplierId),
+            };
         });
+
+        if (!result.success) {
+            return result;
+        }
+
+        const invitedSupplierIds = 'invitedSupplierIds' in result ? (result.invitedSupplierIds ?? []) : [];
+        const bidDeadline = 'bidDeadline' in result ? (result.bidDeadline ?? null) : null;
+
+        const communications = await Promise.all(
+            invitedSupplierIds.map((supplierId) => notifySupplierForRfq({
+                rfqId,
+                supplierId,
+                stage: 'launched',
+                deadline: bidDeadline,
+            }))
+        );
+
+        const emailWarnings = communications
+            .map((communication) => communication.emailWarning)
+            .filter((warning): warning is string => Boolean(warning));
+
+        return {
+            success: true,
+            emailDeliveredCount: communications.filter((communication) => communication.emailDelivered).length,
+            portalRecipients: communications.reduce((total, communication) => total + communication.portalRecipients, 0),
+            warning: emailWarnings.length > 0 ? emailWarnings.join(" | ") : undefined,
+        };
     } catch (error) {
         console.error("Failed to launch sourcing event:", error);
         return { success: false, error: "Failed to launch sourcing event" };

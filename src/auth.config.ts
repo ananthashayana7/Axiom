@@ -42,11 +42,13 @@ export const authConfig = {
 
             // Redirect suppliers to portal — only /portal/* and public resources are allowed
             if (userRole === 'supplier') {
+                if (nextUrl.pathname === '/profile') {
+                    return Response.redirect(new URL('/portal/profile', nextUrl));
+                }
+
                 const isSupplierAllowed =
                     isOnPortalPage ||
-                    nextUrl.pathname === '/copilot' ||
                     nextUrl.pathname === '/support' ||
-                    nextUrl.pathname === '/profile' ||
                     nextUrl.pathname.startsWith('/api/');
                 if (!isSupplierAllowed) {
                     return Response.redirect(new URL('/portal', nextUrl));

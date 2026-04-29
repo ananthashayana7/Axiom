@@ -98,10 +98,15 @@ export default function SupplierRFQDetail() {
     if (loading) return <div className="p-8">Loading invitation...</div>;
     if (!rfq || !currentInvitation) return <div className="p-8 text-red-500">RFQ not found or access denied.</div>;
 
-    const quoteLocked = rfq.status === 'closed' || rfq.status === 'cancelled';
+    const quoteLocked = rfq.status !== 'open';
     const invitationBadgeClass = currentInvitation.status === 'quoted'
         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
         : "bg-blue-50 text-blue-700 border-blue-200";
+    const invitationLabel = currentInvitation.status === 'quoted'
+        ? 'Quote Submitted'
+        : rfq.status === 'open'
+            ? 'Invitation Active'
+            : 'Awaiting Launch';
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
@@ -115,7 +120,7 @@ export default function SupplierRFQDetail() {
                     <p className="text-muted-foreground mt-1">RFQ ID: {rfq.id.split('-')[0].toUpperCase()}</p>
                 </div>
                 <Badge variant="outline" className={`px-3 py-1 uppercase font-bold ${invitationBadgeClass}`}>
-                    {currentInvitation.status === 'quoted' ? 'Quote Submitted' : 'Invitation Active'}
+                    {invitationLabel}
                 </Badge>
             </div>
 
@@ -205,7 +210,9 @@ export default function SupplierRFQDetail() {
                                 <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
                                 <p className="text-xs leading-relaxed text-muted-foreground">
                                     {quoteLocked
-                                        ? "This RFQ is locked. Quotes can no longer be changed because procurement has closed or cancelled the event."
+                                        ? rfq.status === 'draft'
+                                            ? "This invitation has been staged in your portal, but procurement has not launched live quoting yet. You can review the requirement now and submit once the event opens."
+                                            : "This RFQ is locked. Quotes can no longer be changed because procurement has closed or cancelled the event."
                                         : "Procurement will compare this quote directly against competing bids and benchmark data."}
                                 </p>
                             </div>

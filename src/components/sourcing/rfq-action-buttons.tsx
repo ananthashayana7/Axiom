@@ -16,8 +16,11 @@ export function LaunchSourcingButton({ rfqId }: { rfqId: string }) {
         startTransition(async () => {
             const result = await launchRFQSourcingEvent(rfqId);
             if (result.success) {
+                const warning = 'warning' in result ? result.warning : undefined;
                 toast.success("Sourcing event launched", {
-                    description: "Invited suppliers can now submit live quotes in the portal."
+                    description: warning
+                        ? `Suppliers can now quote in the portal. Email status: ${warning}`
+                        : "Invited suppliers can now submit live quotes in the portal and receive the launch email."
                 });
                 router.refresh();
                 return;

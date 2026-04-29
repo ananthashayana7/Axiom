@@ -7,6 +7,13 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 
+function parseCommaSeparatedValues(value: FormDataEntryValue | null) {
+    return String(value || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+
 export async function getSupplierStats() {
     const session = await auth();
     const supplierId = session?.user?.supplierId;
@@ -174,17 +181,46 @@ export async function updateSupplierProfile(formData: FormData) {
 
     const contactEmail = formData.get('contactEmail') as string;
     const city = formData.get('city') as string;
+    const rawCountryCode = String(formData.get('countryCode') || '').trim().toUpperCase();
+    const categories = parseCommaSeparatedValues(formData.get('categoriesCsv'));
+    const isoCertifications = Array.from(new Set([
+        ...formData.getAll('iso').map((value) => String(value).trim()).filter(Boolean),
+        ...parseCommaSeparatedValues(formData.get('customCertifications')),
+    ]));
+    const financialHealthRating = String(formData.get('financialHealthRating') || '').trim() || null;
+    const conflictMineralsStatus = String(formData.get('conflictMineralsStatus') || 'unknown') as 'compliant' | 'non_compliant' | 'unknown';
+    const modernSlaveryStatement = formData.get('modernSlaveryStatement') === 'yes' ? 'yes' : 'no';
+    const isConflictMineralCompliant = formData.get('isConflictMineralCompliant') === 'yes' ? 'yes' : 'no';
+    const carbonFootprintScope1 = String(formData.get('carbonFootprintScope1') || '').trim();
+    const carbonFootprintScope2 = String(formData.get('carbonFootprintScope2') || '').trim();
+    const carbonFootprintScope3 = String(formData.get('carbonFootprintScope3') || '').trim();
+
+    if (rawCountryCode && !/^[A-Z]{2}$/.test(rawCountryCode)) {
+        return { success: false, error: "Country code must be a valid 2-letter ISO code." };
+    }
 
     try {
         await db.update(suppliers).set({
             contactEmail,
             city,
+            countryCode: rawCountryCode || null,
+            categories,
+            isoCertifications,
+            financialHealthRating,
+            conflictMineralsStatus,
+            modernSlaveryStatement,
+            isConflictMineralCompliant,
+            carbonFootprintScope1: carbonFootprintScope1 || '0',
+            carbonFootprintScope2: carbonFootprintScope2 || '0',
+            carbonFootprintScope3: carbonFootprintScope3 || '0',
             updatedAt: new Date()
         }).where(eq(suppliers.id, supplierId));
 
-        await logActivity('UPDATE', 'supplier', supplierId, `Supplier updated their profile contact info.`);
+        await logActivity('UPDATE', 'supplier', supplierId, `Supplier updated their portal profile, certifications, and sustainability declarations.`);
 
         revalidatePath('/portal/profile');
+        revalidatePath('/suppliers');
+        revalidatePath(`/suppliers/${supplierId}`);
         return { success: true };
     } catch (error) {
         console.error("Profile update error:", error);
