@@ -50,6 +50,9 @@ export default async function SustainabilityPage() {
     const avgGov = allSuppliers.length > 0
         ? Math.round(allSuppliers.reduce((s, sup) => s + (sup.esgGovernanceScore ?? 0), 0) / allSuppliers.length)
         : 0;
+    const avgRenewableShare = allSuppliers.length > 0
+        ? Math.round(allSuppliers.reduce((sum, sup) => sum + (sup.esgEnvironmentScore ?? 0), 0) / allSuppliers.length)
+        : 0;
 
     const conflictCompliant = allSuppliers.filter(s => s.conflictMineralsStatus === 'compliant').length;
     const conflictNonCompliant = allSuppliers.filter(s => s.conflictMineralsStatus === 'non_compliant').length;
@@ -57,6 +60,18 @@ export default async function SustainabilityPage() {
 
     const modernSlaveryYes = allSuppliers.filter(s => s.modernSlaveryStatement === 'yes').length;
     const isoCount = allSuppliers.filter(s => (s.isoCertifications?.length ?? 0) > 0).length;
+    const lowCarbonSuppliers = allSuppliers
+        .map((supplier) => ({
+            id: supplier.id,
+            name: supplier.name,
+            esgEnvironmentScore: supplier.esgEnvironmentScore,
+            totalCO2: parseFloat(supplier.carbonFootprintScope1 ?? '0')
+                + parseFloat(supplier.carbonFootprintScope2 ?? '0')
+                + parseFloat(supplier.carbonFootprintScope3 ?? '0'),
+        }))
+        .filter((supplier) => supplier.totalCO2 > 0)
+        .sort((left, right) => left.totalCO2 - right.totalCO2)
+        .slice(0, 5);
 
     function getEsgColor(score: number) {
         if (score >= 75) return 'text-emerald-600';
@@ -80,7 +95,7 @@ export default async function SustainabilityPage() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-black tracking-tight text-foreground">Sustainability & ESG</h1>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">Carbon Footprint · ESG Scores · Compliance</p>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">Carbon Footprint / ESG Scores / Compliance</p>
                     </div>
                 </div>
                 <Badge className="badge-success text-sm px-3 py-1">
@@ -92,7 +107,7 @@ export default async function SustainabilityPage() {
             {/* Carbon Footprint KPIs */}
             <div>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                    <Wind className="h-3.5 w-3.5" /> Carbon Footprint (tCO₂e)
+                    <Wind className="h-3.5 w-3.5" /> Carbon Footprint (tCO2e)
                 </h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <Card className="border-l-4 border-l-slate-400 shadow-sm">
@@ -102,7 +117,7 @@ export default async function SustainabilityPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-black tracking-tight">{totalCarbon.toFixed(1)}</div>
-                            <p className="text-xs text-muted-foreground mt-1">tCO₂e across all scopes</p>
+                            <p className="text-xs text-muted-foreground mt-1">tCO2e across all scopes</p>
                         </CardContent>
                     </Card>
 
@@ -166,6 +181,7 @@ export default async function SustainabilityPage() {
                             { label: 'Environmental', score: avgEnv, icon: Leaf, color: 'text-emerald-600' },
                             { label: 'Social', score: avgSocial, icon: Globe, color: 'text-blue-600' },
                             { label: 'Governance', score: avgGov, icon: ShieldCheck, color: 'text-purple-600' },
+                            { label: 'Renewable Share', score: avgRenewableShare, icon: Wind, color: 'text-emerald-600' },
                         ].map(({ label, score, icon: Icon, color }) => (
                             <div key={label} className="space-y-1.5">
                                 <div className="flex items-center justify-between">
@@ -224,6 +240,36 @@ export default async function SustainabilityPage() {
                 </Card>
             </div>
 
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
+                        <Leaf className="h-4 w-4 text-primary" />
+                        Lowest Carbon Suppliers
+                    </CardTitle>
+                    <CardDescription>Fast shortlist for greener sourcing decisions.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {lowCarbonSuppliers.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+                            No supplier carbon disclosures have been captured yet.
+                        </div>
+                    ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                            {lowCarbonSuppliers.map((supplier) => (
+                                <div key={supplier.id} className="rounded-2xl border bg-muted/20 p-4">
+                                    <p className="font-semibold text-foreground">{supplier.name}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Renewable share {supplier.esgEnvironmentScore || 0}%
+                                    </p>
+                                    <p className="mt-4 text-2xl font-black text-emerald-600">{supplier.totalCO2.toFixed(1)}</p>
+                                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">tCO2e total</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
             {/* Supplier ESG Leaderboard */}
             <Card>
                 <CardHeader>
@@ -231,7 +277,7 @@ export default async function SustainabilityPage() {
                         <TrendingUp className="h-4 w-4 text-primary" />
                         Supplier ESG Leaderboard
                     </CardTitle>
-                    <CardDescription>Ranked by overall ESG score — top {Math.min(allSuppliers.length, 25)} suppliers</CardDescription>
+                    <CardDescription>Ranked by overall ESG score - top {Math.min(allSuppliers.length, 25)} suppliers</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {allSuppliers.length === 0 ? (
@@ -249,6 +295,7 @@ export default async function SustainabilityPage() {
                                         <th className="text-left py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Supplier</th>
                                         <th className="text-center py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">ESG</th>
                                         <th className="text-center py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Env</th>
+                                        <th className="text-center py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Renewables</th>
                                         <th className="text-center py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Social</th>
                                         <th className="text-center py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Gov</th>
                                         <th className="text-right py-2 px-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Scope 1+2+3</th>
@@ -271,9 +318,10 @@ export default async function SustainabilityPage() {
                                                     </span>
                                                 </td>
                                                 <td className="py-2.5 px-3 text-center text-muted-foreground tabular-nums">{sup.esgEnvironmentScore ?? 0}</td>
+                                                <td className="py-2.5 px-3 text-center text-muted-foreground tabular-nums">{sup.esgEnvironmentScore ?? 0}%</td>
                                                 <td className="py-2.5 px-3 text-center text-muted-foreground tabular-nums">{sup.esgSocialScore ?? 0}</td>
                                                 <td className="py-2.5 px-3 text-center text-muted-foreground tabular-nums">{sup.esgGovernanceScore ?? 0}</td>
-                                                <td className="py-2.5 px-3 text-right font-mono text-xs text-muted-foreground">{totalCO2.toFixed(1)} tCO₂e</td>
+                                                <td className="py-2.5 px-3 text-right font-mono text-xs text-muted-foreground">{totalCO2.toFixed(1)} tCO2e</td>
                                                 <td className="py-2.5 px-3 text-center">
                                                     {getConflictBadge(sup.conflictMineralsStatus)}
                                                 </td>
@@ -284,7 +332,7 @@ export default async function SustainabilityPage() {
                                                             {sup.isoCertifications!.length}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-xs text-muted-foreground/50">—</span>
+                                                        <span className="text-xs text-muted-foreground/50">-</span>
                                                     )}
                                                 </td>
                                             </tr>

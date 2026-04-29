@@ -1,16 +1,59 @@
 'use server'
 
 import { db } from "@/db";
-import { notifications, type Notification } from "@/db/schema";
+import { notifications, requisitions, type Notification } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
+
+async function reconcileStaleNotifications(userId: string) {
+    const pending = await db.select({
+        id: notifications.id,
+        title: notifications.title,
+        link: notifications.link,
+    })
+        .from(notifications)
+        .where(and(
+            eq(notifications.userId, userId),
+            eq(notifications.isRead, 'no'),
+        ));
+
+    const requisitionAlerts = pending
+        .filter((notification) =>
+            notification.title === 'New Requisition Pending Approval'
+            && notification.link?.startsWith('/sourcing/requisitions?id=')
+        )
+        .map((notification) => ({
+            notificationId: notification.id,
+            requisitionId: notification.link!.split('=')[1],
+        }));
+
+    if (requisitionAlerts.length === 0) return;
+
+    const requisitionStatusRows = await db.select({
+        id: requisitions.id,
+        status: requisitions.status,
+    }).from(requisitions)
+        .where(inArray(requisitions.id, requisitionAlerts.map((item) => item.requisitionId)));
+
+    const statusMap = new Map(requisitionStatusRows.map((row) => [row.id, row.status]));
+    const staleNotificationIds = requisitionAlerts
+        .filter((item) => statusMap.get(item.requisitionId) !== 'pending_approval')
+        .map((item) => item.notificationId);
+
+    if (staleNotificationIds.length > 0) {
+        await db.update(notifications)
+            .set({ isRead: 'yes' })
+            .where(inArray(notifications.id, staleNotificationIds));
+    }
+}
 
 export async function getNotifications() {
     const session = await auth();
     if (!session?.user?.id) return [];
 
     try {
+        await reconcileStaleNotifications(session.user.id);
         const userNotifs = await db.select()
             .from(notifications)
             .where(eq(notifications.userId, session.user.id))

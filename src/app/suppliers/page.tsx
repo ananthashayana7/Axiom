@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,14 +15,29 @@ import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { MessageSupplierButton } from "@/components/suppliers/message-supplier-button";
+import { SupplierQuickViewDrawer } from "@/components/intelligence/supplier-quick-view-drawer";
 
 export default function SuppliersPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const supplierParam = searchParams.get('supplier');
     const [isPending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [suppliers, setSuppliers] = useState<any[]>([]);
     const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
     const [supplierToDelete, setSupplierToDelete] = useState<any | null>(null);
+
+    const setSupplierDrawer = (supplierId: string | null) => {
+        const nextParams = new URLSearchParams(searchParams.toString());
+        if (supplierId) {
+            nextParams.set('supplier', supplierId);
+        } else {
+            nextParams.delete('supplier');
+        }
+        const query = nextParams.toString();
+        router.replace(query ? `/suppliers?${query}` : '/suppliers', { scroll: false });
+    };
 
     // Load suppliers on mount
     React.useEffect(() => {
@@ -267,7 +283,13 @@ export default function SuppliersPage() {
                                         <tr key={supplier.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4 align-middle">
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-foreground text-base">{supplier.name}</span>
+                                                    <button
+                                                        type="button"
+                                                        className="text-left font-bold text-foreground text-base transition-colors hover:text-primary"
+                                                        onClick={() => setSupplierDrawer(supplier.id)}
+                                                    >
+                                                        {supplier.name}
+                                                    </button>
                                                     <span className="text-xs text-muted-foreground">
                                                         {supplier.contactEmail}
                                                     </span>
@@ -338,8 +360,11 @@ export default function SuppliersPage() {
                                                         variant="ghost"
                                                         className="h-8 w-8 text-muted-foreground hover:text-primary"
                                                     />
+                                                    <Button variant="outline" size="sm" className="h-8" onClick={() => setSupplierDrawer(supplier.id)}>
+                                                        Quick View
+                                                    </Button>
                                                     <Link href={`/suppliers/${supplier.id}`}>
-                                                        <Button variant="outline" size="sm" className="h-8">Details</Button>
+                                                        <Button variant="ghost" size="sm" className="h-8">Open Page</Button>
                                                     </Link>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(supplier)}>
                                                         <Pencil size={14} />
@@ -468,6 +493,16 @@ export default function SuppliersPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <SupplierQuickViewDrawer
+                supplierId={supplierParam}
+                open={Boolean(supplierParam)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSupplierDrawer(null);
+                    }
+                }}
+            />
         </div >
     );
 }

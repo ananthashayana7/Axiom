@@ -149,6 +149,8 @@ export default async function RequisitionsPage() {
                                         <td className="p-4 align-middle text-right">
                                             <RequisitionActions
                                                 requisitionId={req.id}
+                                                title={req.title}
+                                                estimatedAmount={Number(req.estimatedAmount)}
                                                 status={req.status || 'draft'}
                                                 isAdmin={isAdmin}
                                                 suppliers={suppliers}

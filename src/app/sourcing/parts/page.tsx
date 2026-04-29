@@ -3,6 +3,7 @@ import { getPartLinkedCounts, getParts } from "@/app/actions/parts";
 import { CreatePartDialog } from "@/components/parts/create-part-dialog";
 import { PartsClient } from "@/components/parts/parts-client";
 import { PartCharts } from "@/components/parts/part-charts";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
@@ -119,7 +120,9 @@ export default async function PartsPage() {
               .map((part) => (
                 <div key={part.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm">{part.name}</p>
+                    <Link href={`/sourcing/parts?part=${part.id}`} className="font-semibold text-sm text-foreground transition-colors hover:text-primary">
+                      {part.name}
+                    </Link>
                     <p className="text-xs text-muted-foreground">{part.sku}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs font-bold">

@@ -191,6 +191,7 @@ export async function updateSupplierProfile(formData: FormData) {
     const conflictMineralsStatus = String(formData.get('conflictMineralsStatus') || 'unknown') as 'compliant' | 'non_compliant' | 'unknown';
     const modernSlaveryStatement = formData.get('modernSlaveryStatement') === 'yes' ? 'yes' : 'no';
     const isConflictMineralCompliant = formData.get('isConflictMineralCompliant') === 'yes' ? 'yes' : 'no';
+    const renewableEnergyShare = Math.min(100, Math.max(0, Number(formData.get('renewableEnergyShare') || 0)));
     const carbonFootprintScope1 = String(formData.get('carbonFootprintScope1') || '').trim();
     const carbonFootprintScope2 = String(formData.get('carbonFootprintScope2') || '').trim();
     const carbonFootprintScope3 = String(formData.get('carbonFootprintScope3') || '').trim();
@@ -200,6 +201,15 @@ export async function updateSupplierProfile(formData: FormData) {
     }
 
     try {
+        const [currentSupplier] = await db.select({
+            esgSocialScore: suppliers.esgSocialScore,
+            esgGovernanceScore: suppliers.esgGovernanceScore,
+        }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+
+        const socialScore = currentSupplier?.esgSocialScore || 0;
+        const governanceScore = currentSupplier?.esgGovernanceScore || 0;
+        const calculatedEsgScore = Math.round((renewableEnergyShare * 0.4) + (socialScore * 0.3) + (governanceScore * 0.3));
+
         await db.update(suppliers).set({
             contactEmail,
             city,
@@ -210,6 +220,8 @@ export async function updateSupplierProfile(formData: FormData) {
             conflictMineralsStatus,
             modernSlaveryStatement,
             isConflictMineralCompliant,
+            esgEnvironmentScore: renewableEnergyShare,
+            esgScore: calculatedEsgScore,
             carbonFootprintScope1: carbonFootprintScope1 || '0',
             carbonFootprintScope2: carbonFootprintScope2 || '0',
             carbonFootprintScope3: carbonFootprintScope3 || '0',

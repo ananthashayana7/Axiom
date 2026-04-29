@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, procurementOrders, supplierPerformanceLogs, documents, rfqSuppliers, type Supplier } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -55,6 +55,11 @@ function extractTitle(html: string) {
 function inferCountryCodeFromDomain(domain: string) {
     const tld = domain.split(".").pop()?.toUpperCase() || "";
     return tld.length === 2 ? tld : null;
+}
+
+function toNumber(value: string | number | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function buildHeuristicSupplierEnrichment(text: string, domain: string) {
@@ -263,6 +268,82 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
         return supplier || null;
     } catch (error) {
         console.error("Failed to fetch supplier:", error);
+        return null;
+    }
+}
+
+export async function getSupplierQuickView(id: string) {
+    const session = await auth();
+    if (!session) return null;
+
+    if (session.user.role === 'supplier' && session.user.supplierId !== id) {
+        return null;
+    }
+
+    try {
+        const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1);
+        if (!supplier) return null;
+
+        const [orderStats] = await db.select({
+            activeOrders: sql<number>`count(*) filter (where ${procurementOrders.status} in ('approved', 'sent'))::int`.mapWith(Number),
+            delayedOrders: sql<number>`count(*) filter (where ${procurementOrders.status} in ('approved', 'sent') and ${procurementOrders.estimatedArrival} is not null and ${procurementOrders.estimatedArrival} < current_timestamp)::int`.mapWith(Number),
+            totalSpend: sql<number>`coalesce(sum(cast(${procurementOrders.totalAmount} as numeric)), 0)`.mapWith(Number),
+        })
+            .from(procurementOrders)
+            .where(eq(procurementOrders.supplierId, id));
+
+        const [rfqStats] = await db.select({
+            activeInvites: sql<number>`count(*) filter (where ${rfqSuppliers.status} = 'invited')::int`.mapWith(Number),
+            submittedQuotes: sql<number>`count(*) filter (where ${rfqSuppliers.status} = 'quoted')::int`.mapWith(Number),
+        })
+            .from(rfqSuppliers)
+            .where(eq(rfqSuppliers.supplierId, id));
+
+        const [documentStats] = await db.select({
+            count: sql<number>`count(*)::int`.mapWith(Number),
+        })
+            .from(documents)
+            .where(eq(documents.supplierId, id));
+
+        const performance = await getSupplierPerformanceMetrics(id);
+        const totalCarbon = toNumber(supplier.carbonFootprintScope1)
+            + toNumber(supplier.carbonFootprintScope2)
+            + toNumber(supplier.carbonFootprintScope3);
+        const renewableEnergyShare = supplier.esgEnvironmentScore || 0;
+
+        return {
+            supplier,
+            orderStats: {
+                activeOrders: orderStats?.activeOrders || 0,
+                delayedOrders: orderStats?.delayedOrders || 0,
+                totalSpend: orderStats?.totalSpend || 0,
+            },
+            rfqStats: {
+                activeInvites: rfqStats?.activeInvites || 0,
+                submittedQuotes: rfqStats?.submittedQuotes || 0,
+            },
+            documentCount: documentStats?.count || 0,
+            performance: performance
+                ? {
+                    performanceScore: performance.performanceScore || 0,
+                    onTimeDeliveryRate: toNumber(performance.onTimeDeliveryRate),
+                    defectRate: toNumber(performance.defectRate),
+                    collaborationScore: performance.collaborationScore || 0,
+                    responsivenessScore: performance.responsivenessScore || 0,
+                    performanceLogs: performance.performanceLogs || [],
+                }
+                : null,
+            sustainability: {
+                totalCarbon: Number(totalCarbon.toFixed(2)),
+                renewableEnergyShare,
+                scope1: toNumber(supplier.carbonFootprintScope1),
+                scope2: toNumber(supplier.carbonFootprintScope2),
+                scope3: toNumber(supplier.carbonFootprintScope3),
+                supplierDisclosureBand: renewableEnergyShare >= 60 ? 'leading' : renewableEnergyShare >= 30 ? 'developing' : 'verify',
+            },
+        };
+    } catch (error) {
+        console.error("Failed to fetch supplier quick view:", error);
         return null;
     }
 }

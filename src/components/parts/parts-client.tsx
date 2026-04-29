@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, Filter, Loader2, Minus, Repeat, Search, TrendingDown, TrendingUp, X } from "lucide-react";
 
 import { processLowStockAlerts } from "@/app/actions/parts";
+import { PartQuickViewDrawer } from "@/components/intelligence/part-quick-view-drawer";
+import { SupplierQuickViewDrawer } from "@/components/intelligence/supplier-quick-view-drawer";
 import { PartMenuActions } from "./part-menu-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { Part } from "@/db/schema";
+import { calculateAdaptiveReorderPlan } from "@/lib/procurement-intelligence";
 import { formatCurrency } from "@/lib/utils/currency";
 import { toast } from "sonner";
 
@@ -25,6 +28,9 @@ type InventoryPart = Part & {
     orderCount?: number;
     invoiceCount?: number;
     rfqCount?: number;
+    openOrderCount?: number;
+    delayedOrderCount?: number;
+    forecastDemand?: number;
 };
 
 type TrendMeta = {
@@ -71,12 +77,28 @@ function getTrendMeta(part: InventoryPart): TrendMeta {
 
 function getSuggestedReorders(parts: InventoryPart[]) {
     return parts
-        .filter((part) => part.stockLevel <= (part.reorderPoint || 50))
+        .map((part) => {
+            const adaptivePlan = calculateAdaptiveReorderPlan({
+                baseReorderPoint: part.reorderPoint,
+                minStockLevel: part.minStockLevel,
+                stockLevel: part.stockLevel,
+                marketTrend: part.marketTrend,
+                delayedOpenOrders: part.delayedOrderCount,
+                openOrders: part.openOrderCount,
+                forecastDemand: part.forecastDemand,
+            });
+
+            return {
+                ...part,
+                adaptivePlan,
+            };
+        })
+        .filter((part) => part.stockLevel <= part.adaptivePlan.adjustedReorderPoint)
         .map((part) => {
             const reorderPoint = part.reorderPoint || 50;
             const minStockLevel = part.minStockLevel || 20;
-            const targetStock = reorderPoint * 2;
-            const recommendedQty = Math.max(targetStock - part.stockLevel, 1);
+            const targetStock = part.adaptivePlan.targetStock;
+            const recommendedQty = part.adaptivePlan.recommendedQty;
             const severity = part.stockLevel <= minStockLevel ? 'critical' : 'low';
 
             return {
@@ -86,6 +108,9 @@ function getSuggestedReorders(parts: InventoryPart[]) {
                 targetStock,
                 recommendedQty,
                 severity,
+                adjustedReorderPoint: part.adaptivePlan.adjustedReorderPoint,
+                riskLevel: part.adaptivePlan.riskLevel,
+                rationale: part.adaptivePlan.reasons,
             };
         })
         .sort((left, right) => {
@@ -108,6 +133,8 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const filterParam = searchParams.get('filter');
+    const partParam = searchParams.get('part');
+    const supplierParam = searchParams.get('supplier');
 
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
@@ -117,6 +144,25 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
     const [expandedTrendPartId, setExpandedTrendPartId] = useState<string | null>(null);
 
     const itemsPerPage = 10;
+
+    const buildRoute = (nextParams: URLSearchParams) => {
+        const query = nextParams.toString();
+        return query ? `/sourcing/parts?${query}` : '/sourcing/parts';
+    };
+
+    const setDrawerParam = (key: 'part' | 'supplier', value: string | null) => {
+        const nextParams = new URLSearchParams(searchParams.toString());
+
+        if (value) {
+            nextParams.set(key, value);
+            if (key === 'part') nextParams.delete('supplier');
+            if (key === 'supplier') nextParams.delete('part');
+        } else {
+            nextParams.delete(key);
+        }
+
+        router.replace(buildRoute(nextParams), { scroll: false });
+    };
 
     const categories = useMemo(() => {
         const cats = new Set(initialParts.map((part) => part.category));
@@ -129,7 +175,8 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
         return initialParts.filter((part) => {
             const matchesSearch =
                 part.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                part.sku.toLowerCase().includes(searchQuery.toLowerCase());
+                part.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                part.category.toLowerCase().includes(searchQuery.toLowerCase());
 
             const matchesCategory = categoryFilter === "All" || part.category === categoryFilter;
 
@@ -189,7 +236,7 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
                             <div className="relative flex-1 lg:min-w-[240px] xl:w-64">
                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search by name or SKU..."
+                                    placeholder="Search by part, SKU, or category..."
                                     value={searchQuery}
                                     onChange={(event) => setSearchQuery(event.target.value)}
                                     className="bg-background pl-9"
@@ -254,7 +301,15 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
                                 return (
                                     <tr key={part.id} className="group transition-colors hover:bg-muted/30">
                                         <td className="whitespace-nowrap px-6 py-4 text-sm font-mono font-bold text-primary">{part.sku}</td>
-                                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">{part.name}</td>
+                                        <td className="px-6 py-4 text-sm font-medium">
+                                            <button
+                                                type="button"
+                                                className="whitespace-nowrap text-left font-semibold text-foreground transition-colors hover:text-primary"
+                                                onClick={() => setDrawerParam('part', part.id)}
+                                            >
+                                                {part.name}
+                                            </button>
+                                        </td>
                                         <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
                                             <Badge variant="secondary" className="bg-secondary/50 font-semibold">{part.category}</Badge>
                                         </td>
@@ -291,6 +346,13 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
                                                 <div className="text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
                                                     Min: {part.minStockLevel || 20} | Reorder: {part.reorderPoint || 50}
                                                 </div>
+                                                {(part.delayedOrderCount || part.forecastDemand) ? (
+                                                    <div className="text-[10px] font-medium text-muted-foreground">
+                                                        {part.delayedOrderCount ? `${part.delayedOrderCount} delayed shipment signal` : null}
+                                                        {part.delayedOrderCount && part.forecastDemand ? ' / ' : null}
+                                                        {part.forecastDemand ? `${part.forecastDemand} forecasted units` : null}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         </td>
                                         <td className="sticky right-0 z-10 whitespace-nowrap bg-card px-6 py-4 text-right shadow-[-5px_0_10px_-5px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-muted">
@@ -393,8 +455,24 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
                                                 </Badge>
                                             </div>
                                             <p className="mt-1 text-sm text-muted-foreground">
-                                                Current stock is {part.stockLevel}. Reorder trigger is {part.reorderPoint}, with a recommended target stock of {part.targetStock}.
+                                                Current stock is {part.stockLevel}. Baseline reorder trigger is {part.reorderPoint}, adaptive trigger is {part.adjustedReorderPoint}, and the recommended target stock is {part.targetStock}.
                                             </p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                <Badge className={part.riskLevel === 'high' ? 'bg-red-100 text-red-700 hover:bg-red-100' : part.riskLevel === 'elevated' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
+                                                    {part.riskLevel} signal
+                                                </Badge>
+                                                {(part.delayedOrderCount || 0) > 0 && (
+                                                    <Badge variant="outline">{part.delayedOrderCount} delayed shipment{part.delayedOrderCount === 1 ? '' : 's'}</Badge>
+                                                )}
+                                                {(part.forecastDemand || 0) > 0 && (
+                                                    <Badge variant="outline">{part.forecastDemand} forecasted units</Badge>
+                                                )}
+                                            </div>
+                                            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                                                {part.rationale.map((reason: string) => (
+                                                    <p key={reason}>{reason}</p>
+                                                ))}
+                                            </div>
                                         </div>
                                         <div className="rounded-xl border bg-background px-4 py-3 text-right">
                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Recommended Qty</p>
@@ -421,6 +499,27 @@ function PartsTable({ initialParts }: { initialParts: InventoryPart[] }) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <PartQuickViewDrawer
+                partId={partParam}
+                open={Boolean(partParam)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDrawerParam('part', null);
+                    }
+                }}
+                onOpenSupplier={(supplierId) => setDrawerParam('supplier', supplierId)}
+            />
+
+            <SupplierQuickViewDrawer
+                supplierId={supplierParam}
+                open={Boolean(supplierParam)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDrawerParam('supplier', null);
+                    }
+                }}
+            />
         </>
     );
 }

@@ -105,7 +105,7 @@ export function CommandPalette() {
                     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
                         <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                         <Command.Input
-                            placeholder="Type a command or search..."
+                            placeholder="Try 'suppliers in Germany with high risk'..."
                             className="flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                             value={query}
                             onValueChange={setQuery}
@@ -113,7 +113,7 @@ export function CommandPalette() {
                     </div>
                     <Command.List className="max-h-[300px] overflow-y-auto overflow-x-hidden p-2">
                         <Command.Empty className="py-6 text-center text-sm">
-                            {loading ? "Searching Axiom databases..." : "No results found."}
+                            {loading ? "Searching Axiom intelligence..." : "No results found."}
                         </Command.Empty>
 
                         {results.length > 0 && (
@@ -122,7 +122,7 @@ export function CommandPalette() {
                                     <Command.Item
                                         key={`${res.type}-${res.id}`}
                                         value={`${res.type} ${res.title}`}
-                                        onSelect={() => runSearchNavigation(res.href, res.title)}
+                                        onSelect={() => runSearchNavigation(res.href, query || res.title)}
                                         className="relative flex cursor-default select-none items-center rounded-sm px-2 py-3 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-muted/50 transition-colors"
                                     >
                                         <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">

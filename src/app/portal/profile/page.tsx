@@ -241,7 +241,22 @@ export default function SupplierProfilePage() {
                             </CardTitle>
                             <CardDescription>Capture the numbers procurement teams need for ESG and carbon reporting.</CardDescription>
                         </CardHeader>
-                        <CardContent className="grid gap-6 p-6 md:grid-cols-3">
+                        <CardContent className="grid gap-6 p-6 md:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="renewableEnergyShare">Renewable Energy Share %</Label>
+                                <Input
+                                    id="renewableEnergyShare"
+                                    name="renewableEnergyShare"
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    max="100"
+                                    defaultValue={profile.esgEnvironmentScore || 0}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    This feeds the sustainability scorecard internal buyers use for green sourcing comparisons.
+                                </p>
+                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="carbonFootprintScope1">Scope 1 tCO2e</Label>
                                 <Input id="carbonFootprintScope1" name="carbonFootprintScope1" type="number" step="0.01" min="0" defaultValue={profile.carbonFootprintScope1 || '0'} />
@@ -285,6 +300,10 @@ export default function SupplierProfilePage() {
                                 <span className="text-stone-500">ESG score snapshot</span>
                                 <span className="font-semibold text-stone-100">{profile.esgScore || 0}%</span>
                             </div>
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-stone-500">Renewable energy share</span>
+                                <span className="font-semibold text-stone-100">{profile.esgEnvironmentScore || 0}%</span>
+                            </div>
                             <div className="rounded-xl border border-stone-800 bg-stone-950/40 p-3 text-xs text-stone-300">
                                 Buyers use this profile to evaluate sourcing eligibility, compliance readiness, and risk posture.
                             </div>
@@ -302,6 +321,7 @@ export default function SupplierProfilePage() {
                             <p>Keep the RFQ email current so sourcing invitations and order updates land with the right person.</p>
                             <p>Maintain certifications here before a bid goes live to avoid compliance blockers at award time.</p>
                             <p>Update categories whenever your manufacturing scope changes so internal teams can discover you accurately.</p>
+                            <p>Record renewable share and carbon scopes so Axiom can benchmark you in the sustainability leaderboard and carbon-adjusted sourcing views.</p>
                         </CardContent>
                     </Card>
 
@@ -332,6 +352,15 @@ export default function SupplierProfilePage() {
                                     ) : (
                                         <span className="text-sm text-muted-foreground">No certifications recorded yet.</span>
                                     )}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Sustainability Snapshot</p>
+                                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <Badge variant="outline">Renewables: {profile.esgEnvironmentScore || 0}%</Badge>
+                                    <Badge variant="outline">Scope 1: {profile.carbonFootprintScope1 || 0} tCO2e</Badge>
+                                    <Badge variant="outline">Scope 2: {profile.carbonFootprintScope2 || 0} tCO2e</Badge>
+                                    <Badge variant="outline">Scope 3: {profile.carbonFootprintScope3 || 0} tCO2e</Badge>
                                 </div>
                             </div>
                         </CardContent>

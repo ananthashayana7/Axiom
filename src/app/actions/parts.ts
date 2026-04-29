@@ -1,11 +1,54 @@
 'use server'
 
 import { db } from "@/db";
-import { parts, orderItems, rfqItems, requisitions, invoices, demandForecasts, type Part } from "@/db/schema";
+import { parts, orderItems, rfqItems, requisitions, invoices, demandForecasts, procurementOrders, suppliers, type Part } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
+import { computeShouldCost } from "./cost-intelligence";
+import { calculateAdaptiveReorderPlan, estimatePartCarbonFootprint } from "@/lib/procurement-intelligence";
+
+function toNumber(value: string | number | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
+async function getPartSignalMaps(partIds?: string[]) {
+    const shouldFilter = Array.isArray(partIds) && partIds.length > 0;
+
+    const orderExposureRows = await db.select({
+        partId: orderItems.partId,
+        openOrderCount: sql<number>`count(distinct case when ${procurementOrders.status} in ('approved', 'sent') then ${procurementOrders.id} end)::int`.mapWith(Number),
+        delayedOrderCount: sql<number>`count(distinct case when ${procurementOrders.status} in ('approved', 'sent') and ${procurementOrders.estimatedArrival} is not null and ${procurementOrders.estimatedArrival} < current_timestamp then ${procurementOrders.id} end)::int`.mapWith(Number),
+    })
+        .from(orderItems)
+        .innerJoin(procurementOrders, eq(orderItems.orderId, procurementOrders.id))
+        .where(shouldFilter ? inArray(orderItems.partId, partIds!) : undefined)
+        .groupBy(orderItems.partId);
+
+    const forecastRows = await db.select({
+        partId: demandForecasts.partId,
+        forecastDemand: sql<number>`coalesce(sum(${demandForecasts.predictedQuantity}), 0)::int`.mapWith(Number),
+    })
+        .from(demandForecasts)
+        .where(shouldFilter
+            ? and(
+                inArray(demandForecasts.partId, partIds!),
+                sql`${demandForecasts.forecastDate} >= current_timestamp`,
+                sql`${demandForecasts.forecastDate} <= current_timestamp + interval '30 days'`
+            )
+            : and(
+                sql`${demandForecasts.forecastDate} >= current_timestamp`,
+                sql`${demandForecasts.forecastDate} <= current_timestamp + interval '30 days'`
+            ))
+        .groupBy(demandForecasts.partId);
+
+    return {
+        orderExposureMap: new Map(orderExposureRows.map((row) => [row.partId, row])),
+        forecastMap: new Map(forecastRows.map((row) => [row.partId, row.forecastDemand])),
+    };
+}
 
 export async function getParts(options?: { limit?: number; offset?: number }): Promise<Part[]> {
     try {
@@ -32,6 +75,7 @@ export async function getPartsCount(): Promise<number> {
 export async function getPartLinkedCounts() {
     try {
         const partRows = await db.select({ id: parts.id }).from(parts);
+        const { orderExposureMap, forecastMap } = await getPartSignalMaps();
 
         const ordersByPart = await db.select({
             partId: orderItems.partId,
@@ -64,10 +108,122 @@ export async function getPartLinkedCounts() {
             orderCount: orderMap.get(row.id) ?? 0,
             invoiceCount: invoiceMap.get(row.id) ?? 0,
             rfqCount: rfqMap.get(row.id) ?? 0,
+            openOrderCount: orderExposureMap.get(row.id)?.openOrderCount ?? 0,
+            delayedOrderCount: orderExposureMap.get(row.id)?.delayedOrderCount ?? 0,
+            forecastDemand: forecastMap.get(row.id) ?? 0,
         }));
     } catch (error) {
         console.error("Failed to fetch part linked counts:", error);
         return [];
+    }
+}
+
+export async function getPartQuickView(partId: string) {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') return null;
+
+    try {
+        const [part] = await db.select().from(parts).where(eq(parts.id, partId)).limit(1);
+        if (!part) return null;
+
+        const { orderExposureMap, forecastMap } = await getPartSignalMaps([partId]);
+        const exposure = orderExposureMap.get(partId) || { openOrderCount: 0, delayedOrderCount: 0 };
+        const forecastDemand = forecastMap.get(partId) ?? 0;
+
+        const [linkedCounts] = await getPartLinkedCounts().then((rows) => rows.filter((row) => row.partId === partId));
+
+        const supplierCoverage = await db.select({
+            supplierId: suppliers.id,
+            supplierName: suppliers.name,
+            countryCode: suppliers.countryCode,
+            financialScore: suppliers.financialScore,
+            riskScore: suppliers.riskScore,
+            esgScore: suppliers.esgScore,
+            renewableEnergyShare: suppliers.esgEnvironmentScore,
+            financialHealthRating: suppliers.financialHealthRating,
+            onTimeDeliveryRate: suppliers.onTimeDeliveryRate,
+            openOrderCount: sql<number>`count(distinct case when ${procurementOrders.status} in ('approved', 'sent') then ${procurementOrders.id} end)::int`.mapWith(Number),
+            delayedOrderCount: sql<number>`count(distinct case when ${procurementOrders.status} in ('approved', 'sent') and ${procurementOrders.estimatedArrival} is not null and ${procurementOrders.estimatedArrival} < current_timestamp then ${procurementOrders.id} end)::int`.mapWith(Number),
+            hasPrimaryCarbonData: sql<number>`case when coalesce(cast(${suppliers.carbonFootprintScope1} as numeric), 0) + coalesce(cast(${suppliers.carbonFootprintScope2} as numeric), 0) + coalesce(cast(${suppliers.carbonFootprintScope3} as numeric), 0) > 0 then 1 else 0 end`.mapWith(Number),
+        })
+            .from(orderItems)
+            .innerJoin(procurementOrders, eq(orderItems.orderId, procurementOrders.id))
+            .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(eq(orderItems.partId, partId))
+            .groupBy(
+                suppliers.id,
+                suppliers.name,
+                suppliers.countryCode,
+                suppliers.financialScore,
+                suppliers.riskScore,
+                suppliers.esgScore,
+                suppliers.esgEnvironmentScore,
+                suppliers.financialHealthRating,
+                suppliers.onTimeDeliveryRate,
+                suppliers.carbonFootprintScope1,
+                suppliers.carbonFootprintScope2,
+                suppliers.carbonFootprintScope3,
+            );
+
+        const supplierSignals = supplierCoverage
+            .slice()
+            .sort((left, right) => {
+                if (right.delayedOrderCount !== left.delayedOrderCount) {
+                    return right.delayedOrderCount - left.delayedOrderCount;
+                }
+                return right.openOrderCount - left.openOrderCount;
+            })
+            .slice(0, 5);
+        const primarySupplier = supplierSignals[0];
+        const carbonEstimate = estimatePartCarbonFootprint({
+            name: part.name,
+            category: part.category,
+            description: part.description,
+            currentPrice: toNumber(part.price),
+            supplierCountryCode: primarySupplier?.countryCode,
+            supplierHasPrimaryData: supplierSignals.some((supplier) => supplier.hasPrimaryCarbonData > 0),
+        });
+
+        const adaptiveReorder = calculateAdaptiveReorderPlan({
+            baseReorderPoint: part.reorderPoint,
+            minStockLevel: part.minStockLevel,
+            stockLevel: part.stockLevel,
+            marketTrend: part.marketTrend,
+            delayedOpenOrders: exposure.delayedOrderCount,
+            openOrders: exposure.openOrderCount,
+            forecastDemand,
+        });
+
+        let shouldCost = null;
+        try {
+            shouldCost = await computeShouldCost(partId);
+        } catch {
+            shouldCost = null;
+        }
+
+        return {
+            part,
+            linkedCounts: linkedCounts || {
+                partId,
+                orderCount: 0,
+                invoiceCount: 0,
+                rfqCount: 0,
+                openOrderCount: exposure.openOrderCount,
+                delayedOrderCount: exposure.delayedOrderCount,
+                forecastDemand,
+            },
+            supplierCoverage: supplierSignals.map((supplier) => ({
+                ...supplier,
+                onTimeDeliveryRate: toNumber(supplier.onTimeDeliveryRate),
+            })),
+            adaptiveReorder,
+            forecastDemand,
+            carbonEstimate,
+            shouldCost,
+        };
+    } catch (error) {
+        console.error("Failed to build part quick view:", error);
+        return null;
     }
 }
 
@@ -214,21 +370,38 @@ export async function processLowStockAlerts() {
     if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        const lowStockParts = await db.select()
-            .from(parts)
-            .where(sql`${parts.stockLevel} <= ${parts.reorderPoint}`);
+        const allParts = await db.select().from(parts);
+        const signalRows = await getPartLinkedCounts();
+        const signalMap = new Map(signalRows.map((row) => [row.partId, row]));
+
+        const lowStockParts = allParts
+            .map((part) => {
+                const signals = signalMap.get(part.id);
+                const adaptivePlan = calculateAdaptiveReorderPlan({
+                    baseReorderPoint: part.reorderPoint,
+                    minStockLevel: part.minStockLevel,
+                    stockLevel: part.stockLevel,
+                    marketTrend: part.marketTrend,
+                    delayedOpenOrders: signals?.delayedOrderCount,
+                    openOrders: signals?.openOrderCount,
+                    forecastDemand: signals?.forecastDemand,
+                });
+
+                return { part, signals, adaptivePlan };
+            })
+            .filter(({ part, adaptivePlan }) => part.stockLevel <= adaptivePlan.adjustedReorderPoint);
 
         if (lowStockParts.length === 0) {
             return { success: true, count: 0, message: "No low stock items found." };
         }
 
         let createdCount = 0;
-        for (const part of lowStockParts) {
-            const reorderQty = (part.reorderPoint || 50) * 2 - part.stockLevel;
+        for (const { part, adaptivePlan } of lowStockParts) {
+            const reorderQty = adaptivePlan.recommendedQty;
 
             await db.insert(requisitions).values({
                 title: `Auto-Reorder: ${part.name}`,
-                description: `System generated reorder for SKU: ${part.sku}. Current stock: ${part.stockLevel}, Target: ${(part.reorderPoint || 50) * 2}.`,
+                description: `System generated reorder for SKU: ${part.sku}. Current stock: ${part.stockLevel}, adjusted reorder point: ${adaptivePlan.adjustedReorderPoint}, target stock: ${adaptivePlan.targetStock}. ${adaptivePlan.reasons.join(' ')}`,
                 department: part.category,
                 status: 'draft',
                 requestedById: (session.user as any).id,
