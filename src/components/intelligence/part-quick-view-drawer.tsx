@@ -3,13 +3,19 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, Boxes, Factory, Leaf, Loader2, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react";
 
+import { getTimelineEvents } from "@/app/actions/activity";
 import { getPartQuickView } from "@/app/actions/parts";
+import { getContextualSupplierMessages } from "@/app/actions/mail";
+import { TimelineList } from "@/components/shared/timeline-list";
+import { MessageSupplierButton } from "@/components/suppliers/message-supplier-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { formatCurrency } from "@/lib/utils/currency";
 
 type PartQuickViewData = Awaited<ReturnType<typeof getPartQuickView>>;
+type ContextualThread = Awaited<ReturnType<typeof getContextualSupplierMessages>>;
+type ContextualTimeline = Awaited<ReturnType<typeof getTimelineEvents>>;
 
 const RISK_BADGE_STYLES: Record<string, string> = {
     watch: 'bg-slate-100 text-slate-800 hover:bg-slate-100',
@@ -30,6 +36,24 @@ export function PartQuickViewDrawer({
 }) {
     const [data, setData] = useState<PartQuickViewData>(null);
     const [loading, setLoading] = useState(false);
+    const [threadEntries, setThreadEntries] = useState<ContextualThread>([]);
+    const [timelineEntries, setTimelineEntries] = useState<ContextualTimeline>([]);
+    const [workspaceLoading, setWorkspaceLoading] = useState(false);
+
+    const refreshSupplierWorkspace = async (currentPartId: string) => {
+        setWorkspaceLoading(true);
+        try {
+            const [messages, timeline] = await Promise.all([
+                getContextualSupplierMessages('part', currentPartId),
+                getTimelineEvents('part', currentPartId),
+            ]);
+
+            setThreadEntries(messages);
+            setTimelineEntries(timeline);
+        } finally {
+            setWorkspaceLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!open || !partId) {
@@ -45,6 +69,39 @@ export function PartQuickViewDrawer({
             if (!cancelled) {
                 setData(result);
                 setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, partId]);
+
+    useEffect(() => {
+        if (!open || !partId) {
+            setThreadEntries([]);
+            setTimelineEntries([]);
+            return;
+        }
+
+        let cancelled = false;
+        setWorkspaceLoading(true);
+
+        void (async () => {
+            try {
+                const [messages, timeline] = await Promise.all([
+                    getContextualSupplierMessages('part', partId),
+                    getTimelineEvents('part', partId),
+                ]);
+
+                if (!cancelled) {
+                    setThreadEntries(messages);
+                    setTimelineEntries(timeline);
+                }
+            } finally {
+                if (!cancelled) {
+                    setWorkspaceLoading(false);
+                }
             }
         })();
 
@@ -219,11 +276,11 @@ export function PartQuickViewDrawer({
                                     </div>
                                 ) : (
                                     <div className="mt-4 space-y-3">
-                                        {quickView.supplierCoverage.map((supplier) => (
-                                            <div key={supplier.supplierId} className="rounded-2xl border bg-background p-4">
-                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                    <div>
-                                                        <p className="font-semibold text-foreground">{supplier.supplierName}</p>
+                                            {quickView.supplierCoverage.map((supplier) => (
+                                                <div key={supplier.supplierId} className="rounded-2xl border bg-background p-4">
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div>
+                                                            <p className="font-semibold text-foreground">{supplier.supplierName}</p>
                                                         <p className="text-sm text-muted-foreground">
                                                             Financial {supplier.financialScore || 0} / Risk {supplier.riskScore || 0} / ESG {supplier.esgScore || 0}
                                                         </p>
@@ -239,16 +296,77 @@ export function PartQuickViewDrawer({
                                                             <ArrowRight className="h-4 w-4" />
                                                         </Button>
                                                     )}
+                                                    </div>
+                                                    <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                                                        <span>Open orders: {supplier.openOrderCount}</span>
+                                                        <span>Delayed: {supplier.delayedOrderCount}</span>
+                                                        <span>Renewables: {supplier.renewableEnergyShare || 0}%</span>
+                                                    </div>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        <MessageSupplierButton
+                                                            supplierId={supplier.supplierId}
+                                                            supplierName={supplier.supplierName}
+                                                            supplierEmail={supplier.contactEmail}
+                                                            triggerLabel="Message About This SKU"
+                                                            variant="outline"
+                                                            contextType="part"
+                                                            contextId={part.id}
+                                                            contextLabel={`${part.sku} - ${part.name}`}
+                                                            defaultSubject={`Action required for ${part.sku}`}
+                                                            onSent={() => {
+                                                                void refreshSupplierWorkspace(part.id);
+                                                            }}
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                                                    <span>Open orders: {supplier.openOrderCount}</span>
-                                                    <span>Delayed: {supplier.delayedOrderCount}</span>
-                                                    <span>Renewables: {supplier.renewableEnergyShare || 0}%</span>
-                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                            </section>
+
+                            <section className="rounded-2xl border bg-muted/20 p-4">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                    <Factory className="h-4 w-4 text-primary" />
+                                    Part supplier workspace
+                                </div>
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                    Every outreach tied to this SKU stays searchable inside Axiom, so buyers do not lose the trail when they change screens, teams, or shifts.
+                                </p>
+                                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                                    <div className="rounded-2xl border bg-background p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Recent supplier messages</p>
+                                        {workspaceLoading ? (
+                                            <div className="flex min-h-[140px] items-center justify-center text-sm text-muted-foreground">
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Loading part thread...
                                             </div>
-                                        ))}
+                                        ) : threadEntries.length === 0 ? (
+                                            <p className="py-6 text-sm text-muted-foreground">
+                                                No supplier communication has been logged against this SKU yet.
+                                            </p>
+                                        ) : (
+                                            <div className="mt-4 space-y-3">
+                                                {threadEntries.slice(0, 5).map((entry) => (
+                                                    <div key={entry.id} className="rounded-2xl border bg-muted/20 p-4">
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <p className="text-sm font-semibold text-foreground">{entry.userName || 'Axiom user'}</p>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'Just now'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{entry.text}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+
+                                    <TimelineList
+                                        entries={timelineEntries.slice(0, 5)}
+                                        title="Workflow audit trail"
+                                        description="Messages and system actions linked to this part stay visible here for buyers and auditors."
+                                    />
+                                </div>
                             </section>
                         </>
                     )}

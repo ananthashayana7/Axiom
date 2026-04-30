@@ -4,18 +4,19 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { Command } from "cmdk"
 import {
-    Search,
+    AlertTriangle,
+    FileBadge2,
     FileText,
-    ShoppingCart,
-    Users,
+    History,
     Package,
     Plus,
-    History,
+    Search,
+    ShoppingCart,
+    Sparkles,
+    Users,
     Zap,
-    Sparkles
 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { globalSearch, SearchResult } from "@/app/actions/search"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 
@@ -39,10 +40,10 @@ export function CommandPalette() {
             setRecentSearches([])
         }
 
-        const down = (e: KeyboardEvent) => {
-            if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                setOpen((open) => !open)
+        const down = (event: KeyboardEvent) => {
+            if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                setOpen((currentOpen) => !currentOpen)
             }
         }
 
@@ -99,7 +100,7 @@ export function CommandPalette() {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="overflow-hidden p-0 shadow-2xl bg-background border border-border max-w-[600px]">
+            <DialogContent className="max-w-[600px] overflow-hidden border border-border bg-background p-0 shadow-2xl">
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
                 <Command className="flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">
                     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
@@ -116,31 +117,33 @@ export function CommandPalette() {
                             {loading ? "Searching Axiom intelligence..." : "No results found."}
                         </Command.Empty>
 
-                        {results.length > 0 && (
+                        {results.length > 0 ? (
                             <Command.Group heading="Search Results">
-                                {results.map((res) => (
+                                {results.map((result) => (
                                     <Command.Item
-                                        key={`${res.type}-${res.id}`}
-                                        value={`${res.type} ${res.title}`}
-                                        onSelect={() => runSearchNavigation(res.href, query || res.title)}
-                                        className="relative flex cursor-default select-none items-center rounded-sm px-2 py-3 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-muted/50 transition-colors"
+                                        key={`${result.type}-${result.id}`}
+                                        value={`${result.type} ${result.title}`}
+                                        onSelect={() => runSearchNavigation(result.href, query || result.title)}
+                                        className="relative flex cursor-default select-none items-center rounded-sm px-2 py-3 text-sm outline-none transition-colors hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                                     >
                                         <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                            {res.type === 'supplier' && <Users className="h-4 w-4" />}
-                                            {res.type === 'rfq' && <FileText className="h-4 w-4" />}
-                                            {res.type === 'order' && <ShoppingCart className="h-4 w-4" />}
-                                            {res.type === 'part' && <Package className="h-4 w-4" />}
+                                            {result.type === 'supplier' && <Users className="h-4 w-4" />}
+                                            {result.type === 'rfq' && <FileText className="h-4 w-4" />}
+                                            {result.type === 'order' && <ShoppingCart className="h-4 w-4" />}
+                                            {result.type === 'part' && <Package className="h-4 w-4" />}
+                                            {result.type === 'contract' && <FileBadge2 className="h-4 w-4" />}
+                                            {result.type === 'alert' && <AlertTriangle className="h-4 w-4" />}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="font-semibold">{res.title}</span>
-                                            <span className="text-xs text-muted-foreground">{res.subtitle}</span>
+                                            <span className="font-semibold">{result.title}</span>
+                                            <span className="text-xs text-muted-foreground">{result.subtitle}</span>
                                         </div>
                                     </Command.Item>
                                 ))}
                             </Command.Group>
-                        )}
+                        ) : null}
 
-                        {recentSearches.length > 0 && query.length < 2 && (
+                        {recentSearches.length > 0 && query.length < 2 ? (
                             <Command.Group heading="Recent Searches">
                                 {recentSearches.map((entry) => (
                                     <Command.Item
@@ -154,12 +157,12 @@ export function CommandPalette() {
                                     </Command.Item>
                                 ))}
                             </Command.Group>
-                        )}
+                        ) : null}
 
                         <Command.Group heading="Quick Actions">
                             <Command.Item
                                 onSelect={() => runCommand(() => router.push("/sourcing/rfqs"))}
-                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted/50"
+                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground"
                             >
                                 <Plus className="mr-2 h-4 w-4" />
                                 <span>Create New Sourcing Request</span>
@@ -167,7 +170,7 @@ export function CommandPalette() {
                             </Command.Item>
                             <Command.Item
                                 onSelect={() => runCommand(() => router.push("/copilot"))}
-                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted/50"
+                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground"
                             >
                                 <Sparkles className="mr-2 h-4 w-4 text-primary" />
                                 <span>Consult Axiom Copilot</span>
@@ -175,7 +178,7 @@ export function CommandPalette() {
                             </Command.Item>
                             <Command.Item
                                 onSelect={() => runCommand(() => router.push("/admin/audit"))}
-                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted/50"
+                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground"
                             >
                                 <History className="mr-2 h-4 w-4" />
                                 <span>View Recent Audits</span>
@@ -206,13 +209,13 @@ export function CommandPalette() {
                         <div className="flex items-center gap-4">
                             <span className="flex items-center gap-1">
                                 <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border border-border bg-muted/50 px-1.5 font-mono font-medium text-muted-foreground opacity-100">
-                                    <span className="text-xs">↑↓</span>
+                                    <span className="text-xs">Up/Down</span>
                                 </kbd>
                                 Navigate
                             </span>
                             <span className="flex items-center gap-1">
                                 <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border border-border bg-muted/50 px-1.5 font-mono font-medium text-muted-foreground opacity-100">
-                                    <span className="text-xs">↵</span>
+                                    <span className="text-xs">Enter</span>
                                 </kbd>
                                 Select
                             </span>

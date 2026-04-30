@@ -19,9 +19,11 @@ import { ContractCharts } from "@/components/contracts/contract-charts";
 
 export const dynamic = 'force-dynamic';
 
-export default async function ContractsPage() {
+export default async function ContractsPage({ searchParams }: { searchParams?: Promise<{ contract?: string }> }) {
     const contracts = await getContracts();
     const suppliers = await getSuppliers();
+    const resolvedSearchParams = searchParams ? await searchParams : undefined;
+    const highlightedContractId = resolvedSearchParams?.contract;
 
     const activeCount = contracts.filter((c) => c.status === 'active').length;
     const expiringCount = contracts.filter((c) => {
@@ -30,6 +32,13 @@ export default async function ContractsPage() {
     }).length;
     const expiredCount = contracts.filter((c) => c.status === 'expired').length;
     const totalValue = contracts.reduce((sum: number, c: any) => sum + (Number(c.value) || 0), 0);
+    const orderedContracts = highlightedContractId
+        ? [...contracts].sort((left, right) => {
+            if (left.id === highlightedContractId) return -1;
+            if (right.id === highlightedContractId) return 1;
+            return 0;
+        })
+        : contracts;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-10 space-y-6">
@@ -76,13 +85,29 @@ export default async function ContractsPage() {
             {/* Charts */}
             <ContractCharts contracts={contracts} />
 
+            {highlightedContractId && orderedContracts.some((contract) => contract.id === highlightedContractId) ? (
+                <Card className="border-primary/30 bg-primary/5">
+                    <CardContent className="pt-6">
+                        <p className="text-sm font-semibold text-foreground">Command bar focus enabled</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            The selected contract has been moved to the top so the buyer can inspect it without another search.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : null}
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {contracts.map((contract) => {
+                {orderedContracts.map((contract) => {
                     const daysLeft = getDaysUntilExpiry(contract.validTo);
                     const isExpiringSoon = daysLeft !== null && daysLeft <= 60 && daysLeft > 0;
                     const isExpired = contract.status === 'expired' || (daysLeft !== null && daysLeft < 0);
+                    const isHighlighted = contract.id === highlightedContractId;
                     return (
-                    <Card key={contract.id} className={cn("group relative overflow-hidden transition-all hover:shadow-xl",
+                    <Card
+                        key={contract.id}
+                        id={`contract-${contract.id}`}
+                        className={cn("group relative overflow-hidden transition-all hover:shadow-xl",
+                        isHighlighted && "ring-2 ring-primary shadow-xl",
                         isExpired && "border-red-200 bg-red-50/20",
                         isExpiringSoon && !isExpired && "border-amber-200 bg-amber-50/10",
                     )}>

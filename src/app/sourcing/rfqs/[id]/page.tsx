@@ -105,6 +105,10 @@ function formatCurrency(value: number | string | null | undefined) {
     return `INR ${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
+function getSupplierAlias(index: number) {
+    return `Supplier ${String.fromCharCode(65 + index)}`;
+}
+
 export default async function RFQDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
@@ -135,6 +139,10 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
     const allSuppliersMaster = await getSuppliers();
     const negotiationWorkbench = canManageRfqs ? await getRFQNegotiationWorkbench(id).catch(() => null) : null;
     const createdDateLabel = formatDateLabel(rfq.createdAt);
+    const maskSupplierIdentity = canManageRfqs && rfq.status === 'open';
+    const supplierAliasById = new Map(sortedSuppliers.map((supplier, index) => [supplier.supplier.id, getSupplierAlias(index)]));
+    const getDisplaySupplierName = (supplierId: string, fallbackName: string) =>
+        maskSupplierIdentity ? supplierAliasById.get(supplierId) || fallbackName : fallbackName;
 
     const handleStatusChange = async (formData: FormData) => {
         'use server';
@@ -250,6 +258,11 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                             <CardDescription className="text-muted-foreground mt-2 font-medium">
                                 Multidimensional supplier evaluation using procurement telemetry and financial risk modeling.
                             </CardDescription>
+                            {maskSupplierIdentity ? (
+                                <div className="mt-4 rounded-2xl border border-primary/10 bg-background/80 p-3 text-sm text-muted-foreground">
+                                    Blind-bid mode is active. Supplier identities stay masked during the live event to reduce bias and collusion risk.
+                                </div>
+                            ) : null}
                         </CardHeader>
                         <CardContent className="space-y-8 px-6 pb-10 pt-8 md:px-8">
                             {sortedSuppliers.map((s) => {
@@ -268,7 +281,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                 <div>
                                                     <div className="flex items-center gap-4 mb-2 flex-wrap">
                                                         <h3 className="break-words text-3xl font-black tracking-tighter text-foreground transition-colors group-hover:text-primary">
-                                                            {s.supplier.name}
+                                                            {getDisplaySupplierName(s.supplier.id, s.supplier.name)}
                                                         </h3>
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest h-6 bg-primary/5 text-primary border-primary/20 px-3 shrink-0">
@@ -286,6 +299,11 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                         AI Intentionality Match:
                                                         <span className="text-primary font-black bg-primary/10 px-2 py-0.5 rounded-full">{matchScore}%</span>
                                                     </p>
+                                                    {maskSupplierIdentity ? (
+                                                        <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                                                            Identity masked until award
+                                                        </p>
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
@@ -359,17 +377,29 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                         />
                                                         <AnalyzeQuoteButton rfqSupplierId={s.id} hasAnalysis={!!s.aiAnalysis} />
                                                         <div className="flex items-center gap-2">
-                                                            <Link href={`/suppliers/${s.supplier.id}`} className="flex-1">
-                                                                <Button size="sm" variant="outline" className="w-full h-10 font-bold text-xs shadow-sm">Supplier Profile</Button>
-                                                            </Link>
+                                                            {maskSupplierIdentity ? (
+                                                                <Button size="sm" variant="outline" className="h-10 flex-1 font-bold text-xs shadow-sm" disabled>
+                                                                    Identity Hidden During Live Bid
+                                                                </Button>
+                                                            ) : (
+                                                                <Link href={`/suppliers/${s.supplier.id}`} className="flex-1">
+                                                                    <Button size="sm" variant="outline" className="w-full h-10 font-bold text-xs shadow-sm">Supplier Profile</Button>
+                                                                </Link>
+                                                            )}
                                                             <ComparePricesButton />
                                                         </div>
                                                     </div>
                                                 )}
                                                 {!isAdmin && (
-                                                    <Link href={`/suppliers/${s.supplier.id}`}>
-                                                        <Button size="lg" variant="outline" className="w-full font-bold shadow-md">Full Intelligence Profile</Button>
-                                                    </Link>
+                                                    maskSupplierIdentity ? (
+                                                        <Button size="lg" variant="outline" className="w-full font-bold shadow-md" disabled>
+                                                            Identity Hidden During Live Bid
+                                                        </Button>
+                                                    ) : (
+                                                        <Link href={`/suppliers/${s.supplier.id}`}>
+                                                            <Button size="lg" variant="outline" className="w-full font-bold shadow-md">Full Intelligence Profile</Button>
+                                                        </Link>
+                                                    )
                                                 )}
                                             </div>
                                         </div>
@@ -396,7 +426,7 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                 quoteItems={quotedSuppliers.map(s => ({
                                     sku: "multiple", // Simplified for this component
                                     price: parseFloat(s.quoteAmount || '0'),
-                                    supplier: s.supplier.name
+                                    supplier: getDisplaySupplierName(s.supplier.id, s.supplier.name)
                                 }))}
                                 historicalParts={rfq.items.map(i => i.part)}
                             />
@@ -477,7 +507,12 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                     <div className="mt-5 space-y-4">
                                                         <div className="rounded-2xl bg-primary text-primary-foreground p-5">
                                                             <p className="text-xs uppercase tracking-widest opacity-80">Recommended supplier</p>
-                                                            <p className="mt-2 text-2xl font-black">{negotiationWorkbench.recommendedSupplier.supplierName}</p>
+                                                            <p className="mt-2 text-2xl font-black">
+                                                                {getDisplaySupplierName(
+                                                                    negotiationWorkbench.recommendedSupplier.supplierId,
+                                                                    negotiationWorkbench.recommendedSupplier.supplierName,
+                                                                )}
+                                                            </p>
                                                             <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold">
                                                                 <span>Quote: {formatCurrency(negotiationWorkbench.recommendedSupplier.quoteAmount)}</span>
                                                                 <span>Score: {negotiationWorkbench.recommendedSupplier.totalScore}</span>
@@ -506,7 +541,9 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                                         <div key={supplier.supplierId} className="rounded-2xl border p-4">
                                                             <div className="flex items-center justify-between gap-3">
                                                                 <div>
-                                                                    <p className="font-semibold">{index + 1}. {supplier.supplierName}</p>
+                                                                    <p className="font-semibold">
+                                                                        {index + 1}. {getDisplaySupplierName(supplier.supplierId, supplier.supplierName)}
+                                                                    </p>
                                                                     <p className="text-xs text-muted-foreground mt-1">
                                                                         Quote {formatCurrency(supplier.quoteAmount)} | Delivery {supplier.deliveryWeeks !== null ? `${supplier.deliveryWeeks} weeks` : 'TBD'} | Risk {supplier.riskScore}
                                                                     </p>
@@ -616,7 +653,12 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-green-50">
                                             <p className="text-2xl font-black text-foreground">
-                                                {[...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.supplier.name}
+                                                {(() => {
+                                                    const bestQuotedSupplier = [...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0];
+                                                    return bestQuotedSupplier
+                                                        ? getDisplaySupplierName(bestQuotedSupplier.supplier.id, bestQuotedSupplier.supplier.name)
+                                                        : 'No quote';
+                                                })()}
                                             </p>
                                             <p className="text-sm font-black text-green-700 mt-1 uppercase tracking-widest">{formatCurrency([...quotedSuppliers].sort((a, b) => parseFloat(a.quoteAmount || '0') - parseFloat(b.quoteAmount || '0'))[0]?.quoteAmount || '0')}</p>
                                         </div>
@@ -634,7 +676,9 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-blue-50">
                                             <p className="text-2xl font-black text-foreground">
-                                                {fastestQuotedSupplier?.supplier.supplier.name || 'No lead-time data'}
+                                                {fastestQuotedSupplier
+                                                    ? getDisplaySupplierName(fastestQuotedSupplier.supplier.supplier.id, fastestQuotedSupplier.supplier.supplier.name)
+                                                    : 'No lead-time data'}
                                             </p>
                                             <p className="text-sm font-black text-blue-700 mt-1 uppercase tracking-widest">{fastestQuotedSupplier?.analysis.deliveryWeeks || 'N/A'} Weeks Arrival</p>
                                         </div>
@@ -654,7 +698,16 @@ export default async function RFQDetailPage({ params }: { params: Promise<{ id: 
                                             </div>
                                         </div>
                                         <div className="mt-8 pt-6 border-t border-white/20 relative z-10">
-                                            <p className="text-3xl font-black">{negotiationWorkbench?.recommendedSupplier?.supplierName || sortedSuppliers[0]?.supplier.name}</p>
+                                            <p className="text-3xl font-black">
+                                                {negotiationWorkbench?.recommendedSupplier
+                                                    ? getDisplaySupplierName(
+                                                        negotiationWorkbench.recommendedSupplier.supplierId,
+                                                        negotiationWorkbench.recommendedSupplier.supplierName,
+                                                    )
+                                                    : sortedSuppliers[0]
+                                                        ? getDisplaySupplierName(sortedSuppliers[0].supplier.id, sortedSuppliers[0].supplier.name)
+                                                        : 'Pending'}
+                                            </p>
                                             <p className="text-sm font-bold opacity-80 mt-1 italic italic">AI Recommended Outcome</p>
                                         </div>
                                     </div>

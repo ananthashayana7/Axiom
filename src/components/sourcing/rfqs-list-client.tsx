@@ -39,6 +39,10 @@ type StatusFilter = 'all' | 'draft' | 'open' | 'closed' | 'cancelled';
 type SupplierFilter = 'all' | 'invited' | 'unassigned';
 type SortKey = 'newest' | 'oldest' | 'title' | 'items' | 'suppliers';
 
+function getSupplierAlias(index: number) {
+    return `Supplier ${String.fromCharCode(65 + index)}`;
+}
+
 export function RFQsListClient({ rfqs, isAdmin, parts, defaultCreateOpen = false }: RFQsListClientProps) {
     const [query, setQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -209,13 +213,20 @@ export function RFQsListClient({ rfqs, isAdmin, parts, defaultCreateOpen = false
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-sm">
                                 <span className="text-muted-foreground">AI Selected Suppliers:</span>
-                                {rfq.suppliers?.map((supplier) => (
+                                {rfq.suppliers?.map((supplier, index) => (
                                     <Badge key={supplier.id} variant="secondary" className="border-primary/20 bg-primary/5 px-3 text-primary hover:bg-primary/10">
-                                        {supplier.supplier?.name || "Unknown"}
+                                        {rfq.status === 'open'
+                                            ? getSupplierAlias(index)
+                                            : supplier.supplier?.name || "Unknown"}
                                     </Badge>
                                 ))}
                                 {(rfq.suppliers?.length || 0) === 0 && <span className="italic text-muted-foreground">None invited yet</span>}
                             </div>
+                            {rfq.status === 'open' ? (
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                    Live bid mode keeps supplier identities masked here until award or closure.
+                                </p>
+                            ) : null}
                         </CardContent>
                     </Card>
                 ))}

@@ -27,6 +27,11 @@ type MessageSupplierButtonProps = {
     iconOnly?: boolean;
     variant?: "default" | "outline" | "ghost";
     className?: string;
+    contextType?: 'part' | 'rfq' | 'order';
+    contextId?: string;
+    contextLabel?: string;
+    defaultSubject?: string;
+    onSent?: () => void;
 };
 
 export function MessageSupplierButton({
@@ -37,15 +42,21 @@ export function MessageSupplierButton({
     iconOnly = false,
     variant = "outline",
     className,
+    contextType,
+    contextId,
+    contextLabel,
+    defaultSubject,
+    onSent,
 }: MessageSupplierButtonProps) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
-    const [subject, setSubject] = useState(`Axiom update for ${supplierName}`);
+    const buildInitialSubject = () => defaultSubject || (contextLabel ? `Axiom update: ${contextLabel}` : `Axiom update for ${supplierName}`);
+    const [subject, setSubject] = useState(buildInitialSubject);
     const [body, setBody] = useState("");
     const [isPending, startTransition] = useTransition();
 
     const resetComposer = () => {
-        setSubject(`Axiom update for ${supplierName}`);
+        setSubject(buildInitialSubject());
         setBody("");
     };
 
@@ -55,6 +66,9 @@ export function MessageSupplierButton({
                 supplierId,
                 subject,
                 body,
+                contextType,
+                contextId,
+                contextLabel,
             });
 
             if (!result.success) {
@@ -70,6 +84,7 @@ export function MessageSupplierButton({
 
             setOpen(false);
             resetComposer();
+            onSent?.();
             router.refresh();
         });
     };
@@ -92,6 +107,7 @@ export function MessageSupplierButton({
                     <DialogTitle>Message {supplierName}</DialogTitle>
                     <DialogDescription>
                         This sends a supplier-facing message from Axiom, logs it in the shared thread, and delivers an email copy to {supplierEmail} when SMTP is configured.
+                        {contextLabel ? ` It will also be attached to ${contextLabel} for audit-safe retrieval.` : null}
                     </DialogDescription>
                 </DialogHeader>
 

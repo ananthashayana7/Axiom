@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { createNotification } from "./notifications";
 import { db } from "@/db";
 import { comments, suppliers, users } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { logActivity } from "./activity";
 import { revalidatePath } from "next/cache";
 
@@ -112,6 +112,9 @@ export async function sendSupplierMessage(data: {
     supplierId: string;
     subject: string;
     body: string;
+    contextType?: 'part' | 'rfq' | 'order';
+    contextId?: string;
+    contextLabel?: string;
 }) {
     const session = await auth();
     if (!session?.user?.id || session.user.role === 'supplier') {
@@ -150,7 +153,21 @@ export async function sendSupplierMessage(data: {
     const senderEmail = session.user.email || undefined;
     const threadReference = `SUP-${supplier.id.slice(0, 8).toUpperCase()}`;
     const portalUrl = `${buildAppBaseUrl()}/portal/profile`;
-    const threadBody = `Subject: ${subject}\n\n${body}`;
+    const hasContext = Boolean(data.contextType && data.contextId);
+    const contextLabel = data.contextLabel?.trim();
+    const threadContextLines = hasContext
+        ? [
+            `Context: ${contextLabel || `${data.contextType} workflow`}`,
+            `Reference: ${data.contextType?.toUpperCase()}-${data.contextId?.slice(0, 8).toUpperCase()}`,
+            ``,
+        ]
+        : [];
+    const threadBody = [
+        ...threadContextLines,
+        `Subject: ${subject}`,
+        ``,
+        body,
+    ].join('\n');
 
     await db.insert(comments).values({
         userId: session.user.id,
@@ -158,6 +175,21 @@ export async function sendSupplierMessage(data: {
         entityId: supplier.id,
         text: threadBody,
     });
+
+    if (hasContext && data.contextType && data.contextId) {
+        await db.insert(comments).values({
+            userId: session.user.id,
+            entityType: `${data.contextType}_supplier_message`,
+            entityId: data.contextId,
+            text: [
+                `Supplier: ${supplier.name}`,
+                `Subject: ${subject}`,
+                `Thread: ${threadReference}`,
+                ``,
+                body,
+            ].join('\n'),
+        });
+    }
 
     const notificationResults = await Promise.allSettled(
         supplierPortalUsers.map((user) =>
@@ -203,9 +235,27 @@ export async function sendSupplierMessage(data: {
         `Sent supplier message "${subject}" to ${supplier.contactEmail}. Thread ${threadReference}. ${emailResult.success ? 'Email delivered.' : 'Email pending SMTP configuration or retry.'}`,
     );
 
+    if (hasContext && data.contextType && data.contextId) {
+        await logActivity(
+            'MESSAGE',
+            data.contextType,
+            data.contextId,
+            `Sent supplier message to ${supplier.name} regarding ${contextLabel || data.contextType}. Subject: "${subject}". Thread ${threadReference}.`,
+        );
+    }
+
     revalidatePath(`/suppliers/${supplier.id}`);
     revalidatePath("/suppliers");
     revalidatePath("/portal/profile");
+    if (data.contextType === 'part') {
+        revalidatePath("/sourcing/parts");
+    }
+    if (data.contextType === 'rfq' && data.contextId) {
+        revalidatePath(`/sourcing/rfqs/${data.contextId}`);
+    }
+    if (data.contextType === 'order' && data.contextId) {
+        revalidatePath(`/sourcing/orders/${data.contextId}`);
+    }
 
     return {
         success: true,
@@ -214,4 +264,33 @@ export async function sendSupplierMessage(data: {
         warning: emailResult.success ? undefined : emailResult.error,
         threadReference,
     };
+}
+
+export async function getContextualSupplierMessages(
+    contextType: 'part' | 'rfq' | 'order',
+    contextId: string,
+) {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return [];
+    }
+
+    try {
+        return await db.select({
+            id: comments.id,
+            text: comments.text,
+            createdAt: comments.createdAt,
+            userName: users.name,
+        })
+            .from(comments)
+            .innerJoin(users, eq(comments.userId, users.id))
+            .where(and(
+                eq(comments.entityType, `${contextType}_supplier_message`),
+                eq(comments.entityId, contextId),
+            ))
+            .orderBy(desc(comments.createdAt));
+    } catch (error) {
+        console.error("Failed to fetch contextual supplier messages:", error);
+        return [];
+    }
 }

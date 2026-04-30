@@ -36,13 +36,22 @@ const alertTypeLabels: Record<string, string> = {
     'segregation_violation': 'Segregation of Duties'
 };
 
-export default async function FraudAlertsPage() {
+export default async function FraudAlertsPage({ searchParams }: { searchParams?: Promise<{ id?: string }> }) {
     const session = await auth();
     if (!session?.user || (session.user as { role: string }).role !== 'admin') {
         redirect('/');
     }
 
     const alerts = await getOpenFraudAlerts();
+    const resolvedSearchParams = searchParams ? await searchParams : undefined;
+    const highlightedAlertId = resolvedSearchParams?.id;
+    const orderedAlerts = highlightedAlertId
+        ? [...alerts].sort((left, right) => {
+            if (left.id === highlightedAlertId) return -1;
+            if (right.id === highlightedAlertId) return 1;
+            return 0;
+        })
+        : alerts;
 
     const criticalCount = alerts.filter(a => a.severity === 'critical').length;
     const highCount = alerts.filter(a => a.severity === 'high').length;
@@ -91,8 +100,8 @@ export default async function FraudAlertsPage() {
                 </Card>
             ) : (
                 <div className="space-y-4">
-                    {alerts.map((alert) => (
-                        <Card key={alert.id} className="hover:shadow-md transition-shadow">
+                    {orderedAlerts.map((alert) => (
+                        <Card key={alert.id} className={`transition-shadow hover:shadow-md ${alert.id === highlightedAlertId ? 'ring-2 ring-primary shadow-lg' : ''}`}>
                             <CardHeader className="pb-3">
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-3">

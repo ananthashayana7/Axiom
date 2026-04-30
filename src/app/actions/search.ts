@@ -2,13 +2,13 @@
 
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { parts, procurementOrders, rfqs, suppliers } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { contracts, fraudAlerts, parts, procurementOrders, rfqs, suppliers } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
 import { getAllCountryCodes, getGeoLocale } from "@/lib/utils/geo-currency";
 
 export type SearchResult = {
     id: string;
-    type: 'supplier' | 'rfq' | 'order' | 'part';
+    type: 'supplier' | 'rfq' | 'order' | 'part' | 'contract' | 'alert';
     title: string;
     subtitle?: string;
     href: string;
@@ -229,6 +229,68 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
                     href: role === 'supplier' ? `/portal/orders/${order.id}` : `/sourcing/orders/${order.id}`,
                 });
             });
+
+        if (role !== 'supplier') {
+            const contractRows = await db.select({
+                id: contracts.id,
+                title: contracts.title,
+                status: contracts.status,
+                type: contracts.type,
+                supplierName: suppliers.name,
+            })
+                .from(contracts)
+                .leftJoin(suppliers, eq(contracts.supplierId, suppliers.id))
+                .orderBy(desc(contracts.createdAt))
+                .limit(60);
+
+            contractRows
+                .filter((contract) => normalize([
+                    contract.title,
+                    contract.status,
+                    contract.type,
+                    contract.supplierName,
+                ].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+                .slice(0, 4)
+                .forEach((contract) => {
+                    results.push({
+                        id: contract.id,
+                        type: 'contract',
+                        title: contract.title,
+                        subtitle: `${contract.supplierName || 'Unassigned supplier'} / ${contract.status} / ${(contract.type || 'contract').replace('_', ' ')}`,
+                        href: `/sourcing/contracts?contract=${contract.id}`,
+                    });
+                });
+        }
+
+        if (role === 'admin') {
+            const alertRows = await db.select({
+                id: fraudAlerts.id,
+                alertType: fraudAlerts.alertType,
+                description: fraudAlerts.description,
+                severity: fraudAlerts.severity,
+                entityType: fraudAlerts.entityType,
+            }).from(fraudAlerts)
+                .orderBy(desc(fraudAlerts.createdAt))
+                .limit(40);
+
+            alertRows
+                .filter((alert) => normalize([
+                    alert.alertType,
+                    alert.description,
+                    alert.severity,
+                    alert.entityType,
+                ].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+                .slice(0, 3)
+                .forEach((alert) => {
+                    results.push({
+                        id: alert.id,
+                        type: 'alert',
+                        title: `Fraud alert: ${alert.alertType.replace(/_/g, ' ')}`,
+                        subtitle: `${alert.severity} severity / ${alert.entityType}`,
+                        href: `/admin/fraud-alerts?id=${alert.id}`,
+                    });
+                });
+        }
 
         return results.slice(0, 10);
     } catch (error) {

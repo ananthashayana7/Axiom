@@ -135,6 +135,7 @@ export async function getPartQuickView(partId: string) {
         const supplierCoverage = await db.select({
             supplierId: suppliers.id,
             supplierName: suppliers.name,
+            contactEmail: suppliers.contactEmail,
             countryCode: suppliers.countryCode,
             financialScore: suppliers.financialScore,
             riskScore: suppliers.riskScore,
@@ -153,6 +154,7 @@ export async function getPartQuickView(partId: string) {
             .groupBy(
                 suppliers.id,
                 suppliers.name,
+                suppliers.contactEmail,
                 suppliers.countryCode,
                 suppliers.financialScore,
                 suppliers.riskScore,
