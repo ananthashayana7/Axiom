@@ -12,6 +12,15 @@ const orderItemTotals = db.select({
 
 const effectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${orderItemTotals.lineTotal} AS numeric), 0)`;
 const convertedFromRfqPattern = /Converted from RFQ ([A-F0-9]{8})/i;
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function startOfUtcMonth(date: Date) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function addUtcMonths(date: Date, delta: number) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + delta, 1));
+}
 
 async function getLegacyOrderRfqMap(orderIds: string[]) {
     if (orderIds.length === 0) {
@@ -100,8 +109,8 @@ export async function getDashboardStats() {
 
         // Calculate MoM change
         const now = new Date();
-        const firstDayCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const firstDayCurrentMonth = startOfUtcMonth(now);
+        const firstDayLastMonth = addUtcMonths(firstDayCurrentMonth, -1);
 
         const currentMonthSpendResult = await db.select({
             total: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`,
@@ -225,9 +234,8 @@ export async function getMonthlySpend() {
     if (!session?.user) return [];
     try {
         const now = new Date();
-        // Use setMonth so negative month values are handled safely by the Date API
-        const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth(), 1);
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+        const currentUtcMonth = startOfUtcMonth(now);
+        const twelveMonthsAgo = addUtcMonths(currentUtcMonth, -11);
 
         const orders = await db.select({
             amount: effectiveOrderTotal,
@@ -236,17 +244,14 @@ export async function getMonthlySpend() {
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .where(sql`${procurementOrders.createdAt} >= ${twelveMonthsAgo}`);
 
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
         // Build a rolling 12-month window in chronological order
         const buckets: { name: string; year: number; month: number; total: number; orders: number }[] = [];
         for (let i = 11; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth(), 1);
-            d.setMonth(d.getMonth() - i);
+            const d = addUtcMonths(currentUtcMonth, -i);
             buckets.push({
-                name: monthNames[d.getMonth()],
-                year: d.getFullYear(),
-                month: d.getMonth(),
+                name: monthNames[d.getUTCMonth()],
+                year: d.getUTCFullYear(),
+                month: d.getUTCMonth(),
                 total: 0,
                 orders: 0,
             });
@@ -254,8 +259,8 @@ export async function getMonthlySpend() {
 
         orders.forEach(order => {
             if (!order.createdAt) return;
-            const oMonth = order.createdAt.getMonth();
-            const oYear = order.createdAt.getFullYear();
+            const oMonth = order.createdAt.getUTCMonth();
+            const oYear = order.createdAt.getUTCFullYear();
             const bucket = buckets.find(b => b.month === oMonth && b.year === oYear);
             if (bucket) {
                 bucket.total += parseFloat(order.amount || "0");

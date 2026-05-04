@@ -40,7 +40,7 @@ import {
 const CHART_COLORS = ["#2563eb", "#a855f7", "#14b8a6", "#f59e0b", "#94a3b8"];
 const subscribe = () => () => {};
 
-interface InsightInfographicsProps {
+export interface InsightInfographicsProps {
     monthlyData: InfographicMonthlyDatum[];
     categoryData: InfographicCategoryDatum[];
     supplierData: InfographicSupplierDatum[];
@@ -168,7 +168,7 @@ export function InsightInfographics({
                     </p>
                 </div>
                 <Badge variant="outline" className="w-fit border-primary/20 bg-primary/5 text-primary">
-                    Last 12 months
+                    Last 12 UTC months
                 </Badge>
             </div>
 

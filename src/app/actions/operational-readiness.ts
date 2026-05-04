@@ -20,6 +20,7 @@ import {
     getRiskSeverityLabel,
     getSupplierReleaseBlockReason,
 } from "@/lib/sourcing-guardrails";
+import { getAiProviderHealth } from "@/lib/ai-provider";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 
 type InternalUser = {
@@ -64,6 +65,11 @@ export type OperationalSignals = {
     };
     fxRates: {
         status: "fresh" | "stale" | "missing";
+        title: string;
+        detail: string;
+    };
+    aiAssist: {
+        status: "live" | "manual";
         title: string;
         detail: string;
     };
@@ -435,6 +441,7 @@ export async function getOperationalSignals(): Promise<OperationalSignals | null
             .from(platformSettings)
             .limit(1);
 
+        const aiHealth = await getAiProviderHealth();
         const queue = await buildExceptionQueueSnapshot();
 
         const telemetryStatus = !latestTelemetry?.createdAt
@@ -479,6 +486,7 @@ export async function getOperationalSignals(): Promise<OperationalSignals | null
         return {
             telemetry: telemetryStatus,
             fxRates: fxStatus,
+            aiAssist: aiHealth,
             exceptions: {
                 title: queue.total > 0 ? `${queue.total} live exceptions` : "No live exceptions",
                 detail: queue.total > 0

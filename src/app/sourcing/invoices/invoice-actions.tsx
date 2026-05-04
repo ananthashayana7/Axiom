@@ -18,7 +18,9 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
                 toast.success(
                     newStatus === "pending"
                         ? "Invoice moved back to review"
-                        : `Invoice marked as ${newStatus}`,
+                        : newStatus === "paid"
+                            ? "Payment released"
+                            : `Invoice marked as ${newStatus}`,
                 );
             } else {
                 toast.error(res.error || "Failed to update invoice");
@@ -97,7 +99,7 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
                     onClick={() => handleAction('paid')}
                     disabled={isLoading}
                 >
-                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Pay Now"}
+                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Release Payment"}
                 </Button>
                 </>
             )}

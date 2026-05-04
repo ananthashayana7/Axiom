@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, ilike, gte, lte } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, inArray } from "drizzle-orm";
 import { createNotification } from "./notifications";
 import {
     coerceInvoiceNumber,
@@ -18,6 +18,14 @@ import {
 import { assessInvoiceReviewSignals } from "@/lib/invoices/review";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HIGH_VALUE_RELEASE_THRESHOLDS: Record<string, number> = {
+    INR: 500_000,
+    USD: 10_000,
+    EUR: 10_000,
+    GBP: 8_000,
+    SGD: 12_000,
+    AED: 35_000,
+};
 
 function isUuid(value: string) {
     return UUID_PATTERN.test(value);
@@ -40,6 +48,22 @@ function invoiceInsertErrorMessage(error: unknown) {
     }
 
     return "Failed to create invoice. Please try again.";
+}
+
+function getHumanReleaseThreshold(currency: string) {
+    return HIGH_VALUE_RELEASE_THRESHOLDS[currency] ?? 10_000;
+}
+
+function formatThresholdAmount(amount: number, currency: string) {
+    try {
+        return new Intl.NumberFormat("en", {
+            style: "currency",
+            currency,
+            maximumFractionDigits: 0,
+        }).format(amount);
+    } catch {
+        return `${currency} ${amount.toLocaleString("en-US")}`;
+    }
 }
 
 export async function getInvoices(filters?: {
@@ -205,6 +229,8 @@ export async function createInvoice(data: {
         const lineItems = normalizeInvoiceLineItems(data.lineItems);
 
         const normalizedCurrency = normalizeCurrencyCode(data.currency, "INR") || "INR";
+        const humanReleaseThreshold = getHumanReleaseThreshold(normalizedCurrency);
+        const requiresHumanRelease = amount >= humanReleaseThreshold;
 
         const duplicateInvoice = await db.select({
             id: invoices.id,
@@ -237,6 +263,10 @@ export async function createInvoice(data: {
             });
         }
 
+        const releaseReviewMessage = requiresHumanRelease
+            ? `High-value invoice ${invoiceNumber} crosses the human release threshold of ${formatThresholdAmount(humanReleaseThreshold, normalizedCurrency)} and must be reviewed before payment.`
+            : null;
+
         const initialStatus = reviewSignals.some((signal) => signal.severity === "critical") ? 'disputed' : 'pending';
 
         const [invoice] = await db.transaction(async (tx) => {
@@ -268,17 +298,26 @@ export async function createInvoice(data: {
                 details: `Invoice ${invoiceNumber} created${orderId ? ` for order ${orderId}` : ''}${initialStatus === 'disputed' ? ' and routed to dispute review.' : ''}`,
             });
 
-            if (reviewSignals.length > 0) {
+            if (reviewSignals.length > 0 || requiresHumanRelease) {
+                const taskDetails = [
+                    ...reviewSignals.map((signal) => signal.message),
+                    releaseReviewMessage,
+                ].filter((detail): detail is string => Boolean(detail));
+
                 await tx.insert(workflowTasks).values({
-                    title: `Review invoice ${invoiceNumber}`,
-                    description: reviewSignals.map((signal) => signal.message).join(' '),
+                    title: requiresHumanRelease
+                        ? `Release review for invoice ${invoiceNumber}`
+                        : `Review invoice ${invoiceNumber}`,
+                    description: taskDetails.join(' '),
                     entityType: 'invoice',
                     entityId: createdInvoice.id,
-                    priority: initialStatus === 'disputed' ? 'high' : 'medium',
+                    priority: initialStatus === 'disputed' || requiresHumanRelease ? 'high' : 'medium',
                     createdById: session.user.id,
                     nextAction: initialStatus === 'disputed'
                         ? 'Resolve the invoice discrepancy, rerun deterministic matching, then release payment.'
-                        : 'Review extracted invoice fields and confirm totals before matching.',
+                        : requiresHumanRelease
+                            ? 'Confirm supplier, tax, and banking evidence, then close the review task before payment release.'
+                            : 'Review extracted invoice fields and confirm totals before matching.',
                 });
             }
 
@@ -305,9 +344,10 @@ export async function createInvoice(data: {
         return {
             success: true,
             data: invoice,
-            warning: reviewSignals.length > 0
-                ? reviewSignals.map((signal) => signal.message).join(' ')
-                : undefined,
+            warning: [
+                ...reviewSignals.map((signal) => signal.message),
+                releaseReviewMessage,
+            ].filter((message): message is string => Boolean(message)).join(' ') || undefined,
         };
     } catch (error) {
         console.error("Failed to create invoice:", error);
@@ -320,6 +360,64 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
+        const [invoice] = await db.select({
+            id: invoices.id,
+            supplierId: invoices.supplierId,
+            invoiceNumber: invoices.invoiceNumber,
+            status: invoices.status,
+        }).from(invoices)
+            .where(eq(invoices.id, id))
+            .limit(1);
+
+        if (!invoice) {
+            return { success: false, error: "Invoice not found" };
+        }
+
+        const logBlockedRelease = async (details: string) => {
+            await db.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'BLOCK',
+                entityType: 'invoice',
+                entityId: id,
+                details,
+            });
+        };
+
+        if (status === 'paid') {
+            if (invoice.status !== 'matched') {
+                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because the invoice is not in matched status.`);
+                return { success: false, error: "Only matched invoices can move into payment release." };
+            }
+
+            const [openFraudAlert] = await db.select({ id: fraudAlerts.id })
+                .from(fraudAlerts)
+                .where(and(
+                    eq(fraudAlerts.entityType, 'invoice'),
+                    eq(fraudAlerts.entityId, id),
+                    eq(fraudAlerts.status, 'open'),
+                ))
+                .limit(1);
+
+            if (openFraudAlert) {
+                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because open fraud alerts still require review.`);
+                return { success: false, error: "Payment release blocked until open fraud alerts are resolved." };
+            }
+
+            const [openWorkflowTask] = await db.select({ id: workflowTasks.id })
+                .from(workflowTasks)
+                .where(and(
+                    eq(workflowTasks.entityType, 'invoice'),
+                    eq(workflowTasks.entityId, id),
+                    inArray(workflowTasks.status, ['open', 'in_progress', 'blocked', 'escalated']),
+                ))
+                .limit(1);
+
+            if (openWorkflowTask) {
+                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because a human review task is still open.`);
+                return { success: false, error: "Payment release blocked until invoice review tasks are closed." };
+            }
+        }
+
         const updateData: { status: 'pending' | 'matched' | 'disputed' | 'paid'; matchedAt?: Date | null } = { status };
         if (status === 'matched') {
             updateData.matchedAt = new Date();
@@ -331,8 +429,6 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             .set(updateData)
             .where(eq(invoices.id, id));
 
-        const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
-
         await db.insert(auditLogs).values({
             userId: session.user.id,
             action: 'UPDATE',
@@ -342,15 +438,13 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
         });
 
         // Notify Supplier
-        if (invoice) {
-            await createNotification({
-                userId: invoice.supplierId, // This might need a supplier-user lookup
-                title: `Invoice ${status.toUpperCase()}`,
-                message: `Your invoice ${invoice.invoiceNumber} has been updated to ${status}.`,
-                type: 'info',
-                link: `/portal/invoices`
-            });
-        }
+        await createNotification({
+            userId: invoice.supplierId, // This might need a supplier-user lookup
+            title: `Invoice ${status.toUpperCase()}`,
+            message: `Your invoice ${invoice.invoiceNumber} has been updated to ${status}.`,
+            type: 'info',
+            link: `/portal/invoices`
+        });
 
         revalidatePath('/sourcing/invoices');
         revalidatePath('/sourcing/exceptions');

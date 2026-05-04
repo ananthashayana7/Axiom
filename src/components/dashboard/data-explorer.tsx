@@ -79,7 +79,7 @@ function ExplorerTooltip({
     );
 }
 
-interface DataExplorerProps {
+export interface DataExplorerProps {
     monthlyData: ExplorerDatum[];
     categoryData: ExplorerDatum[];
     supplierData?: ExplorerDatum[];

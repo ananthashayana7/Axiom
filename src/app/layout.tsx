@@ -10,7 +10,9 @@ import { CurrencyProvider } from "@/components/currency-provider";
 import { InactivityTracker } from "@/components/shared/inactivity-tracker";
 import { PageTransition } from "@/components/shared/page-transition";
 import { SessionProvider } from "@/components/shared/session-provider";
+import { VersionShield } from "@/components/shared/version-shield";
 import { ThemeProvider } from "@/components/theme-provider";
+import { getRuntimeVersionSnapshot } from "@/lib/build-info";
 import { Toaster } from "sonner";
 
 import "./globals.css";
@@ -39,6 +41,7 @@ export default async function RootLayout({
     })
     .from(platformSettings)
     .limit(1);
+  const runtimeVersion = getRuntimeVersionSnapshot();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -77,6 +80,10 @@ export default async function RootLayout({
                   </footer>
                 </div>
               )}
+              <VersionShield
+                initialVersion={runtimeVersion.version}
+                initialLabel={runtimeVersion.label}
+              />
               <Toaster position="top-right" richColors />
             </CurrencyProvider>
           </SessionProvider>

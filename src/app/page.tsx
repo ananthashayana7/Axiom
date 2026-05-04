@@ -5,8 +5,7 @@ import { Activity, ArrowUpRight, Boxes, CreditCard, Database, Landmark, ShieldAl
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/currency";
-import { DataExplorer } from "@/components/dashboard/data-explorer";
-import { InsightInfographics } from "@/components/dashboard/insight-infographics";
+import { LazyDataExplorer, LazyInsightInfographics } from "@/components/dashboard/dashboard-intelligence-lazy";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
 import { getOperationalSignals } from "@/app/actions/operational-readiness";
@@ -134,7 +133,7 @@ export default async function Home() {
               <span className="text-[10px] text-muted-foreground font-medium uppercase">{stats.momentumLabel || 'vs last month'}</span>
             </div>
             <p className="mt-3 text-[10px] font-medium uppercase text-muted-foreground">
-              Local currency views and reporting-book rates stay aligned.
+              UTC ledger windows keep global reporting stable while local currency views and reporting-book rates stay aligned.
             </p>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/admin/analytics" className="flex-1">
@@ -376,6 +375,9 @@ export default async function Home() {
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {operationalSignals?.fxRates.detail || "FX reporting-book freshness is not available yet."}
               </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {operationalSignals?.aiAssist.detail || "AI dependency posture is not available yet."}
+              </p>
               <div className="mt-3 border-t border-slate-200 pt-3">
                 <Link href="/sourcing/exceptions" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
                   {operationalSignals?.exceptions.title || "Open exception route"}
@@ -388,7 +390,7 @@ export default async function Home() {
       )}
 
       {isAdmin && (
-        <InsightInfographics
+        <LazyInsightInfographics
           monthlyData={monthlySpend}
           categoryData={categorySpend}
           supplierData={supplierAnalytics}
@@ -449,7 +451,7 @@ export default async function Home() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 space-y-6">
           {isAdmin ? (
-            <DataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
+            <LazyDataExplorer monthlyData={monthlySpend} categoryData={categorySpend} supplierData={supplierAnalytics} />
           ) : (
             <Card className="shadow-lg border-accent/50 overflow-hidden">
               <CardHeader className="border-b bg-muted/20">
