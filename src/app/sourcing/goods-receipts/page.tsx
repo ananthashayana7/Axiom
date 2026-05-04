@@ -16,6 +16,7 @@ import { getOrders } from "@/app/actions/orders";
 import { GlobalRecordReceipt } from "@/components/sourcing/global-record-receipt";
 import { ReceiptActions } from "@/components/sourcing/receipt-actions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +54,12 @@ export default async function GoodsReceiptsPage() {
                         Warehouse intake, QC inspection, and three-way match readiness in one place.
                     </p>
                 </div>
-                <div className="w-full lg:w-auto">
+                <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                    <Link href="/sourcing/exceptions" className="w-full sm:w-auto">
+                        <Button variant="outline" className="w-full">
+                            Open Exception Management
+                        </Button>
+                    </Link>
                     <GlobalRecordReceipt orders={orders} />
                 </div>
             </div>
@@ -172,7 +178,7 @@ export default async function GoodsReceiptsPage() {
                             <div className="rounded-2xl border border-dashed bg-background px-6 py-12 text-center">
                                 <Package className="mx-auto h-12 w-12 opacity-10" />
                                 <p className="mt-4 text-sm font-medium text-foreground">Zero receiving events logged for this period.</p>
-                                <p className="mt-1 text-xs text-muted-foreground">Use "Record New Delivery" to log incoming stock and kick off QC.</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Use &quot;Record New Delivery&quot; to log incoming stock and kick off QC.</p>
                             </div>
                         ) : null}
                     </div>
@@ -251,7 +257,7 @@ export default async function GoodsReceiptsPage() {
                                                 <div className="flex flex-col items-center gap-3">
                                                     <Package className="h-12 w-12 opacity-10" />
                                                     <p className="text-sm font-medium">Zero receiving events logged for this period.</p>
-                                                    <p className="text-xs">Use "Record New Delivery" to log incoming deliveries.</p>
+                                                    <p className="text-xs">Use &quot;Record New Delivery&quot; to log incoming deliveries.</p>
                                                 </div>
                                             </td>
                                         </tr>

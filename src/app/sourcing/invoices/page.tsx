@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { getInvoices } from "@/app/actions/invoices";
@@ -18,7 +19,7 @@ import { toast } from "sonner";
 import { getSuppliers } from "@/app/actions/suppliers";
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, LineChart, Line, Legend,
+    ResponsiveContainer, LineChart, Line,
 } from 'recharts';
 
 export const dynamic = 'force-dynamic';
@@ -139,6 +140,9 @@ export default function InvoicesPage() {
                     <p className="text-muted-foreground mt-1 font-medium">Filter, track and export invoices across all regions.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <Link href="/sourcing/exceptions">
+                        <Button variant="outline" className="gap-2"><AlertTriangle className="h-4 w-4" /> Exceptions</Button>
+                    </Link>
                     <Button onClick={() => setShowUpload(true)} className="gap-2"><Upload className="h-4 w-4" /> Upload Invoice</Button>
                     <Button variant="outline" onClick={fetchInvoices} className="gap-2"><RefreshCcw className="h-4 w-4" /> Refresh</Button>
                     <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 relative">

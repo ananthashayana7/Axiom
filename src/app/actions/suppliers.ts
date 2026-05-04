@@ -82,16 +82,48 @@ function buildHeuristicSupplierEnrichment(text: string, domain: string) {
     };
 }
 
+// ─── SSRF protection ─────────────────────────────────────────────────────────
+// Block private/internal hostnames before any outbound fetch is made.
+const SSRF_BLOCKED_SUFFIXES = [
+    '.local', '.internal', '.intranet', '.corp', '.lan', '.localdomain',
+    '.localhost', '.example', '.invalid', '.test',
+];
+const SSRF_BLOCKED_EXACT = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+// Rough RFC1918 prefix check (does not replace a full IP-range validator but
+// eliminates obvious vectors like 10.x, 172.16.x, 192.168.x)
+const SSRF_PRIVATE_PREFIXES = ['10.', '172.16.', '172.17.', '172.18.', '172.19.',
+    '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.',
+    '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '192.168.', '169.254.',
+];
+
+function isSsrfBlocked(domain: string): boolean {
+    const lower = domain.toLowerCase();
+    if (SSRF_BLOCKED_EXACT.has(lower)) return true;
+    if (SSRF_BLOCKED_SUFFIXES.some((suffix) => lower.endsWith(suffix))) return true;
+    if (SSRF_PRIVATE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
+    return false;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function fetchPublicCompanyProfile(domain: string) {
+    // SEC-004: Block SSRF attempts via private/internal domain names
+    if (isSsrfBlocked(domain)) {
+        console.warn(`[SupplierEnrich] SSRF blocked for domain: ${domain}`);
+        return null;
+    }
+
     const urls = [`https://${domain}`, `http://${domain}`];
 
     for (const url of urls) {
         try {
+            // BUG-005: Enforce a hard 10-second timeout so a slow supplier
+            // website never blocks the server action indefinitely.
             const response = await fetch(url, {
                 headers: {
                     "User-Agent": "AxiomSupplierEnrichment/1.0",
                 },
                 redirect: "follow",
+                signal: AbortSignal.timeout(10_000),
             });
 
             if (!response.ok) {
@@ -106,7 +138,11 @@ async function fetchPublicCompanyProfile(domain: string) {
                 description: extractMetaDescription(html),
                 plainText,
             };
-        } catch {
+        } catch (err) {
+            // TimeoutError = AbortSignal.timeout fired; log and move on
+            if (err instanceof Error && err.name === 'TimeoutError') {
+                console.warn(`[SupplierEnrich] Timeout fetching ${url}`);
+            }
             continue;
         }
     }
@@ -197,42 +233,56 @@ export async function calculateABCAnalysis() {
 
     try {
         return await TelemetryService.time("SupplierManagement", "ABCAnalysis", async () => {
-            const allSuppliers = await db.select().from(suppliers);
-            const allOrders = await db.select().from(procurementOrders);
+            // BUG-009: Advisory lock prevents concurrent duplicate runs.
+            // If another process already holds the lock, bail immediately.
+            const ABC_LOCK_KEY = 98765; // stable integer key for this job type
+            const [lockRow] = await db.execute<{ acquired: boolean }>(
+                sql`SELECT pg_try_advisory_lock(${ABC_LOCK_KEY}) AS acquired`
+            );
+            if (!lockRow?.acquired) {
+                return { success: false, error: 'ABC analysis is already running. Please wait for it to complete.' };
+            }
 
-            // ... (keep existing logic) ...
-            const spendMap = new Map<string, number>();
-            allOrders.forEach(order => {
-                const amount = parseFloat(order.totalAmount || "0");
-                spendMap.set(order.supplierId, (spendMap.get(order.supplierId) || 0) + amount);
-            });
+            try {
+                const allSuppliers = await db.select().from(suppliers);
+                const allOrders = await db.select().from(procurementOrders);
 
-            const sortedSuppliers = allSuppliers
-                .map(s => ({ id: s.id, spend: spendMap.get(s.id) || 0 }))
-                .sort((a, b) => b.spend - a.spend);
+                const spendMap = new Map<string, number>();
+                allOrders.forEach(order => {
+                    const amount = parseFloat(order.totalAmount || "0");
+                    spendMap.set(order.supplierId, (spendMap.get(order.supplierId) || 0) + amount);
+                });
 
-            const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
-            if (totalSpend === 0) return { success: true, message: "No spend data found." };
+                const sortedSuppliers = allSuppliers
+                    .map(s => ({ id: s.id, spend: spendMap.get(s.id) || 0 }))
+                    .sort((a, b) => b.spend - a.spend);
 
-            return await db.transaction(async (tx) => {
-                let cumulativeSpend = 0;
-                for (const s of sortedSuppliers) {
-                    cumulativeSpend += s.spend;
-                    const percentage = (cumulativeSpend / totalSpend) * 100;
+                const totalSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
+                if (totalSpend === 0) return { success: true, message: "No spend data found." };
 
-                    let classification: 'A' | 'B' | 'C' = 'C';
-                    if (percentage <= 70) classification = 'A';
-                    else if (percentage <= 90) classification = 'B';
+                return await db.transaction(async (tx) => {
+                    let cumulativeSpend = 0;
+                    for (const s of sortedSuppliers) {
+                        cumulativeSpend += s.spend;
+                        const percentage = (cumulativeSpend / totalSpend) * 100;
 
-                    await tx.update(suppliers)
-                        .set({ abcClassification: classification })
-                        .where(eq(suppliers.id, s.id));
-                }
+                        let classification: 'A' | 'B' | 'C' = 'C';
+                        if (percentage <= 70) classification = 'A';
+                        else if (percentage <= 90) classification = 'B';
 
-                await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
-                revalidatePath("/suppliers");
-                return { success: true };
-            });
+                        await tx.update(suppliers)
+                            .set({ abcClassification: classification })
+                            .where(eq(suppliers.id, s.id));
+                    }
+
+                    await TelemetryService.trackEvent("SupplierManagement", "abc_analysis_completed", { totalSpend });
+                    revalidatePath("/suppliers");
+                    return { success: true };
+                });
+            } finally {
+                // Always release the advisory lock, even if the analysis throws
+                await db.execute(sql`SELECT pg_advisory_unlock(${ABC_LOCK_KEY})`);
+            }
         });
     } catch (error) {
         await TelemetryService.trackError("SupplierManagement", "abc_analysis_failed", error);

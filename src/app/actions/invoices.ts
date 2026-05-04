@@ -232,6 +232,7 @@ export async function createInvoice(data: {
         });
 
         revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
         revalidatePath('/portal/invoices');
         if (orderId) revalidatePath(`/sourcing/orders/${orderId}`);
         return { success: true, data: invoice };
@@ -277,6 +278,7 @@ export async function updateInvoiceStatus(id: string, status: 'matched' | 'dispu
         }
 
         revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
         return { success: true };
     } catch (error) {
         console.error("Failed to update invoice status:", error);

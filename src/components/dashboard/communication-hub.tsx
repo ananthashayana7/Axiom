@@ -119,7 +119,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
                     Escalation Channels
                 </CardTitle>
                 <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                    Direct access to departmental leads
+                    Directory-backed escalation routes
                 </CardDescription>
             </CardHeader>
             <CardContent className="pt-6 grid gap-3">

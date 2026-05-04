@@ -8,6 +8,7 @@ import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import { calculateThreeWayMatchStatus } from "@/lib/utils/three-way-match";
+import { getSupplierCreationBlockReason, getSupplierReleaseBlockReason } from "@/lib/sourcing-guardrails";
 
 const orderItemTotals = db.select({
     orderId: orderItems.orderId,
@@ -36,6 +37,31 @@ function getStructuredQuoteAmount(aiAnalysis: string | null | undefined) {
     } catch {
         return 0;
     }
+}
+
+type SupplierGuardrailSnapshot = {
+    id: string;
+    name: string;
+    riskScore: number | null;
+    status: string | null;
+    lifecycleStatus: string | null;
+};
+
+async function getSupplierGuardrailSnapshot(
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    supplierId: string,
+) {
+    const [supplier] = await tx.select({
+        id: suppliers.id,
+        name: suppliers.name,
+        riskScore: suppliers.riskScore,
+        status: suppliers.status,
+        lifecycleStatus: suppliers.lifecycleStatus,
+    }).from(suppliers)
+        .where(eq(suppliers.id, supplierId))
+        .limit(1);
+
+    return supplier as SupplierGuardrailSnapshot | undefined;
 }
 
 async function incrementInventoryForOrder(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], orderId: string) {
@@ -102,6 +128,18 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
         if (totalAmount <= 0) return { success: false, error: "Total amount must be positive" };
 
         return await db.transaction(async (tx) => {
+            const supplier = await getSupplierGuardrailSnapshot(tx, supplierId);
+            if (!supplier) {
+                return { success: false, error: "Supplier not found" };
+            }
+
+            const creationBlockReason = getSupplierCreationBlockReason(supplier);
+            if (creationBlockReason) {
+                return { success: false, error: creationBlockReason };
+            }
+
+            const releaseBlockReason = getSupplierReleaseBlockReason(supplier);
+
             // 0. Check for Active Framework Agreement
             const today = new Date();
             const [activeContract] = await tx.select()
@@ -152,10 +190,23 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
                 );
             }
 
-            await logActivity('CREATE', 'order', orderId, `New order created for total amount INR ${totalAmount.toLocaleString()}`);
+            await logActivity(
+                'CREATE',
+                'order',
+                orderId,
+                releaseBlockReason
+                    ? `Draft order created and routed to Exception Management. ${releaseBlockReason}`
+                    : `New order created for total amount ${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            );
 
             revalidatePath("/sourcing/orders");
-            return { success: true };
+            revalidatePath("/sourcing/exceptions");
+            return {
+                success: true,
+                warning: releaseBlockReason
+                    ? `${releaseBlockReason} The draft is parked in Exception Management until risk review clears it.`
+                    : undefined,
+            };
         });
     } catch (error) {
         console.error("Failed to create order:", error);
@@ -195,6 +246,18 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
                 }
             }
 
+            if (status === 'approved' || status === 'sent') {
+                const supplier = await getSupplierGuardrailSnapshot(tx, currentOrder.supplierId);
+                if (!supplier) {
+                    return { success: false, error: "Supplier not found" };
+                }
+
+                const releaseBlockReason = getSupplierReleaseBlockReason(supplier);
+                if (releaseBlockReason) {
+                    return { success: false, error: releaseBlockReason };
+                }
+            }
+
             await tx.update(procurementOrders)
                 .set({ status })
                 .where(eq(procurementOrders.id, orderId));
@@ -204,6 +267,7 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
             revalidatePath("/sourcing/orders");
             revalidatePath(`/sourcing/orders/${orderId}`);
             revalidatePath("/portal/orders");
+            revalidatePath("/sourcing/exceptions");
             return { success: true };
         });
     } catch (error) {
@@ -239,6 +303,16 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
 
                 if (rfq.status === 'cancelled') {
                     return { success: false, error: "Cancelled RFQs cannot be converted." };
+                }
+
+                const supplier = await getSupplierGuardrailSnapshot(tx, supplierId);
+                if (!supplier) {
+                    return { success: false, error: "Supplier not found" };
+                }
+
+                const releaseBlockReason = getSupplierReleaseBlockReason(supplier);
+                if (releaseBlockReason) {
+                    return { success: false, error: releaseBlockReason };
                 }
 
                 // 1. Fetch winning quote and RFQ data
@@ -437,6 +511,7 @@ export async function convertRFQToOrder(rfqId: string, supplierId: string) {
                 revalidatePath(`/sourcing/rfqs/${rfqId}`);
                 revalidatePath("/sourcing/orders");
                 revalidatePath("/portal/orders");
+                revalidatePath("/sourcing/exceptions");
 
                 return { success: true, orderId };
             });
@@ -552,6 +627,21 @@ export async function addInvoice(data: { orderId: string, supplierId: string, in
     if (!session) return { success: false, error: "Unauthorized" };
 
     try {
+        // BUG-002: Validate the invoice supplier matches the order's supplier
+        const [order] = await db
+            .select({ supplierId: procurementOrders.supplierId })
+            .from(procurementOrders)
+            .where(eq(procurementOrders.id, data.orderId))
+            .limit(1);
+
+        if (!order) return { success: false, error: 'Order not found' };
+        if (order.supplierId !== data.supplierId) {
+            return {
+                success: false,
+                error: 'Invoice supplier does not match the order supplier. Please verify the supplier before attaching this invoice.',
+            };
+        }
+
         const [invoice] = await db.insert(invoices).values({
             orderId: data.orderId,
             supplierId: data.supplierId,
@@ -617,6 +707,7 @@ export async function validateThreeWayMatch(orderId: string) {
                 revalidatePath('/sourcing/invoices');
                 revalidatePath(`/sourcing/orders/${orderId}`);
                 revalidatePath('/transactions');
+                revalidatePath('/sourcing/exceptions');
 
                 await TelemetryService.trackEvent("FinancialCompliance", "three_way_match_success", { orderId, amount: poAmount });
                 return { success: true, status: 'MATCHED' };
@@ -641,6 +732,7 @@ export async function validateThreeWayMatch(orderId: string) {
                 variance: matchStatus.totalInvoiced - poAmount,
                 reason: matchStatus.reason,
             });
+            revalidatePath('/sourcing/exceptions');
             return { success: true, status: 'PENDING_MATCH', reason: matchStatus.reason };
         });
     } catch (error) {
@@ -698,7 +790,31 @@ export async function deleteOrder(id: string) {
     if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
-        await db.delete(procurementOrders).where(eq(procurementOrders.id, id));
+        // BUG-003: Fetch order for audit log before cascade-deleting
+        const [order] = await db
+            .select({ id: procurementOrders.id, status: procurementOrders.status, supplierId: procurementOrders.supplierId })
+            .from(procurementOrders)
+            .where(eq(procurementOrders.id, id))
+            .limit(1);
+
+        if (!order) return { success: false, error: 'Order not found' };
+
+        // Safety guard: prevent deletion of fulfilled/sent orders
+        if (order.status === 'fulfilled' || order.status === 'sent') {
+            return {
+                success: false,
+                error: `Cannot delete an order with status '${order.status}'. Cancel it first.`,
+            };
+        }
+
+        await db.transaction(async (tx) => {
+            // Explicitly delete line items first (handles cases without DB-level CASCADE)
+            await tx.delete(orderItems).where(eq(orderItems.orderId, id));
+            await tx.delete(procurementOrders).where(eq(procurementOrders.id, id));
+        });
+
+        await logActivity('DELETE', 'order', id, `Order deleted (was status: ${order.status}, supplierId: ${order.supplierId})`);
+
         revalidatePath("/sourcing/orders");
         return { success: true };
     } catch (error) {

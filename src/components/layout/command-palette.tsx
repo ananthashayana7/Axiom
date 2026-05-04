@@ -19,6 +19,7 @@ import {
 
 import { globalSearch, SearchResult } from "@/app/actions/search"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { getUserCountryCode } from "@/lib/utils/geo-currency"
 
 export function CommandPalette() {
     const [open, setOpen] = React.useState(false)
@@ -27,10 +28,12 @@ export function CommandPalette() {
     const [recentSearches, setRecentSearches] = React.useState<string[]>([])
     const [loading, setLoading] = React.useState(false)
     const [mounted, setMounted] = React.useState(false)
+    const [regionHint, setRegionHint] = React.useState<string | undefined>(undefined)
     const router = useRouter()
 
     React.useEffect(() => {
         setMounted(true)
+        setRegionHint(getUserCountryCode())
         try {
             const stored = window.localStorage.getItem("axiom:recent-searches")
             if (stored) {
@@ -78,13 +81,13 @@ export function CommandPalette() {
 
         const debounce = setTimeout(async () => {
             setLoading(true)
-            const searchResults = await globalSearch(query)
+            const searchResults = await globalSearch(query, regionHint)
             setResults(searchResults)
             setLoading(false)
         }, 300)
 
         return () => clearTimeout(debounce)
-    }, [query])
+    }, [query, regionHint])
 
     const runCommand = React.useCallback((command: () => void) => {
         setOpen(false)
@@ -106,7 +109,7 @@ export function CommandPalette() {
                     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
                         <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                         <Command.Input
-                            placeholder="Try 'suppliers in Germany with high risk'..."
+                            placeholder="Try 'suppliers in Germany with high risk' or 'bolt in my region'..."
                             className="flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                             value={query}
                             onValueChange={setQuery}
@@ -169,6 +172,14 @@ export function CommandPalette() {
                                 <span className="ml-auto text-xs tracking-widest text-muted-foreground">A</span>
                             </Command.Item>
                             <Command.Item
+                                onSelect={() => runCommand(() => router.push("/sourcing/exceptions"))}
+                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground"
+                            >
+                                <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                                <span>Open Exception Management</span>
+                                <span className="ml-auto text-xs tracking-widest text-muted-foreground">E</span>
+                            </Command.Item>
+                            <Command.Item
                                 onSelect={() => runCommand(() => router.push("/copilot"))}
                                 className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50 aria-selected:bg-accent aria-selected:text-accent-foreground"
                             >
@@ -203,6 +214,13 @@ export function CommandPalette() {
                                 <ShoppingCart className="mr-2 h-4 w-4" />
                                 <span>Procurement Orders</span>
                             </Command.Item>
+                            <Command.Item
+                                onSelect={() => runCommand(() => router.push("/sourcing/exceptions"))}
+                                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-muted/50"
+                            >
+                                <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                                <span>Exception Management</span>
+                            </Command.Item>
                         </Command.Group>
                     </Command.List>
                     <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-[10px] text-muted-foreground">
@@ -220,7 +238,8 @@ export function CommandPalette() {
                                 Select
                             </span>
                         </div>
-                        <div className="flex items-center gap-1 font-bold text-primary">
+                        <div className="flex items-center gap-2 font-bold text-primary">
+                            <span className="text-[10px] font-medium text-muted-foreground">Ambiguous searches favor your region</span>
                             <Zap className="h-3 w-3" />
                             Axiom Command Center
                         </div>

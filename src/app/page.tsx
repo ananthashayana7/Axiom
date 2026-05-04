@@ -9,6 +9,7 @@ import { DataExplorer } from "@/components/dashboard/data-explorer";
 import { InsightInfographics } from "@/components/dashboard/insight-infographics";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
 import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
+import { getOperationalSignals } from "@/app/actions/operational-readiness";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
 import { getDepartmentLeads } from "@/app/actions/users";
@@ -41,6 +42,7 @@ export default async function Home() {
     suppliers,
     parts,
     departmentLeads,
+    operationalSignals,
   ] = await Promise.all([
     getDashboardStats(),
     getRecentOrders(),
@@ -51,6 +53,7 @@ export default async function Home() {
     getSuppliers(),
     getParts(),
     getDepartmentLeads(),
+    getOperationalSignals(),
   ]);
 
   const leads = departmentLeads.filter((lead) => lead.id !== currentUser?.id);
@@ -288,7 +291,13 @@ export default async function Home() {
                     <ArrowUpRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Link href="/sourcing/exceptions">
+                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                      Exception Queue
+                      <ShieldAlert className="h-4 w-4" />
+                    </Button>
+                  </Link>
                   <Link href="/admin/scenarios">
                     <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
                       Scenario Lab
@@ -316,7 +325,7 @@ export default async function Home() {
               Multi-currency finance, regional compliance context, and guarded data movement are part of the operating layer, not an afterthought.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
+          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <Landmark className="h-4 w-4 text-emerald-600" />
@@ -337,12 +346,42 @@ export default async function Home() {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <CreditCard className="h-4 w-4 text-sky-600" />
+                Deterministic matching
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Payment release stays tied to PO, receipt, QC, and invoice math before any downstream approval.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <Database className="h-4 w-4 text-amber-600" />
                 Guarded imports
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Admin-only dry runs, schema validation, referential checks, and post-import resync protect the operating dataset.
               </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <ShieldAlert className="h-4 w-4 text-red-600" />
+                Operational truth
+              </div>
+              <p className="mt-3 text-sm font-semibold text-slate-900">
+                {operationalSignals?.telemetry.title || "Telemetry evidence pending"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {operationalSignals?.telemetry.detail || "Telemetry freshness is not available yet."}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {operationalSignals?.fxRates.detail || "FX reporting-book freshness is not available yet."}
+              </p>
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <Link href="/sourcing/exceptions" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
+                  {operationalSignals?.exceptions.title || "Open exception route"}
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

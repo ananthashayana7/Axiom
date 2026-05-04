@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import {
+    AlertTriangle,
     ArrowRightLeft,
     BarChart3,
     BookOpen,
@@ -67,6 +68,7 @@ export function getNavigationSections(role: NavigationRole): NavigationSection[]
                     { label: 'Requisitions', icon: ShoppingCart, href: '/sourcing/requisitions' },
                     { label: 'Orders', icon: ShoppingCart, href: '/sourcing/orders' },
                     { label: 'Goods Receipts', icon: Truck, href: '/sourcing/goods-receipts' },
+                    { label: 'Exception Management', icon: AlertTriangle, href: '/sourcing/exceptions' },
                     { label: 'Invoice Records', icon: FileText, href: '/sourcing/invoices' },
                     { label: 'Agreements', icon: FileText, href: '/sourcing/contracts' },
                     { label: 'Transactions', icon: ArrowRightLeft, href: '/transactions' },

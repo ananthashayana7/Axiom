@@ -1,13 +1,15 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { Plus, ShoppingCart, Trash2 } from "lucide-react"
+import { toast } from "sonner"
+
+import { createOrder } from "@/app/actions/orders"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Trash2, ShoppingCart } from "lucide-react"
-import { createOrder } from "@/app/actions/orders"
-import { toast } from "sonner"
+import { getSupplierCreationBlockReason, getSupplierReleaseBlockReason } from "@/lib/sourcing-guardrails"
 
 interface Part {
     id: string;
@@ -19,12 +21,16 @@ interface Part {
 interface Supplier {
     id: string;
     name: string;
+    countryCode?: string | null;
+    riskScore?: number | null;
+    status?: string | null;
+    lifecycleStatus?: string | null;
 }
 
 interface OrderItem {
     partId: string;
     quantity: number;
-    unitPrice: number; // In a real app, this might come from a price list. For now we mock or input.
+    unitPrice: number;
 }
 
 interface CreateOrderDialogProps {
@@ -41,49 +47,71 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
     const [isSubmitting, setIsSubmitting] = useState(false)
     const submitLockRef = useRef(false)
 
-    // Helper to add an empty item row
     const addItem = () => {
-        if (parts.length === 0) return;
+        if (parts.length === 0) return
         setItems([...items, { partId: parts[0].id, quantity: 1, unitPrice: 0 }])
     }
 
     const removeItem = (index: number) => {
-        setItems(items.filter((_, i) => i !== index))
+        setItems(items.filter((_, itemIndex) => itemIndex !== index))
     }
 
-    const updateItem = (index: number, field: keyof OrderItem, value: any) => {
-        const newItems = [...items]
-        newItems[index] = { ...newItems[index], [field]: value }
-        setItems(newItems)
+    const updateItem = (index: number, field: keyof OrderItem, value: number | string) => {
+        const nextItems = [...items]
+        nextItems[index] = { ...nextItems[index], [field]: value }
+        setItems(nextItems)
     }
 
-    const totalAmount = useMemo(() => {
-        return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
-    }, [items])
+    const totalAmount = useMemo(
+        () => items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0),
+        [items],
+    )
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!supplierId || items.length === 0 || submitLockRef.current) return
+    const selectedSupplier = useMemo(
+        () => suppliers.find((supplier) => supplier.id === supplierId) || null,
+        [supplierId, suppliers],
+    )
+
+    const creationBlockReason = useMemo(
+        () => selectedSupplier ? getSupplierCreationBlockReason(selectedSupplier) : null,
+        [selectedSupplier],
+    )
+
+    const releaseBlockReason = useMemo(
+        () => selectedSupplier ? getSupplierReleaseBlockReason(selectedSupplier) : null,
+        [selectedSupplier],
+    )
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault()
+        if (!supplierId || items.length === 0 || submitLockRef.current || creationBlockReason) return
 
         submitLockRef.current = true
         setIsSubmitting(true)
+
         try {
             const result = await createOrder({
                 supplierId,
                 totalAmount,
                 items,
                 incoterms,
-                asnNumber
+                asnNumber,
             })
 
             if (!result.success) {
-                toast.error('error' in result ? result.error : "Failed to create order")
+                toast.error("error" in result ? result.error : "Failed to create order")
                 return
             }
 
-            toast.success("Order created")
+            if ("warning" in result && result.warning) {
+                toast.warning(result.warning, {
+                    description: "The draft stays visible in Exception Management until risk review clears release.",
+                })
+            } else {
+                toast.success("Order created")
+            }
+
             setOpen(false)
-            // Reset form
             setSupplierId("")
             setItems([])
             setIncoterms("")
@@ -109,7 +137,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                 <DialogHeader>
                     <DialogTitle>Create New Order</DialogTitle>
                     <DialogDescription>
-                        Build a procurement order by adding parts and quantities.
+                        Build a procurement draft with supplier controls visible before release.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -120,14 +148,45 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                             id="supplier"
                             className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             value={supplierId}
-                            onChange={(e) => setSupplierId(e.target.value)}
+                            onChange={(event) => setSupplierId(event.target.value)}
                             required
                         >
                             <option value="">Select a supplier...</option>
-                            {suppliers.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                            {suppliers.map((supplier) => (
+                                <option key={supplier.id} value={supplier.id}>
+                                    {supplier.name}
+                                </option>
                             ))}
                         </select>
+
+                        {selectedSupplier ? (
+                            <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {selectedSupplier.countryCode ? (
+                                        <span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                            {selectedSupplier.countryCode}
+                                        </span>
+                                    ) : null}
+                                    <span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                        Risk {Number(selectedSupplier.riskScore || 0)}
+                                    </span>
+                                    {selectedSupplier.lifecycleStatus ? (
+                                        <span className="rounded-full border bg-background px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                            {selectedSupplier.lifecycleStatus.replace(/_/g, " ")}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                {creationBlockReason ? (
+                                    <p className="mt-3 text-sm font-medium text-red-700">{creationBlockReason}</p>
+                                ) : releaseBlockReason ? (
+                                    <p className="mt-3 text-sm font-medium text-amber-700">{releaseBlockReason}</p>
+                                ) : (
+                                    <p className="mt-3 text-sm text-muted-foreground">
+                                        Supplier is currently clear for draft creation and release routing.
+                                    </p>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -137,7 +196,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                                 id="incoterms"
                                 placeholder="e.g. FOB, DAP"
                                 value={incoterms}
-                                onChange={(e) => setIncoterms(e.target.value)}
+                                onChange={(event) => setIncoterms(event.target.value)}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -146,7 +205,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                                 id="asn"
                                 placeholder="Advance Shipping Notice"
                                 value={asnNumber}
-                                onChange={(e) => setAsnNumber(e.target.value)}
+                                onChange={(event) => setAsnNumber(event.target.value)}
                             />
                         </div>
                     </div>
@@ -160,41 +219,43 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                             </Button>
                         </div>
 
-                        {items.length === 0 && (
-                            <div className="flex flex-col items-center justify-center p-8 border rounded-md border-dashed text-muted-foreground bg-muted/20">
-                                <ShoppingCart className="h-8 w-8 mb-2 opacity-50" />
+                        {items.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center rounded-md border border-dashed bg-muted/20 p-8 text-muted-foreground">
+                                <ShoppingCart className="mb-2 h-8 w-8 opacity-50" />
                                 <p>No items added yet.</p>
                             </div>
-                        )}
+                        ) : null}
 
-                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        <div className="max-h-[300px] space-y-3 overflow-y-auto pr-2">
                             {items.map((item, index) => (
-                                <div key={index} className="flex gap-3 items-end p-3 border rounded-md bg-card">
-                                    <div className="grid gap-1.5 flex-1">
+                                <div key={index} className="flex items-end gap-3 rounded-md border bg-card p-3">
+                                    <div className="grid flex-1 gap-1.5">
                                         <Label className="text-xs">Part</Label>
                                         <select
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                                             value={item.partId}
-                                            onChange={(e) => updateItem(index, 'partId', e.target.value)}
+                                            onChange={(event) => updateItem(index, "partId", event.target.value)}
                                             required
                                         >
-                                            {parts.map(p => (
-                                                <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                                            {parts.map((part) => (
+                                                <option key={part.id} value={part.id}>
+                                                    {part.name} ({part.sku})
+                                                </option>
                                             ))}
                                         </select>
                                     </div>
-                                    <div className="grid gap-1.5 w-24">
+                                    <div className="grid w-24 gap-1.5">
                                         <Label className="text-xs">Qty</Label>
                                         <Input
                                             type="number"
                                             min="1"
                                             className="h-9"
                                             value={item.quantity}
-                                            onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                                            onChange={(event) => updateItem(index, "quantity", parseInt(event.target.value, 10) || 0)}
                                             required
                                         />
                                     </div>
-                                    <div className="grid gap-1.5 w-28">
+                                    <div className="grid w-28 gap-1.5">
                                         <Label className="text-xs">Est. Unit Price</Label>
                                         <Input
                                             type="number"
@@ -202,7 +263,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                                             step="0.01"
                                             className="h-9"
                                             value={item.unitPrice}
-                                            onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                            onChange={(event) => updateItem(index, "unitPrice", parseFloat(event.target.value) || 0)}
                                             required
                                         />
                                     </div>
@@ -210,7 +271,7 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                         onClick={() => removeItem(index)}
                                     >
                                         <Trash2 className="h-4 w-4" />
@@ -222,12 +283,16 @@ export function CreateOrderDialog({ suppliers, parts }: CreateOrderDialogProps) 
 
                     <div className="flex items-center justify-between border-t pt-4">
                         <div>
-                            <p className="text-sm text-muted-foreground">Total Estimated Cost</p>
-                            <p className="text-2xl font-bold">₹{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <p className="text-sm text-muted-foreground">Estimated Order Value</p>
+                            <p className="text-2xl font-bold">
+                                {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
                         </div>
                         <div className="flex gap-2">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isSubmitting || !supplierId || items.length === 0}>
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={isSubmitting || !supplierId || items.length === 0 || Boolean(creationBlockReason)}>
                                 {isSubmitting ? "Creating..." : "Create Order"}
                             </Button>
                         </div>

@@ -127,6 +127,7 @@ export async function createGoodsReceipt(data: { orderId: string, notes?: string
         revalidatePath('/sourcing/goods-receipts');
         revalidatePath('/sourcing/orders');
         revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
         revalidatePath('/transactions');
         return { success: true, data: receipt };
     } catch (error) {
@@ -228,6 +229,7 @@ export async function updateGoodsReceiptInspection(data: {
         revalidatePath('/sourcing/goods-receipts');
         revalidatePath(`/sourcing/orders/${receipt.orderId}`);
         revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
         revalidatePath('/transactions');
 
         return { success: true };

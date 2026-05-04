@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
 
             let lastCheck = new Date();
             let isActive = true;
+            let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
             const poll = async () => {
                 if (!isActive) return;
@@ -65,19 +66,23 @@ export async function GET(req: NextRequest) {
                     console.error('[SSE] Poll error:', error);
                 }
 
-                // Poll every 5 seconds
+                // Schedule next poll only if still active
                 if (isActive) {
-                    setTimeout(poll, 5000);
+                    pollTimer = setTimeout(poll, 5000);
                 }
             };
 
-            // Start polling
-            setTimeout(poll, 5000);
+            // Start polling after initial delay
+            pollTimer = setTimeout(poll, 5000);
 
-            // Handle client disconnect
+            // Handle client disconnect — clear timer FIRST to prevent any further DB queries
             req.signal.addEventListener('abort', () => {
                 isActive = false;
-                controller.close();
+                if (pollTimer !== null) {
+                    clearTimeout(pollTimer);
+                    pollTimer = null;
+                }
+                try { controller.close(); } catch { /* already closed */ }
             });
         },
     });

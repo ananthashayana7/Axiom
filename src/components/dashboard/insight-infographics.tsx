@@ -174,9 +174,9 @@ export function InsightInfographics({
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <HighlightCard
-                    title="Spend under watch"
+                    title="Observed spend"
                     value={formatCompactValue(highlights.totalSpend)}
-                    subtitle="Total enterprise spend tracked"
+                    subtitle="Posted order value, not blanket coverage"
                     icon={<Landmark className="h-5 w-5" />}
                     tone="border-blue-200 bg-blue-50 text-blue-700"
                     trend={highlights.momentum.change}

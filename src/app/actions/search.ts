@@ -87,7 +87,8 @@ function parsePartIntent(query: string): PartIntent {
 function scoreSupplierMatch(
     supplier: typeof suppliers.$inferSelect,
     intent: SupplierIntent,
-    query: string
+    query: string,
+    regionHint?: string
 ) {
     if (intent.countryCode && supplier.countryCode !== intent.countryCode) return null;
     if (typeof intent.minRisk === 'number' && (supplier.riskScore || 0) < intent.minRisk) return null;
@@ -107,6 +108,7 @@ function scoreSupplierMatch(
 
     if (haystack.includes(queryText)) score += 6;
     if (intent.countryCode && supplier.countryCode === intent.countryCode) score += 5;
+    if (!intent.countryCode && regionHint && supplier.countryCode === regionHint) score += 4;
     if ((supplier.riskScore || 0) >= 60 && intent.minRisk) score += 4;
     if ((supplier.esgScore || 0) >= 70 && intent.minEsg) score += 3;
 
@@ -141,7 +143,7 @@ function scorePartMatch(part: typeof parts.$inferSelect, intent: PartIntent, que
     return score > 0 ? score : null;
 }
 
-export async function globalSearch(query: string): Promise<SearchResult[]> {
+export async function globalSearch(query: string, regionHint?: string): Promise<SearchResult[]> {
     const session = await auth();
     if (!session?.user) return [];
 
@@ -153,14 +155,25 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
     const supplierIntent = parseSupplierIntent(trimmedQuery);
     const partIntent = parsePartIntent(trimmedQuery);
     const results: SearchResult[] = [];
+    const normalizedQuery = normalize(trimmedQuery);
 
     try {
+        if (role !== 'supplier' && /\b(exception|exceptions|quarantine|dirty|mismatch)\b/.test(normalizedQuery)) {
+            results.push({
+                id: 'exception-management',
+                type: 'alert',
+                title: 'Exception Management',
+                subtitle: 'Quarantine supplier blocks, receipt issues, and finance holds',
+                href: '/sourcing/exceptions',
+            });
+        }
+
         if (role !== 'supplier') {
             const supplierRows = await db.select().from(suppliers).orderBy(desc(suppliers.createdAt)).limit(120);
             const matchedSuppliers = supplierRows
                 .map((supplier) => ({
                     supplier,
-                    score: scoreSupplierMatch(supplier, supplierIntent, trimmedQuery),
+                    score: scoreSupplierMatch(supplier, supplierIntent, trimmedQuery, regionHint),
                 }))
                 .filter((entry): entry is { supplier: typeof suppliers.$inferSelect; score: number } => entry.score !== null)
                 .sort((left, right) => right.score - left.score)
@@ -204,7 +217,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
 
         const rfqRows = await db.select().from(rfqs).orderBy(desc(rfqs.createdAt)).limit(60);
         rfqRows
-            .filter((rfq) => normalize([rfq.title, rfq.description, rfq.category].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+            .filter((rfq) => normalize([rfq.title, rfq.description, rfq.category].filter(Boolean).join(' ')).includes(normalizedQuery))
             .slice(0, 4)
             .forEach((rfq) => {
                 results.push({
@@ -218,7 +231,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
 
         const orderRows = await db.select().from(procurementOrders).orderBy(desc(procurementOrders.createdAt)).limit(60);
         orderRows
-            .filter((order) => normalize([order.id, order.status, order.carrier, order.trackingNumber].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+            .filter((order) => normalize([order.id, order.status, order.carrier, order.trackingNumber].filter(Boolean).join(' ')).includes(normalizedQuery))
             .slice(0, 4)
             .forEach((order) => {
                 results.push({
@@ -249,7 +262,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
                     contract.status,
                     contract.type,
                     contract.supplierName,
-                ].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+                ].filter(Boolean).join(' ')).includes(normalizedQuery))
                 .slice(0, 4)
                 .forEach((contract) => {
                     results.push({
@@ -279,7 +292,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
                     alert.description,
                     alert.severity,
                     alert.entityType,
-                ].filter(Boolean).join(' ')).includes(normalize(trimmedQuery)))
+                ].filter(Boolean).join(' ')).includes(normalizedQuery))
                 .slice(0, 3)
                 .forEach((alert) => {
                     results.push({
