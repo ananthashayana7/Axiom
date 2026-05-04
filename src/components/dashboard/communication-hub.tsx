@@ -104,7 +104,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
             toast.success(`Escalation ping sent to ${dept.name}`, {
                 description: result.warning
                     ? "In-app alert created. Email delivery needs SMTP configuration."
-                    : "The lead received an in-app alert and email notification.",
+                    : "The lead received an in-app alert and a high-priority escalation email.",
             });
         });
     }

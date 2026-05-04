@@ -65,33 +65,57 @@ export async function sendEscalationPing(data: {
 
     const senderName = session.user.name || session.user.email || "Axiom user";
     const senderEmail = session.user.email || undefined;
+    const appBaseUrl = buildAppBaseUrl();
+    const commandCenterUrl = `${appBaseUrl}/`;
+    const exceptionQueueUrl = `${appBaseUrl}/sourcing/exceptions`;
+    const requestedAt = new Date().toISOString();
 
     const notification = await createNotification({
         userId: data.leadId,
-        title: `Escalation request from ${senderName}`,
-        message: `${senderName} requested help from ${data.department}. Please review the escalation in Axiom.`,
+        title: `High-priority escalation from ${senderName}`,
+        message: `${senderName} requested immediate review from ${data.department}. Open Axiom and review the live queue now.`,
         type: 'warning',
-        link: '/',
+        link: '/sourcing/exceptions',
     });
 
     const emailResult = await sendEmail({
         to: data.leadEmail,
         replyTo: senderEmail,
-        subject: `Axiom escalation: ${data.department}`,
-        body: `
-Hello ${data.leadName},
-
-${senderName} triggered an escalation for ${data.department} from the Axiom command center.
-
-Please log in to Axiom and review the latest alert queue for this department.
-
-Requested by: ${senderName}
-Reply to: ${senderEmail || 'No reply email available'}
-
-Regards,
-Axiom Procurement Platform
-        `.trim(),
+        subject: `Axiom high-priority escalation: ${data.department}`,
+        body: [
+            `Hello ${data.leadName},`,
+            ``,
+            `This is a high-priority Axiom escalation for ${data.department}.`,
+            ``,
+            `Axiom escalation channels are used only for immediate issues that need owner attention. This is not a routine FYI or general notification.`,
+            ``,
+            `${senderName} triggered this escalation from the Axiom command center and requested direct review of the live operational queue.`,
+            ``,
+            `What to do now:`,
+            `- Open Axiom and review the current alert / exception queue for ${data.department}.`,
+            `- Triage any blocked item that needs leadership, finance, procurement, or cross-functional intervention.`,
+            `- Reply directly to the requester if the next action needs to happen outside the app.`,
+            ``,
+            `Axiom command center: ${commandCenterUrl}`,
+            `Exception management queue: ${exceptionQueueUrl}`,
+            ``,
+            `If you are active in Axiom, the same escalation has also been posted as an in-app alert.`,
+            ``,
+            `Requested by: ${senderName}`,
+            `Reply to: ${senderEmail || 'No reply email available'}`,
+            `Triggered at (UTC): ${requestedAt}`,
+            ``,
+            `Regards,`,
+            `Axiom Procurement Platform`,
+        ].join('\n'),
     });
+
+    await logActivity(
+        'ESCALATE',
+        'user',
+        data.leadId,
+        `Escalation ping sent to ${data.leadName} for ${data.department}. ${emailResult.success ? 'Email delivered.' : 'Email pending SMTP configuration or retry.'}`,
+    );
 
     if (!notification.success && !emailResult.success) {
         return {
