@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, Database, CheckCircle2, AlertTriangle, Upload } from 'lucide-react';
+import { FileUp, Database, CheckCircle2, AlertTriangle, Upload, ShieldCheck, Link2, Radar } from 'lucide-react';
 import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { toast } from 'sonner';
 
@@ -85,13 +85,43 @@ export default function AdminImportPage() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-                        <FileUp className="h-8 w-8 text-primary" /> SAP Data Import Console
+                        <FileUp className="h-8 w-8 text-primary" /> Controlled Data Import
                     </h1>
                     <p className="text-muted-foreground mt-1 font-medium">
-                        Admin-only bulk import with safe dry-run validation and commit controls.
+                        Admin-only CSV intake with dry-run validation, suspicious-input blocking, referential checks, and post-import intelligence sync.
                     </p>
                 </div>
                 <Badge variant="outline" className="text-xs font-bold">Admin Only</Badge>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border bg-background p-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                        <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                        Schema validation
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Headers, numeric ranges, currency codes, and suspicious spreadsheet formulas are checked before commit.
+                    </p>
+                </div>
+                <div className="rounded-2xl border bg-background p-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                        <Link2 className="h-4 w-4 text-blue-600" />
+                        Referential checks
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Invoice imports verify linked orders and suppliers so broken records do not bridge into live workflows.
+                    </p>
+                </div>
+                <div className="rounded-2xl border bg-background p-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                        <Radar className="h-4 w-4 text-amber-600" />
+                        Post-import sync
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Successful imports trigger downstream refresh so dashboards, alerts, and recovery routes stay aligned.
+                    </p>
+                </div>
             </div>
 
             <Card>
@@ -100,7 +130,7 @@ export default function AdminImportPage() {
                         <Database className="h-5 w-5 text-primary" /> Import Configuration
                     </CardTitle>
                     <CardDescription>
-                        Supported datasets: Suppliers, Parts, Invoices. Run dry-run first to validate before commit.
+                        Supported datasets: Suppliers, Parts, Invoices. Run the dry run first, then commit only the rows that pass validation.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -147,6 +177,9 @@ export default function AdminImportPage() {
                         />
                         <p className="text-xs text-muted-foreground">
                             Expected headers for {entityType}: <span className="font-mono">{templateByEntity[entityType]}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Files with duplicate headers, oversized payloads, or suspicious spreadsheet formulas are rejected before commit.
                         </p>
                     </div>
 

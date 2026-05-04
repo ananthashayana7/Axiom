@@ -164,7 +164,7 @@ export function InsightInfographics({
                 <div>
                     <h2 className="text-2xl font-black uppercase tracking-tight text-foreground">Insight Infographics</h2>
                     <p className="text-sm text-muted-foreground">
-                        A quick visual snapshot of spend momentum, category mix, and supplier exposure.
+                        Critical supplier exposure stays visible alongside spend rhythm and category concentration.
                     </p>
                 </div>
                 <Badge variant="outline" className="w-fit border-primary/20 bg-primary/5 text-primary">
@@ -247,13 +247,13 @@ export function InsightInfographics({
                     </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-violet-100 shadow-sm">
+                <Card className="overflow-hidden border-slate-200 shadow-sm xl:order-3">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base font-black uppercase tracking-wide">
                             <PieChartIcon className="h-4 w-4 text-violet-600" />
                             Category mix
                         </CardTitle>
-                        <CardDescription>Where procurement activity is concentrated right now.</CardDescription>
+                        <CardDescription>Portfolio concentration and buying balance by category.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-0">
                         {categoryMix.length > 0 ? (
@@ -300,13 +300,13 @@ export function InsightInfographics({
                     </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-amber-100 shadow-sm">
+                <Card className={`overflow-hidden shadow-sm xl:order-2 ${riskySuppliers.length > 0 ? 'border-red-200 bg-red-50/20' : 'border-amber-100'}`}>
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base font-black uppercase tracking-wide">
                             <BriefcaseBusiness className="h-4 w-4 text-amber-600" />
                             Supplier pulse
                         </CardTitle>
-                        <CardDescription>Top supplier concentration and active risk watchlist.</CardDescription>
+                        <CardDescription>Critical supplier exposure, concentration, and live watchlist.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 pt-0">
                         {topSuppliers.length > 0 ? (
@@ -337,13 +337,13 @@ export function InsightInfographics({
                             </div>
                         )}
 
-                        <div className="rounded-2xl border border-red-100 bg-red-50/70 p-4">
+                        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                     <AlertTriangle className="h-4 w-4 text-red-500" />
-                                    <p className="text-sm font-black uppercase tracking-wide text-red-700">Risk watchlist</p>
+                                    <p className="text-sm font-black uppercase tracking-wide text-red-700">Immediate watchlist</p>
                                 </div>
-                                <Badge className="bg-red-500 text-white hover:bg-red-500">{highlights.criticalSuppliers} live</Badge>
+                                <Badge className="bg-red-500 text-white hover:bg-red-500">{highlights.criticalSuppliers} critical</Badge>
                             </div>
                             <div className="mt-3 space-y-2">
                                 {riskySuppliers.length > 0 ? riskySuppliers.slice(0, 3).map((supplier) => (

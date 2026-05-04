@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { authenticate, verifyAndEnableTwoFactor } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,10 +78,11 @@ export default function LoginPage() {
     };
 
     const features = [
-        { icon: Zap, label: "AI-Powered Sourcing", desc: "10 autonomous agents working 24/7" },
-        { icon: ShieldCheck, label: "3-Way Invoice Matching", desc: "Automated fraud detection & validation" },
-        { icon: BarChart3, label: "Real-time Risk Intelligence", desc: "ESG scoring & supplier risk monitoring" },
+        { icon: Zap, label: "Guarded AI execution", desc: "Autonomous workflows with routed recovery and approval gates" },
+        { icon: ShieldCheck, label: "Controlled data movement", desc: "Protected imports, matching controls, and audit-ready approvals" },
+        { icon: BarChart3, label: "Global operating visibility", desc: "Multi-currency spend with regional risk and compliance context" },
     ];
+
     const loginModes: Array<{
         mode: LoginMode;
         label: string;
@@ -107,258 +108,281 @@ export default function LoginPage() {
             description: 'External supplier access for RFQs, orders, and portal tasks.',
         },
     ];
+
     const activeMode = loginModes.find((entry) => entry.mode === loginMode) ?? loginModes[0];
 
     return (
         <div className="min-h-full bg-background">
-            <div className="mx-auto grid min-h-full w-full max-w-[1680px] lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)]">
-            {/* Left panel — branding */}
-            <div className="relative hidden min-h-full shrink-0 overflow-hidden bg-primary p-8 lg:flex lg:flex-col lg:justify-between xl:p-10">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.1)_0%,_transparent_60%)] pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-full h-1/2 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(0,0,0,0.15)_0%,_transparent_70%)] pointer-events-none" />
-                {/* Decorative grid */}
-                <div className="absolute inset-0 opacity-[0.04]" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
+            <div className="mx-auto grid min-h-full w-full max-w-[1680px] lg:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]">
+                <div className="relative hidden min-h-full shrink-0 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.34),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(245,158,11,0.22),transparent_42%),linear-gradient(160deg,#0f172a_0%,#10332e_42%,#18624d_100%)] p-8 lg:flex lg:flex-col lg:justify-between xl:p-10">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.12)_0%,_transparent_60%)]" />
+                    <div className="pointer-events-none absolute bottom-0 left-0 h-1/2 w-full bg-[radial-gradient(ellipse_at_bottom_left,_rgba(0,0,0,0.18)_0%,_transparent_70%)]" />
+                    <div
+                        className="absolute inset-0 opacity-[0.04]"
+                        style={{
+                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
+                            backgroundSize: '40px 40px',
+                        }}
+                    />
 
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-14">
-                        <div className="h-9 w-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
-                            <AxiomLogo className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                            <span className="text-[17px] font-black tracking-tight text-white">Axiom</span>
-                            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/55">Procurement OS</p>
-                        </div>
-                    </div>
-                    <h2 className="text-[28px] font-black text-white leading-tight mb-4">
-                        Intelligent<br />Procurement,<br />Simplified.
-                    </h2>
-                    <p className="text-white/65 text-sm leading-relaxed max-w-xs">
-                        AI-powered sourcing, supplier management, and spend analytics — built for modern procurement teams.
-                    </p>
-                </div>
-
-                <div className="relative z-10 space-y-4">
-                    {features.map((f) => {
-                        const Icon = f.icon;
-                        return (
-                            <div key={f.label} className="flex items-start gap-3">
-                                <div className="h-8 w-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-                                    <Icon className="h-4 w-4 text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-white text-[13px] font-semibold">{f.label}</p>
-                                    <p className="text-white/55 text-[11px] mt-0.5">{f.desc}</p>
-                                </div>
+                    <div className="relative z-10">
+                        <div className="mb-14 flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/30 bg-white/15 backdrop-blur-sm">
+                                <AxiomLogo className="h-5 w-5 text-white" />
                             </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Right panel — form */}
-            <div className="relative flex min-h-full items-start justify-center overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5 px-4 py-6 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/4 rounded-full blur-3xl pointer-events-none" />
-                <div className="relative z-10 w-full max-w-[480px] py-2 sm:py-4">
-                    {/* Mobile logo */}
-                    <div className="flex items-center gap-3 mb-8 lg:hidden">
-                        <div className="h-9 w-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
-                            <AxiomLogo className="h-5 w-5 text-primary-foreground" />
+                            <div>
+                                <span className="text-[17px] font-black tracking-tight text-white">Axiom</span>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/55">a PMA product</p>
+                            </div>
                         </div>
-                        <div>
-                            <span className="text-[17px] font-black tracking-tight text-foreground">Axiom</span>
-                            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Procurement OS</p>
-                        </div>
-                    </div>
 
-                    <div className="rounded-2xl border bg-card/90 p-6 shadow-2xl shadow-black/5 backdrop-blur-sm sm:p-7">
-                        <h1 className="mb-1 text-2xl font-black tracking-tight text-foreground">
-                            {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : activeMode.title)}
-                        </h1>
-                        <p className="mb-6 text-sm text-muted-foreground">
-                            {showSetup2FA ? "Set up 2FA to protect your account" : (show2FA ? "Enter the code from your authenticator app" : activeMode.description)}
+                        <div className="mb-5 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-white/80">
+                            Secure procurement workspace
+                        </div>
+
+                        <h2 className="mb-4 text-[30px] font-black leading-tight text-white">
+                            Control procurement across currencies, regions, and supplier risk.
+                        </h2>
+                        <p className="max-w-sm text-sm leading-relaxed text-white/70">
+                            One workspace for sourcing, approvals, supplier evidence, and resilient operating routes.
                         </p>
-
-                        <form action={formAction} className="space-y-4">
-                            <input type="hidden" name="roleMode" value={loginMode} />
-                            {!show2FA && !showSetup2FA ? (
-                                <>
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                        {loginModes.map((entry) => (
-                                            <button
-                                                key={entry.mode}
-                                                type="button"
-                                                onClick={() => setLoginMode(entry.mode)}
-                                                className={`min-h-[76px] rounded-xl border px-3 py-2 text-left transition-all ${loginMode === entry.mode
-                                                    ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                                                    : 'border-border bg-background/60 text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                                                    }`}
-                                            >
-                                                <span className="block text-[10px] font-black uppercase tracking-[0.14em]">{entry.label}</span>
-                                                <span className="mt-1 block text-[11px] leading-4">{entry.title}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="identifier" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                            {loginMode === 'supplier' ? 'Supplier Email Address' : 'Work Email Address'}
-                                        </Label>
-                                        <Input
-                                            id="identifier"
-                                            name="identifier"
-                                            type="email"
-                                            placeholder={loginMode === 'supplier' ? 'supplier@company.com' : 'you@company.com'}
-                                            value={identifier}
-                                            onChange={(e) => setIdentifier(e.target.value)}
-                                            required
-                                            className="h-10"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
-                                            <button
-                                                type="button"
-                                                onClick={handleForgotPassword}
-                                                className="text-xs text-primary hover:underline font-medium"
-                                            >
-                                                Forgot password?
-                                            </button>
-                                        </div>
-                                        <div className="relative">
-                                            <Input
-                                                id="password"
-                                                name="password"
-                                                type={showPassword ? "text" : "password"}
-                                                className="pr-10 h-10"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                required
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                            >
-                                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className={`rounded-xl border px-3 py-2 text-[11px] leading-5 ${loginMode === 'admin'
-                                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                                        : loginMode === 'supplier'
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                            : 'border-blue-200 bg-blue-50 text-blue-800'
-                                        }`}>
-                                        {loginMode === 'admin'
-                                            ? 'Admin Console access is limited to platform administrators and protected routes only.'
-                                            : loginMode === 'supplier'
-                                                ? 'Supplier Portal accounts are restricted to vendor-facing RFQs, documents, requests, and order visibility.'
-                                                : 'Internal Workspace accounts can operate the procurement workspace without entering the admin control plane.'}
-                                    </div>
-                                </>
-                            ) : showSetup2FA ? (
-                                <div className="space-y-4">
-                                    <div className="flex flex-col items-center justify-center space-y-4">
-                                        <p className="text-xs text-center text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
-                                        <div className="bg-white p-3 rounded-xl shadow-inner border">
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
-                                        </div>
-                                        {setupSecret && (
-                                            <div className="w-full">
-                                                <p className="text-[10px] text-center text-muted-foreground mb-1">Or enter this key manually:</p>
-                                                <code className="block w-full p-2 bg-muted border rounded-lg text-center font-mono text-xs break-all select-all">
-                                                    {setupSecret}
-                                                </code>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="setupCode" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verification Code</Label>
-                                        <Input
-                                            id="setupCode"
-                                            value={setupCode}
-                                            onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
-                                            placeholder="000000"
-                                            maxLength={6}
-                                            required
-                                            className="text-center text-2xl tracking-[0.3em] font-bold h-12"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                        onClick={handleVerifySetup}
-                                        disabled={isVerifyingSetup || setupCode.length !== 6}
-                                    >
-                                        {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="code" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Authenticator Code</Label>
-                                        <Input
-                                            id="code"
-                                            name="code"
-                                            type="text"
-                                            inputMode="numeric"
-                                            pattern="[0-9]{6}"
-                                            placeholder="000000"
-                                            autoFocus
-                                            required
-                                            maxLength={6}
-                                            autoComplete="one-time-code"
-                                            className="text-center text-2xl tracking-[0.3em] font-bold h-12"
-                                        />
-                                        <p className="text-[10px] text-center text-muted-foreground">Open your Authenticator app to get the code.</p>
-                                    </div>
-                                    <input type="hidden" name="identifier" value={identifier} />
-                                    <input type="hidden" name="password" value={password} />
-                                </div>
-                            )}
-
-                            {!showSetup2FA && (
-                                <Button className="w-full h-10 font-semibold" aria-disabled={isPending} type="submit">
-                                    {isPending ? (show2FA ? "Verifying..." : "Signing in...") : (show2FA ? "Verify Code" : "Sign in")}
-                                </Button>
-                            )}
-
-                            {(show2FA || showSetup2FA) && (
-                                <button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() => {
-                                        setShow2FA(false);
-                                        setShowSetup2FA(false);
-                                        setSetupCode('');
-                                        setSetupSecret('');
-                                        setQrCodeUrl('');
-                                        setDisplayErrorMessage('');
-                                    }}
-                                    className="w-full text-xs text-muted-foreground hover:text-foreground hover:underline mt-2 transition-colors"
-                                >
-                                    ← Back to sign in
-                                </button>
-                            )}
-
-                            <div
-                                className="flex h-6 items-end space-x-1"
-                                aria-live="polite"
-                                aria-atomic="true"
-                            >
-                                {displayErrorMessage && (
-                                    <p className="text-xs text-red-500 font-medium text-center w-full">{displayErrorMessage}</p>
-                                )}
-                            </div>
-                        </form>
                     </div>
 
-                    <p className="mt-4 text-center text-[11px] text-muted-foreground/50">
-                        Secured by Axiom &middot; Enterprise Procurement Platform
-                    </p>
+                    <div className="relative z-10 space-y-4">
+                        {features.map((feature) => {
+                            const Icon = feature.icon;
+                            return (
+                                <div key={feature.label} className="rounded-2xl border border-white/14 bg-white/8 p-4 backdrop-blur-sm">
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/12">
+                                            <Icon className="h-4 w-4 text-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-semibold text-white">{feature.label}</p>
+                                            <p className="mt-0.5 text-[11px] text-white/60">{feature.desc}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
+
+                <div className="relative flex min-h-full items-start justify-center overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.10),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.10),transparent_32%),linear-gradient(180deg,#f8fafc_0%,#ffffff_52%,#f6fdf9_100%)] px-4 py-6 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
+                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
+                    <div className="relative z-10 w-full max-w-[500px] py-2 sm:py-4">
+                        <div className="mb-8 flex items-center gap-3 lg:hidden">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30">
+                                <AxiomLogo className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                            <div>
+                                <span className="text-[17px] font-black tracking-tight text-foreground">Axiom</span>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">a PMA product</p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[28px] border border-white/70 bg-card/92 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-8">
+                            <div className="mb-5 flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-primary/70">Axiom</p>
+                                    <p className="text-[11px] text-muted-foreground">a PMA product</p>
+                                </div>
+                                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                                    Secure sign in
+                                </div>
+                            </div>
+
+                            <h1 className="mb-1 text-2xl font-black tracking-tight text-foreground">
+                                {showSetup2FA ? "Secure your account" : (show2FA ? "Two-factor auth" : activeMode.title)}
+                            </h1>
+                            <p className="mb-6 text-sm text-muted-foreground">
+                                {showSetup2FA ? "Set up 2FA to protect your account" : (show2FA ? "Enter the code from your authenticator app" : activeMode.description)}
+                            </p>
+
+                            <form action={formAction} className="space-y-4">
+                                <input type="hidden" name="roleMode" value={loginMode} />
+                                {!show2FA && !showSetup2FA ? (
+                                    <>
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                            {loginModes.map((entry) => (
+                                                <button
+                                                    key={entry.mode}
+                                                    type="button"
+                                                    onClick={() => setLoginMode(entry.mode)}
+                                                    className={`min-h-[84px] rounded-2xl border px-3 py-3 text-left transition-all ${loginMode === entry.mode
+                                                        ? 'border-primary bg-primary/[0.08] text-primary shadow-[0_10px_30px_rgba(16,185,129,0.10)]'
+                                                        : 'border-border bg-background/70 text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                                                        }`}
+                                                >
+                                                    <span className="block text-[10px] font-black uppercase tracking-[0.14em]">{entry.label}</span>
+                                                    <span className="mt-1 block text-[11px] leading-4">{entry.title}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="identifier" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                {loginMode === 'supplier' ? 'Supplier Email Address' : 'Work Email Address'}
+                                            </Label>
+                                            <Input
+                                                id="identifier"
+                                                name="identifier"
+                                                type="email"
+                                                placeholder={loginMode === 'supplier' ? 'supplier@company.com' : 'you@company.com'}
+                                                value={identifier}
+                                                onChange={(e) => setIdentifier(e.target.value)}
+                                                required
+                                                className="h-11"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleForgotPassword}
+                                                    className="text-xs font-medium text-primary hover:underline"
+                                                >
+                                                    Forgot password?
+                                                </button>
+                                            </div>
+                                            <div className="relative">
+                                                <Input
+                                                    id="password"
+                                                    name="password"
+                                                    type={showPassword ? "text" : "password"}
+                                                    className="h-11 pr-10"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                                                >
+                                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className={`rounded-2xl border px-3 py-3 text-[11px] leading-5 ${loginMode === 'admin'
+                                            ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                            : loginMode === 'supplier'
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                                : 'border-blue-200 bg-blue-50 text-blue-800'
+                                            }`}>
+                                            {loginMode === 'admin'
+                                                ? 'Admin Console access is limited to platform administrators and protected routes only.'
+                                                : loginMode === 'supplier'
+                                                    ? 'Supplier Portal accounts are restricted to vendor-facing RFQs, documents, requests, and order visibility.'
+                                                    : 'Internal Workspace accounts can operate the procurement workspace without entering the admin control plane.'}
+                                        </div>
+                                    </>
+                                ) : showSetup2FA ? (
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col items-center justify-center space-y-4">
+                                            <p className="text-center text-xs text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
+                                            <div className="rounded-xl border bg-white p-3 shadow-inner">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={qrCodeUrl} alt="2FA QR Code" className="h-40 w-40" />
+                                            </div>
+                                            {setupSecret && (
+                                                <div className="w-full">
+                                                    <p className="mb-1 text-center text-[10px] text-muted-foreground">Or enter this key manually:</p>
+                                                    <code className="block w-full break-all rounded-lg border bg-muted p-2 text-center font-mono text-xs select-all">
+                                                        {setupSecret}
+                                                    </code>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="setupCode" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verification Code</Label>
+                                            <Input
+                                                id="setupCode"
+                                                value={setupCode}
+                                                onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ''))}
+                                                placeholder="000000"
+                                                maxLength={6}
+                                                required
+                                                className="h-12 text-center text-2xl font-bold tracking-[0.3em]"
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                                            onClick={handleVerifySetup}
+                                            disabled={isVerifyingSetup || setupCode.length !== 6}
+                                        >
+                                            {isVerifyingSetup ? "Verifying..." : "Verify & Enable 2FA"}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="code" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Authenticator Code</Label>
+                                            <Input
+                                                id="code"
+                                                name="code"
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]{6}"
+                                                placeholder="000000"
+                                                autoFocus
+                                                required
+                                                maxLength={6}
+                                                autoComplete="one-time-code"
+                                                className="h-12 text-center text-2xl font-bold tracking-[0.3em]"
+                                            />
+                                            <p className="text-center text-[10px] text-muted-foreground">Open your Authenticator app to get the code.</p>
+                                        </div>
+                                        <input type="hidden" name="identifier" value={identifier} />
+                                        <input type="hidden" name="password" value={password} />
+                                    </div>
+                                )}
+
+                                {!showSetup2FA && (
+                                    <Button className="h-11 w-full font-semibold shadow-lg shadow-emerald-100" aria-disabled={isPending} type="submit">
+                                        {isPending ? (show2FA ? "Verifying..." : "Signing in...") : (show2FA ? "Verify Code" : "Sign in")}
+                                    </Button>
+                                )}
+
+                                {(show2FA || showSetup2FA) && (
+                                    <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() => {
+                                            setShow2FA(false);
+                                            setShowSetup2FA(false);
+                                            setSetupCode('');
+                                            setSetupSecret('');
+                                            setQrCodeUrl('');
+                                            setDisplayErrorMessage('');
+                                        }}
+                                        className="mt-2 w-full text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline"
+                                    >
+                                        Back to sign in
+                                    </button>
+                                )}
+
+                                <div
+                                    className="flex h-6 items-end space-x-1"
+                                    aria-live="polite"
+                                    aria-atomic="true"
+                                >
+                                    {displayErrorMessage && (
+                                        <p className="w-full text-center text-xs font-medium text-red-500">{displayErrorMessage}</p>
+                                    )}
+                                </div>
+                            </form>
+                        </div>
+
+                        <p className="mt-4 text-center text-[11px] text-muted-foreground/50">
+                            Axiom - a PMA product
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );

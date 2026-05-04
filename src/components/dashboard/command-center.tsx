@@ -470,7 +470,7 @@ export function CommandCenter() {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                                     <Sparkles className="mr-1 h-3.5 w-3.5" />
-                                    Resilient AI Mission Control
+                                    AI Fleet Control
                                 </Badge>
                                 <Badge variant="outline" className="border-slate-200 bg-white/80 text-slate-600">
                                     {AGENT_REGISTRY.filter((agent) => agent.dispatchMode === 'global').length} direct-launch agents
@@ -481,7 +481,7 @@ export function CommandCenter() {
                                         : 'border-amber-200 bg-amber-50 text-amber-700',
                                 )}>
                                     {attentionCount === 0
-                                        ? 'All routes stable'
+                                        ? 'Routes healthy'
                                         : snapshot.criticalFraudAlerts > 0
                                             ? `${snapshot.criticalFraudAlerts} critical fraud alerts open`
                                             : `${attentionCount} items need attention`}
@@ -493,10 +493,10 @@ export function CommandCenter() {
                                     <AxiomLogo className="h-8 w-8 text-emerald-600" />
                                     <div>
                                         <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                                            Stronger agents, cleaner routes, better recovery.
+                                            Axiom AI fleet
                                         </h2>
                                         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                                            Every launch now flows through the same guarded dispatcher with retries, timeout fencing, workspace handoffs, and drill-down routes that stay coherent under stress.
+                                            Agent launches run through the shared dispatcher with retries, timeout fencing, workspace handoffs, and route-linked follow-up.
                                         </p>
                                     </div>
                                 </div>

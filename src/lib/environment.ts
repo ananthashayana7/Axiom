@@ -37,8 +37,8 @@ export function getEnvironmentStatus(): EnvironmentStatus {
     }
 
     return {
-        label: 'DEVELOPMENT',
-        tone: 'emerald',
-        description: 'Local workspace for implementation, experiments, and safe testing.',
+        label: 'WORKSPACE',
+        tone: 'blue',
+        description: 'Controlled workspace with protected routes, validation checks, and safe operational review.',
     };
 }

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, ArrowUpRight, Boxes, CreditCard, IndianRupee, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Boxes, CreditCard, Database, Landmark, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/currency";
@@ -59,6 +59,7 @@ export default async function Home() {
     .filter((supplier) => Number(supplier.riskScore || 0) >= 40 && Number(supplier.riskScore || 0) < 60)
     .sort((left, right) => Number(right.riskScore || 0) - Number(left.riskScore || 0))
     .slice(0, 3);
+  const topRiskSupplier = riskySuppliers[0] ?? null;
   const warehouseSubtitle = Number(stats.totalInventory) > 0
     ? `On-hand units across ${stats.stockedSkuCount} stocked SKUs`
     : activeOrderCount > 0
@@ -100,9 +101,9 @@ export default async function Home() {
         {isAdmin ? (
         <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Enterprise Spend</CardTitle>
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Global Spend</CardTitle>
             <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-              <IndianRupee className="h-4 w-4 text-emerald-600" />
+              <Landmark className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
@@ -129,6 +130,9 @@ export default async function Home() {
               )}
               <span className="text-[10px] text-muted-foreground font-medium uppercase">{stats.momentumLabel || 'vs last month'}</span>
             </div>
+            <p className="mt-3 text-[10px] font-medium uppercase text-muted-foreground">
+              Local currency views and reporting-book rates stay aligned.
+            </p>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border">
               <Link href="/admin/analytics" className="flex-1">
                 <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
@@ -255,6 +259,95 @@ export default async function Home() {
         </Card>
       </div>
 
+      {isAdmin && topRiskSupplier && (
+        <Card className="overflow-hidden border-red-200 bg-[radial-gradient(circle_at_top_left,rgba(248,113,113,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.16),transparent_36%),linear-gradient(135deg,#fff7f7_0%,#ffffff_52%,#fff1f2_100%)] shadow-xl">
+          <CardContent className="p-6 lg:p-8">
+            <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr] lg:items-center">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                    <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+                    Critical Operations Watch
+                  </Badge>
+                  <Badge variant="outline" className="border-white/80 bg-white/90 text-slate-700">
+                    {riskySuppliers.length} supplier alert{riskySuppliers.length === 1 ? '' : 's'}
+                  </Badge>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight text-slate-950">Impact needs attention now.</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700">
+                    {topRiskSupplier.name} is currently at risk {topRiskSupplier.riskScore}. Open the risk route, scenario impact, or AI recovery flow directly from the command center.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <Link href="/admin/risk">
+                  <Button className="w-full justify-between rounded-2xl bg-red-600 px-5 py-6 text-left text-sm font-bold text-white hover:bg-red-700">
+                    Open Risk Intelligence
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Link href="/admin/scenarios">
+                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                      Scenario Lab
+                      <TrendingUp className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/admin/agents">
+                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                      AI Fleet
+                      <Sparkles className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-black uppercase tracking-[0.16em] text-slate-900">Global Operating Controls</CardTitle>
+            <CardDescription>
+              Multi-currency finance, regional compliance context, and guarded data movement are part of the operating layer, not an afterthought.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Landmark className="h-4 w-4 text-emerald-600" />
+                Multi-currency spend
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Original invoice currency stays intact while user-local FX views and reporting-book rates stay in sync.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <ShieldCheck className="h-4 w-4 text-blue-600" />
+                Regional compliance
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Policy packs, region tags, evidence coverage, and approval controls stay attached to supplier and contract records.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Database className="h-4 w-4 text-amber-600" />
+                Guarded imports
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Admin-only dry runs, schema validation, referential checks, and post-import resync protect the operating dataset.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isAdmin && (
         <InsightInfographics
           monthlyData={monthlySpend}
@@ -273,16 +366,16 @@ export default async function Home() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                     <Sparkles className="mr-1 h-3.5 w-3.5" />
-                    AI Mission Control
+                    AI Fleet
                   </Badge>
                   <Badge variant="outline" className="border-slate-200 bg-white/80 text-slate-600">
-                    Stronger agents and guarded routes
+                    Shared dispatcher and recovery routes
                   </Badge>
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black tracking-tight text-slate-950">Interactive fleet ops are live from the main dashboard.</h2>
+                  <h2 className="text-3xl font-black tracking-tight text-slate-950">AI execution and route recovery live in the main workspace.</h2>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                    Launch resilient AI runs, coordinated recovery bundles, and route-safe drill-downs from the upgraded command surface without routing glitches or brittle handoffs.
+                    Launch agent runs, coordinated recovery bundles, and linked follow-up routes without leaving the dashboard.
                   </p>
                 </div>
               </div>

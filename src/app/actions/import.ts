@@ -24,8 +24,18 @@ type DryRunResult = {
     preview: Record<string, string>[];
 };
 
+const MAX_IMPORT_ROWS = 5000;
+const MAX_IMPORT_CHARACTERS = 2_000_000;
+const MAX_CELL_LENGTH = 512;
+const CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const ISO_CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/;
+
 function normalizeHeader(header: string) {
     return header.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function normalizeCell(value: string) {
+    return value.replace(/\u0000/g, '').trim();
 }
 
 /**
@@ -112,7 +122,7 @@ function parseCsv(csvText: string) {
         const cols = parseCsvLine(line);
         const row: Record<string, string> = {};
         for (let i = 0; i < headers.length; i++) {
-            row[headers[i]] = (cols[i] ?? '').trim();
+            row[headers[i]] = normalizeCell(cols[i] ?? '');
         }
         return row;
     });
@@ -125,9 +135,90 @@ function parseNumber(value: string) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function hasPotentialFormulaPrefix(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^[=+@]/.test(trimmed)) return true;
+    if (/^-/.test(trimmed) && !/^-?\d+(\.\d+)?$/.test(trimmed)) return true;
+    return false;
+}
+
+function validateScoreRange(field: string, value: number | null, rowIndex: number, issues: ImportIssue[]) {
+    if (value === null) return;
+    if (value < 0 || value > 100) {
+        issues.push({ row: rowIndex, message: `${field} must be between 0 and 100.` });
+    }
+}
+
+function validateNonNegative(field: string, value: number | null, rowIndex: number, issues: ImportIssue[]) {
+    if (value === null) return;
+    if (value < 0) {
+        issues.push({ row: rowIndex, message: `${field} cannot be negative.` });
+    }
+}
+
+function validateImportEnvelope(csvText: string, headers: string[], rows: Record<string, string>[]) {
+    const issues: ImportIssue[] = [];
+
+    if (csvText.length > MAX_IMPORT_CHARACTERS) {
+        issues.push({
+            row: 0,
+            message: `CSV exceeds the ${MAX_IMPORT_CHARACTERS.toLocaleString('en-US')} character safety limit.`,
+        });
+    }
+
+    if (rows.length > MAX_IMPORT_ROWS) {
+        issues.push({
+            row: 0,
+            message: `CSV exceeds the ${MAX_IMPORT_ROWS.toLocaleString('en-US')} row limit for controlled imports.`,
+        });
+    }
+
+    const duplicateHeaders = headers.filter((header, index) => header && headers.indexOf(header) !== index);
+    if (duplicateHeaders.length > 0) {
+        issues.push({
+            row: 1,
+            message: `Duplicate column names detected: ${Array.from(new Set(duplicateHeaders)).join(', ')}.`,
+        });
+    }
+
+    return issues;
+}
+
+function inspectRowPayload(row: Record<string, string>, rowIndex: number, issues: ImportIssue[]) {
+    for (const [field, value] of Object.entries(row)) {
+        if (!value) continue;
+
+        if (value.length > MAX_CELL_LENGTH) {
+            issues.push({
+                row: rowIndex,
+                message: `Value in "${field}" exceeds ${MAX_CELL_LENGTH} characters.`,
+            });
+        }
+
+        if (CONTROL_CHAR_PATTERN.test(value)) {
+            issues.push({
+                row: rowIndex,
+                message: `Value in "${field}" contains unsupported control characters.`,
+            });
+        }
+
+        if (hasPotentialFormulaPrefix(value)) {
+            issues.push({
+                row: rowIndex,
+                message: `Potential spreadsheet formula detected in "${field}". Remove leading formula prefixes before import.`,
+            });
+        }
+    }
+}
+
 function validateSupplierRow(row: Record<string, string>, rowIndex: number, issues: ImportIssue[]) {
     const name = row.name || row.supplier_name;
     const contactEmail = row.contact_email || row.email;
+    const riskScore = parseNumber(row.risk_score || '0') ?? 0;
+    const performanceScore = parseNumber(row.performance_score || '0') ?? 0;
+    const esgScore = parseNumber(row.esg_score || '0') ?? 0;
+    const financialScore = parseNumber(row.financial_score || '0') ?? 0;
 
     if (!name) issues.push({ row: rowIndex, message: 'Missing supplier name.' });
     if (!contactEmail) issues.push({ row: rowIndex, message: 'Missing contact email.' });
@@ -137,16 +228,21 @@ function validateSupplierRow(row: Record<string, string>, rowIndex: number, issu
         issues.push({ row: rowIndex, message: 'Invalid supplier status. Use active/inactive/blacklisted.' });
     }
 
+    validateScoreRange('Risk score', riskScore, rowIndex, issues);
+    validateScoreRange('Performance score', performanceScore, rowIndex, issues);
+    validateScoreRange('ESG score', esgScore, rowIndex, issues);
+    validateScoreRange('Financial score', financialScore, rowIndex, issues);
+
     return {
         name,
         contactEmail,
         status,
         city: row.city || null,
         countryCode: row.country_code || row.country || null,
-        riskScore: parseNumber(row.risk_score || '0') ?? 0,
-        performanceScore: parseNumber(row.performance_score || '0') ?? 0,
-        esgScore: parseNumber(row.esg_score || '0') ?? 0,
-        financialScore: parseNumber(row.financial_score || '0') ?? 0,
+        riskScore,
+        performanceScore,
+        esgScore,
+        financialScore,
     };
 }
 
@@ -154,19 +250,29 @@ function validatePartRow(row: Record<string, string>, rowIndex: number, issues: 
     const sku = row.sku || row.material || row.material_number;
     const name = row.name || row.part_name || row.description;
     const category = row.category || row.material_group || 'General';
+    const price = parseNumber(row.price || row.unit_price || '0');
+    const stockLevel = parseNumber(row.stock_level || row.stock || '0') ?? 0;
+    const reorderPoint = parseNumber(row.reorder_point || '50') ?? 50;
+    const minStockLevel = parseNumber(row.min_stock_level || '20') ?? 20;
 
     if (!sku) issues.push({ row: rowIndex, message: 'Missing SKU/material number.' });
     if (!name) issues.push({ row: rowIndex, message: 'Missing part name/description.' });
+
+    if (price === null) issues.push({ row: rowIndex, message: 'Invalid part price.' });
+    validateNonNegative('Part price', price, rowIndex, issues);
+    validateNonNegative('Stock level', stockLevel, rowIndex, issues);
+    validateNonNegative('Reorder point', reorderPoint, rowIndex, issues);
+    validateNonNegative('Minimum stock level', minStockLevel, rowIndex, issues);
 
     return {
         sku,
         name,
         category,
-        price: (parseNumber(row.price || row.unit_price || '0') ?? 0).toString(),
-        stockLevel: parseNumber(row.stock_level || row.stock || '0') ?? 0,
+        price: (price ?? 0).toString(),
+        stockLevel,
         marketTrend: row.market_trend || 'stable',
-        reorderPoint: parseNumber(row.reorder_point || '50') ?? 50,
-        minStockLevel: parseNumber(row.min_stock_level || '20') ?? 20,
+        reorderPoint,
+        minStockLevel,
     };
 }
 
@@ -176,13 +282,18 @@ function validateInvoiceRow(row: Record<string, string>, rowIndex: number, issue
     const supplierId = row.supplier_id;
     const amount = parseNumber(row.amount || row.invoice_amount || '');
     const status = (row.status || 'pending').toLowerCase();
+    const currency = (row.currency || 'INR').trim().toUpperCase();
 
     if (!invoiceNumber) issues.push({ row: rowIndex, message: 'Missing invoice number.' });
     if (!orderId) issues.push({ row: rowIndex, message: 'Missing order_id.' });
     if (!supplierId) issues.push({ row: rowIndex, message: 'Missing supplier_id.' });
     if (amount === null) issues.push({ row: rowIndex, message: 'Invalid invoice amount.' });
+    if (amount !== null && amount <= 0) issues.push({ row: rowIndex, message: 'Invoice amount must be greater than 0.' });
     if (!['pending', 'matched', 'disputed', 'paid'].includes(status)) {
         issues.push({ row: rowIndex, message: 'Invalid invoice status. Use pending/matched/disputed/paid.' });
+    }
+    if (!ISO_CURRENCY_CODE_PATTERN.test(currency)) {
+        issues.push({ row: rowIndex, message: 'Currency must be a valid 3-letter ISO code.' });
     }
 
     return {
@@ -191,7 +302,7 @@ function validateInvoiceRow(row: Record<string, string>, rowIndex: number, issue
         supplierId,
         amount: (amount ?? 0).toString(),
         status,
-        currency: row.currency || 'INR',
+        currency,
         region: row.region || null,
         country: row.country || null,
         continent: row.continent || null,
@@ -210,6 +321,7 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
 
     const { headers, rows } = parseCsv(csvText);
     const issues: ImportIssue[] = [];
+    const envelopeIssues = validateImportEnvelope(csvText, headers, rows);
 
     if (!rows.length) {
         return {
@@ -219,6 +331,17 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
             invalidRows: 0,
             issues: [{ row: 0, message: 'CSV has no data rows.' }],
             preview: [],
+        };
+    }
+
+    if (envelopeIssues.length > 0) {
+        return {
+            success: false,
+            totalRows: rows.length,
+            validRows: 0,
+            invalidRows: rows.length,
+            issues: envelopeIssues,
+            preview: rows.slice(0, 10),
         };
     }
 
@@ -237,6 +360,7 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
 
     for (let i = 0; i < rows.length; i++) {
         const rowNumber = i + 2;
+        inspectRowPayload(rows[i], rowNumber, issues);
         if (entityType === 'suppliers') validateSupplierRow(rows[i], rowNumber, issues);
         if (entityType === 'parts') validatePartRow(rows[i], rowNumber, issues);
         if (entityType === 'invoices') validateInvoiceRow(rows[i], rowNumber, issues);
@@ -267,6 +391,17 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
         return { success: false, message: 'CSV has no data rows.', inserted, updated, skipped };
     }
 
+    const envelopeIssues = validateImportEnvelope(csvText, headers, rows);
+    if (envelopeIssues.length > 0) {
+        return {
+            success: false,
+            message: envelopeIssues.map((issue) => issue.message).join(' '),
+            inserted,
+            updated,
+            skipped,
+        };
+    }
+
     // Validate headers before attempting any DB writes
     const headerIssues = checkRequiredHeaders(headers, entityType);
     if (headerIssues.length > 0) {
@@ -282,6 +417,7 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
     if (entityType === 'suppliers') {
         for (let i = 0; i < rows.length; i++) {
             const rowNumber = i + 2;
+            inspectRowPayload(rows[i], rowNumber, issues);
             const normalized = validateSupplierRow(rows[i], rowNumber, issues);
             if (issues.some((issue) => issue.row === rowNumber)) {
                 skipped++;
@@ -329,6 +465,7 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
     if (entityType === 'parts') {
         for (let i = 0; i < rows.length; i++) {
             const rowNumber = i + 2;
+            inspectRowPayload(rows[i], rowNumber, issues);
             const normalized = validatePartRow(rows[i], rowNumber, issues);
             if (issues.some((issue) => issue.row === rowNumber)) {
                 skipped++;
@@ -363,6 +500,7 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
     if (entityType === 'invoices') {
         for (let i = 0; i < rows.length; i++) {
             const rowNumber = i + 2;
+            inspectRowPayload(rows[i], rowNumber, issues);
             const normalized = validateInvoiceRow(rows[i], rowNumber, issues);
             if (issues.some((issue) => issue.row === rowNumber)) {
                 skipped++;
