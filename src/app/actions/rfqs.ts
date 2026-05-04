@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { rfqs, rfqItems, rfqSuppliers, suppliers, parts, documents, sourcingEvents } from "@/db/schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { createNotification } from "./notifications";
@@ -13,6 +13,7 @@ import { sendEmail } from "@/lib/services/email";
 
 const HEURISTIC_CONFIDENCE_NUMERIC = 55; // we trust extracted numeric signals moderately
 const HEURISTIC_CONFIDENCE_DEFAULT = 35; // base confidence when only structural parsing succeeds
+const ACTIVE_RFQ_STATUSES = ['draft', 'open'] as const;
 
 type SupplierRecommendation = typeof suppliers.$inferSelect & {
     matchScore: number;
@@ -30,6 +31,30 @@ type QuoteAnalysis = {
 };
 
 type RfqSupplierCommunicationStage = 'invited' | 'launched';
+
+function normalizeText(value: string) {
+    return value.trim().replace(/\s+/g, " ");
+}
+
+function buildRfqItemFingerprint(items: { partId: string; quantity: number }[]) {
+    const totals = new Map<string, number>();
+
+    for (const item of items) {
+        if (!item.partId) continue;
+        const quantity = Math.max(0, Math.trunc(item.quantity || 0));
+        if (quantity <= 0) continue;
+        totals.set(item.partId, (totals.get(item.partId) || 0) + quantity);
+    }
+
+    return Array.from(totals.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([partId, quantity]) => `${partId}:${quantity}`)
+        .join("|");
+}
+
+async function acquireWriteLock(executor: { execute: (query: any) => any }, key: string) {
+    await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
+}
 
 function getAppBaseUrl() {
     return (process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -381,18 +406,79 @@ export async function createRFQ(title: string, description: string, items: { par
     if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
+        const normalizedTitle = normalizeText(title);
+        const normalizedDescription = normalizeText(description || "");
+        const normalizedItems = Array.from(
+            items.reduce((acc, item) => {
+                const partId = item.partId?.trim();
+                const quantity = Math.max(0, Math.trunc(item.quantity || 0));
+                if (!partId || quantity <= 0) return acc;
+
+                acc.set(partId, (acc.get(partId) || 0) + quantity);
+                return acc;
+            }, new Map<string, number>())
+        ).map(([partId, quantity]) => ({ partId, quantity }));
+
+        if (!normalizedTitle) {
+            return { success: false, error: "RFQ title is required." };
+        }
+
+        if (normalizedItems.length === 0) {
+            return { success: false, error: "Add at least one valid part line before creating an RFQ." };
+        }
+
+        const itemFingerprint = buildRfqItemFingerprint(normalizedItems);
+
         return await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, `rfq:create:${itemFingerprint}`);
+
+            const activeRfqs = await tx.select({
+                id: rfqs.id,
+                title: rfqs.title,
+                status: rfqs.status,
+            })
+                .from(rfqs)
+                .where(inArray(rfqs.status, [...ACTIVE_RFQ_STATUSES]));
+
+            if (activeRfqs.length > 0) {
+                const activeItems = await tx.select({
+                    rfqId: rfqItems.rfqId,
+                    partId: rfqItems.partId,
+                    quantity: rfqItems.quantity,
+                })
+                    .from(rfqItems)
+                    .where(inArray(rfqItems.rfqId, activeRfqs.map((rfq) => rfq.id)));
+
+                const duplicateRfq = activeRfqs.find((rfq) => {
+                    const fingerprint = buildRfqItemFingerprint(
+                        activeItems
+                            .filter((item) => item.rfqId === rfq.id)
+                            .map((item) => ({ partId: item.partId, quantity: item.quantity }))
+                    );
+
+                    return fingerprint === itemFingerprint;
+                });
+
+                if (duplicateRfq) {
+                    return {
+                        success: false as const,
+                        error: `An active RFQ already exists for this item bundle (${duplicateRfq.title}). Review that event instead of creating a duplicate.`
+                    };
+                }
+            }
+
             // 1. Create RFQ
             const [newRfq] = await tx.insert(rfqs).values({
-                title,
-                description,
-                status: 'draft'
+                title: normalizedTitle,
+                description: normalizedDescription || null,
+                status: 'draft',
+                createdById: session.user.id,
             }).returning();
 
             // 2. Add Items
-            if (items.length > 0) {
+            if (normalizedItems.length > 0) {
                 await tx.insert(rfqItems).values(
-                    items.map(item => ({
+                    normalizedItems.map(item => ({
                         rfqId: newRfq.id,
                         partId: item.partId,
                         quantity: item.quantity
@@ -401,7 +487,7 @@ export async function createRFQ(title: string, description: string, items: { par
             }
 
             // 3. Automated Supplier Selection (Initial Draft)
-            const suggestedSuppliers = await recommendSuppliers(items.map(i => i.partId));
+            const suggestedSuppliers = await recommendSuppliers(normalizedItems.map(i => i.partId));
             if (suggestedSuppliers.length > 0) {
                 await tx.insert(rfqSuppliers).values(
                     suggestedSuppliers.map((s) => ({
@@ -447,26 +533,35 @@ export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
     if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
-        // Check if already invited
-        const existing = await db.select().from(rfqSuppliers).where(
-            and(
-                eq(rfqSuppliers.rfqId, rfqId),
-                eq(rfqSuppliers.supplierId, supplierId)
-            )
-        ).limit(1);
+        const result = await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, `rfq:invite:${rfqId}:${supplierId}`);
 
-        if (existing.length > 0) return { success: false, error: "Supplier already invited" };
+            const existing = await tx.select().from(rfqSuppliers).where(
+                and(
+                    eq(rfqSuppliers.rfqId, rfqId),
+                    eq(rfqSuppliers.supplierId, supplierId)
+                )
+            ).limit(1);
 
-        const [rfq] = await db.select().from(rfqs).where(eq(rfqs.id, rfqId)).limit(1);
-        if (!rfq) {
-            return { success: false, error: "RFQ not found" };
-        }
+            if (existing.length > 0) return { success: false as const, error: "Supplier already invited" };
 
-        await db.insert(rfqSuppliers).values({
-            rfqId,
-            supplierId,
-            status: 'invited'
+            const [rfq] = await tx.select().from(rfqs).where(eq(rfqs.id, rfqId)).limit(1);
+            if (!rfq) {
+                return { success: false as const, error: "RFQ not found" };
+            }
+
+            await tx.insert(rfqSuppliers).values({
+                rfqId,
+                supplierId,
+                status: 'invited'
+            });
+
+            return { success: true as const, rfq };
         });
+
+        if (!result.success) {
+            return result;
+        }
 
         await logActivity('UPDATE', 'rfq', rfqId, `Manually invited supplier ${supplierId}`);
         revalidatePath(`/sourcing/rfqs/${rfqId}`);
@@ -474,8 +569,8 @@ export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
         const communication = await notifySupplierForRfq({
             rfqId,
             supplierId,
-            stage: rfq.status === 'open' ? 'launched' : 'invited',
-            deadline: rfq.deadline,
+            stage: result.rfq.status === 'open' ? 'launched' : 'invited',
+            deadline: result.rfq.deadline,
         });
 
         return { success: true, ...communication };

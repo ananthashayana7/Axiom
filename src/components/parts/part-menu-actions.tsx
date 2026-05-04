@@ -81,7 +81,7 @@ export function PartMenuActions({ part }: { part: Part }) {
                 toast.success("Part updated successfully");
                 setShowEditDialog(false);
             } else {
-                toast.error("Failed to update part");
+                toast.error(result.error || "Failed to update part");
             }
         } catch {
             toast.error("An error occurred");
@@ -120,6 +120,14 @@ export function PartMenuActions({ part }: { part: Part }) {
                         </DialogDescription>
                     </DialogHeader>
                     <form action={handleUpdate}>
+                        <input type="hidden" name="expectedName" value={part.name} />
+                        <input type="hidden" name="expectedSku" value={part.sku} />
+                        <input type="hidden" name="expectedCategory" value={part.category} />
+                        <input type="hidden" name="expectedStockLevel" value={String(part.stockLevel)} />
+                        <input type="hidden" name="expectedPrice" value={part.price || '0.00'} />
+                        <input type="hidden" name="expectedMarketTrend" value={part.marketTrend || ''} />
+                        <input type="hidden" name="expectedReorderPoint" value={part.reorderPoint == null ? '' : String(part.reorderPoint)} />
+                        <input type="hidden" name="expectedMinStockLevel" value={part.minStockLevel == null ? '' : String(part.minStockLevel)} />
                         <div className="grid gap-4 py-4">
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="name" className="text-right">

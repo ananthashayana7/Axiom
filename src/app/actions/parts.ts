@@ -3,15 +3,46 @@
 import { db } from "@/db";
 import { parts, orderItems, rfqItems, requisitions, invoices, demandForecasts, procurementOrders, suppliers, type Part } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { computeShouldCost } from "./cost-intelligence";
 import { calculateAdaptiveReorderPlan, estimatePartCarbonFootprint } from "@/lib/procurement-intelligence";
 
+const ACTIVE_REORDER_STATUSES = ['draft', 'pending_approval', 'approved'] as const;
+
+function normalizeText(value: string) {
+    return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeSku(value: string) {
+    return normalizeText(value).toUpperCase();
+}
+
+function parseIntegerValue(value: FormDataEntryValue | null, fallback = 0) {
+    const parsed = Number.parseInt(String(value ?? fallback), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseNullableIntegerValue(value: FormDataEntryValue | null) {
+    if (value === null || value === "") return null;
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseMoneyValue(value: FormDataEntryValue | null, fallback = "0.00") {
+    const parsed = Number.parseFloat(String(value ?? fallback));
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed.toFixed(2);
+}
+
 function toNumber(value: string | number | null | undefined) {
     const numeric = Number(value ?? 0);
     return Number.isFinite(numeric) ? numeric : 0;
+}
+
+async function acquireWriteLock(executor: { execute: (query: any) => any }, key: string) {
+    await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
 }
 
 async function getPartSignalMaps(partIds?: string[]) {
@@ -230,50 +261,42 @@ export async function getPartQuickView(partId: string) {
 }
 
 export async function addPart(formData: FormData) {
-    try {
-        const name = formData.get("name") as string;
-        const sku = formData.get("sku") as string;
-        const category = formData.get("category") as string;
-        const stockLevel = parseInt(formData.get("stock") as string) || 0;
-        const price = formData.get("price") as string || '0';
-        const marketTrend = formData.get("marketTrend") as string || 'stable';
-        const reorderPoint = parseInt(formData.get("reorderPoint") as string) || 50;
-        const minStockLevel = parseInt(formData.get("minStockLevel") as string) || 20;
-
-        const [newPart] = await db.insert(parts).values({
-            name,
-            sku,
-            category,
-            stockLevel,
-            price,
-            marketTrend,
-            reorderPoint,
-            minStockLevel,
-        }).returning();
-
-        await logActivity('CREATE', 'part', newPart.id, `Created new part: ${name} (${sku})`);
-
-        revalidatePath("/sourcing/parts");
-        return { success: true };
-    } catch (error) {
-        console.error("Failed to add part:", error);
-        return { success: false, error: "Failed to add part" };
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return { success: false, error: "Unauthorized" };
     }
-}
 
-export async function updatePart(id: string, formData: FormData) {
     try {
-        const name = formData.get("name") as string;
-        const sku = formData.get("sku") as string;
-        const category = formData.get("category") as string;
-        const stockLevel = parseInt(formData.get("stock") as string) || 0;
-        const price = formData.get("price") as string;
-        const marketTrend = formData.get("marketTrend") as string;
-        const reorderPoint = parseInt(formData.get("reorderPoint") as string);
-        const minStockLevel = parseInt(formData.get("minStockLevel") as string);
+        const name = normalizeText(String(formData.get("name") ?? ""));
+        const sku = normalizeSku(String(formData.get("sku") ?? ""));
+        const category = normalizeText(String(formData.get("category") ?? ""));
+        const stockLevel = Math.max(0, parseIntegerValue(formData.get("stock"), 0));
+        const price = parseMoneyValue(formData.get("price"), "0.00");
+        const marketTrend = normalizeText(String(formData.get("marketTrend") ?? "stable")).toLowerCase() || 'stable';
+        const reorderPoint = Math.max(0, parseIntegerValue(formData.get("reorderPoint"), 50));
+        const minStockLevel = Math.max(0, parseIntegerValue(formData.get("minStockLevel"), 20));
 
-        await db.update(parts)
-            .set({
+        if (!name || !sku || !category) {
+            return { success: false, error: "Name, SKU, and category are required." };
+        }
+
+        if (!price) {
+            return { success: false, error: "Price must be a valid non-negative amount." };
+        }
+
+        const result = await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, `part:sku:${sku}`);
+
+            const existing = await tx.select({ id: parts.id })
+                .from(parts)
+                .where(eq(parts.sku, sku))
+                .limit(1);
+
+            if (existing.length > 0) {
+                return { success: false as const, error: `SKU ${sku} already exists.` };
+            }
+
+            const [newPart] = await tx.insert(parts).values({
                 name,
                 sku,
                 category,
@@ -282,13 +305,132 @@ export async function updatePart(id: string, formData: FormData) {
                 marketTrend,
                 reorderPoint,
                 minStockLevel,
-            })
-            .where(eq(parts.id, id));
+            }).returning();
+
+            return { success: true as const, data: newPart };
+        });
+
+        if (!result.success) {
+            return result;
+        }
+
+        await logActivity('CREATE', 'part', result.data.id, `Created new part: ${name} (${sku})`);
+
+        revalidatePath("/sourcing/parts");
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error("Failed to add part:", error);
+        return { success: false, error: "Failed to add part" };
+    }
+}
+
+export async function updatePart(id: string, formData: FormData) {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const name = normalizeText(String(formData.get("name") ?? ""));
+        const sku = normalizeSku(String(formData.get("sku") ?? ""));
+        const category = normalizeText(String(formData.get("category") ?? ""));
+        const stockLevel = Math.max(0, parseIntegerValue(formData.get("stock"), 0));
+        const price = parseMoneyValue(formData.get("price"), "0.00");
+        const marketTrendRaw = String(formData.get("marketTrend") ?? "").trim();
+        const marketTrend = marketTrendRaw ? marketTrendRaw.toLowerCase() : null;
+        const reorderPoint = parseNullableIntegerValue(formData.get("reorderPoint"));
+        const minStockLevel = parseNullableIntegerValue(formData.get("minStockLevel"));
+
+        const expectedName = normalizeText(String(formData.get("expectedName") ?? ""));
+        const expectedSku = normalizeSku(String(formData.get("expectedSku") ?? ""));
+        const expectedCategory = normalizeText(String(formData.get("expectedCategory") ?? ""));
+        const expectedStockLevel = parseIntegerValue(formData.get("expectedStockLevel"), Number.NaN);
+        const expectedPrice = parseMoneyValue(formData.get("expectedPrice"), "0.00");
+        const expectedMarketTrendRaw = String(formData.get("expectedMarketTrend") ?? "").trim();
+        const expectedMarketTrend = expectedMarketTrendRaw ? expectedMarketTrendRaw.toLowerCase() : null;
+        const expectedReorderPoint = parseNullableIntegerValue(formData.get("expectedReorderPoint"));
+        const expectedMinStockLevel = parseNullableIntegerValue(formData.get("expectedMinStockLevel"));
+
+        if (!name || !sku || !category) {
+            return { success: false, error: "Name, SKU, and category are required." };
+        }
+
+        if (!price) {
+            return { success: false, error: "Price must be a valid non-negative amount." };
+        }
+
+        if (
+            !expectedName ||
+            !expectedSku ||
+            !expectedCategory ||
+            !Number.isFinite(expectedStockLevel) ||
+            !expectedPrice
+        ) {
+            return { success: false, error: "This part view is stale. Refresh inventory before saving changes." };
+        }
+
+        const result = await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, `part:update:${id}`);
+            await acquireWriteLock(tx, `part:sku:${sku}`);
+
+            const duplicateSku = await tx.select({ id: parts.id })
+                .from(parts)
+                .where(and(
+                    eq(parts.sku, sku),
+                    sql`${parts.id} <> ${id}`
+                ))
+                .limit(1);
+
+            if (duplicateSku.length > 0) {
+                return { success: false as const, error: `SKU ${sku} already belongs to another part.` };
+            }
+
+            const originalStateMatches = and(
+                eq(parts.id, id),
+                eq(parts.name, expectedName),
+                eq(parts.sku, expectedSku),
+                eq(parts.category, expectedCategory),
+                eq(parts.stockLevel, expectedStockLevel),
+                eq(parts.price, expectedPrice),
+                expectedMarketTrend === null ? isNull(parts.marketTrend) : eq(parts.marketTrend, expectedMarketTrend),
+                expectedReorderPoint === null ? isNull(parts.reorderPoint) : eq(parts.reorderPoint, expectedReorderPoint),
+                expectedMinStockLevel === null ? isNull(parts.minStockLevel) : eq(parts.minStockLevel, expectedMinStockLevel),
+            );
+
+            const [updated] = await tx.update(parts)
+                .set({
+                    name,
+                    sku,
+                    category,
+                    stockLevel,
+                    price,
+                    marketTrend,
+                    reorderPoint,
+                    minStockLevel,
+                })
+                .where(originalStateMatches)
+                .returning();
+
+            if (!updated) {
+                const [latest] = await tx.select().from(parts).where(eq(parts.id, id)).limit(1);
+                return {
+                    success: false as const,
+                    error: "This part was updated by another user. Refresh and review the latest stock, price, and thresholds before saving again.",
+                    conflict: latest ?? null,
+                };
+            }
+
+            return { success: true as const, data: updated };
+        });
+
+        if (!result.success) {
+            return result;
+        }
 
         await logActivity('UPDATE', 'part', id, `Updated part: ${name} (${sku})`);
 
         revalidatePath("/sourcing/parts");
-        return { success: true };
+        return { success: true, data: result.data };
     } catch (error) {
         console.error("Failed to update part:", error);
         return { success: false, error: "Failed to update part" };
@@ -296,23 +438,39 @@ export async function updatePart(id: string, formData: FormData) {
 }
 
 export async function deletePart(id: string) {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return { success: false, error: "Unauthorized" };
+    }
+
     try {
-        // 1. Check for Active Dependencies
-        const inOrders = await db.select({ id: orderItems.id }).from(orderItems).where(eq(orderItems.partId, id)).limit(1);
-        if (inOrders.length > 0) {
-            return { success: false, error: "Cannot delete: Part exists in Procurement Orders." };
+        const result = await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, `part:delete:${id}`);
+
+            const inOrders = await tx.select({ id: orderItems.id }).from(orderItems).where(eq(orderItems.partId, id)).limit(1);
+            if (inOrders.length > 0) {
+                return { success: false as const, error: "Cannot delete: Part exists in Procurement Orders." };
+            }
+
+            const inRfqs = await tx.select({ id: rfqItems.id }).from(rfqItems).where(eq(rfqItems.partId, id)).limit(1);
+            if (inRfqs.length > 0) {
+                return { success: false as const, error: "Cannot delete: Part is listed in active RFQs." };
+            }
+
+            const [part] = await tx.select().from(parts).where(eq(parts.id, id));
+            if (!part) {
+                return { success: false as const, error: "Part not found." };
+            }
+
+            await tx.delete(parts).where(eq(parts.id, id));
+            return { success: true as const, data: part };
+        });
+
+        if (!result.success) {
+            return result;
         }
 
-        const inRfqs = await db.select({ id: rfqItems.id }).from(rfqItems).where(eq(rfqItems.partId, id)).limit(1);
-        if (inRfqs.length > 0) {
-            return { success: false, error: "Cannot delete: Part is listed in active RFQs." };
-        }
-
-        const [part] = await db.select().from(parts).where(eq(parts.id, id));
-        if (part) {
-            await db.delete(parts).where(eq(parts.id, id));
-            await logActivity('DELETE', 'part', id, `Deleted part: ${part.name} (${part.sku})`);
-        }
+        await logActivity('DELETE', 'part', id, `Deleted part: ${result.data.name} (${result.data.sku})`);
         revalidatePath("/sourcing/parts");
         return { success: true };
     } catch (error) {
@@ -321,14 +479,20 @@ export async function deletePart(id: string) {
     }
 }
 
-export async function deleteAllParts() {
+export async function deleteAllParts(confirmation: string) {
     const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-        return { success: false, error: "Unauthorized. Admin rights required." };
+    if (!session?.user || session.user.role !== 'admin') {
+        return { success: false, error: "Only admins can clear inventory." };
+    }
+
+    if (confirmation !== "DELETE") {
+        return { success: false, error: "Type DELETE to confirm this inventory purge." };
     }
 
     try {
         const result = await db.transaction(async (tx) => {
+            await acquireWriteLock(tx, "inventory:purge");
+
             const [{ count: orderItemCount }] = await tx.select({
                 count: sql<number>`count(*)`.mapWith(Number),
             }).from(orderItems);
@@ -342,7 +506,6 @@ export async function deleteAllParts() {
                 count: sql<number>`count(*)`.mapWith(Number),
             }).from(parts);
 
-            // Delete dependent records before parts so foreign key constraints do not block the purge.
             await tx.delete(orderItems);
             await tx.delete(rfqItems);
             await tx.delete(demandForecasts);
@@ -389,7 +552,7 @@ export async function processLowStockAlerts() {
                     forecastDemand: signals?.forecastDemand,
                 });
 
-                return { part, signals, adaptivePlan };
+                return { part, adaptivePlan };
             })
             .filter(({ part, adaptivePlan }) => part.stockLevel <= adaptivePlan.adjustedReorderPoint);
 
@@ -398,19 +561,47 @@ export async function processLowStockAlerts() {
         }
 
         let createdCount = 0;
+        let skippedCount = 0;
         for (const { part, adaptivePlan } of lowStockParts) {
-            const reorderQty = adaptivePlan.recommendedQty;
+            const result = await db.transaction(async (tx) => {
+                await acquireWriteLock(tx, `inventory:reorder:${part.id}`);
 
-            await db.insert(requisitions).values({
-                title: `Auto-Reorder: ${part.name}`,
-                description: `System generated reorder for SKU: ${part.sku}. Current stock: ${part.stockLevel}, adjusted reorder point: ${adaptivePlan.adjustedReorderPoint}, target stock: ${adaptivePlan.targetStock}. ${adaptivePlan.reasons.join(' ')}`,
-                department: part.category,
-                status: 'draft',
-                requestedById: (session.user as any).id,
-                estimatedAmount: (reorderQty * parseFloat(part.price || "0")).toString()
+                const existing = await tx.select({
+                    id: requisitions.id,
+                    status: requisitions.status,
+                })
+                    .from(requisitions)
+                    .where(and(
+                        sql`${requisitions.title} like ${'Auto-Reorder:%'}`,
+                        sql`${requisitions.description} ilike ${`%SKU: ${part.sku}%`}`,
+                        eq(requisitions.department, part.category),
+                        inArray(requisitions.status, [...ACTIVE_REORDER_STATUSES])
+                    ))
+                    .limit(1);
+
+                if (existing.length > 0) {
+                    return { success: false as const, duplicate: true };
+                }
+
+                const reorderQty = adaptivePlan.recommendedQty;
+                const [requisition] = await tx.insert(requisitions).values({
+                    title: `Auto-Reorder: ${part.name}`,
+                    description: `System generated reorder for SKU: ${part.sku}. Current stock: ${part.stockLevel}, adjusted reorder point: ${adaptivePlan.adjustedReorderPoint}, target stock: ${adaptivePlan.targetStock}. ${adaptivePlan.reasons.join(' ')}`,
+                    department: part.category,
+                    status: 'draft',
+                    requestedById: session.user.id,
+                    estimatedAmount: (reorderQty * parseFloat(part.price || "0")).toFixed(2)
+                }).returning({ id: requisitions.id });
+
+                return { success: true as const, requisitionId: requisition.id };
             });
 
-            await logActivity('CREATE', 'requisition', 'auto', `Auto-generated requisition for ${part.name} due to low stock (${part.stockLevel})`);
+            if (!result.success) {
+                skippedCount++;
+                continue;
+            }
+
+            await logActivity('CREATE', 'requisition', result.requisitionId, `Auto-generated requisition for ${part.name} due to low stock (${part.stockLevel})`);
             createdCount++;
         }
 
@@ -418,7 +609,10 @@ export async function processLowStockAlerts() {
         return {
             success: true,
             count: createdCount,
-            message: `Created ${createdCount} draft requisition${createdCount === 1 ? "" : "s"} from the reviewed reorder recommendations.`,
+            skipped: skippedCount,
+            message: skippedCount > 0
+                ? `Created ${createdCount} draft requisition${createdCount === 1 ? "" : "s"} and skipped ${skippedCount} active duplicate${skippedCount === 1 ? "" : "s"}.`
+                : `Created ${createdCount} draft requisition${createdCount === 1 ? "" : "s"} from the reviewed reorder recommendations.`,
         };
     } catch (error) {
         console.error("Auto-reorder failed:", error);

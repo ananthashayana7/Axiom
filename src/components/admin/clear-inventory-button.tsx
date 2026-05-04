@@ -32,7 +32,7 @@ export function ClearInventoryButton() {
 
         setLoading(true)
         try {
-            const result = await deleteAllParts()
+            const result = await deleteAllParts(confirmationText.trim().toUpperCase())
             if (!result.success) {
                 toast.error(result.error || "Failed to clear inventory")
                 return
