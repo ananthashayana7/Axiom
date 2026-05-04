@@ -69,11 +69,12 @@ export async function sendEscalationPing(data: {
     const commandCenterUrl = `${appBaseUrl}/`;
     const exceptionQueueUrl = `${appBaseUrl}/sourcing/exceptions`;
     const requestedAt = new Date().toISOString();
+    const recipientName = data.leadName.trim();
 
     const notification = await createNotification({
         userId: data.leadId,
         title: `High-priority escalation from ${senderName}`,
-        message: `${senderName} requested immediate review from ${data.department}. Open Axiom and review the live queue now.`,
+        message: `${senderName} requested immediate review. Open Axiom and review the live queue now.`,
         type: 'warning',
         link: '/sourcing/exceptions',
     });
@@ -81,18 +82,18 @@ export async function sendEscalationPing(data: {
     const emailResult = await sendEmail({
         to: data.leadEmail,
         replyTo: senderEmail,
-        subject: `Axiom high-priority escalation: ${data.department}`,
+        subject: `Axiom high-priority escalation for ${recipientName}`,
         body: [
-            `Hello ${data.leadName},`,
+            `Hello ${recipientName},`,
             ``,
-            `This is a high-priority Axiom escalation for ${data.department}.`,
+            `This is a high-priority Axiom escalation that has been routed to you.`,
             ``,
             `Axiom escalation channels are used only for immediate issues that need owner attention. This is not a routine FYI or general notification.`,
             ``,
             `${senderName} triggered this escalation from the Axiom command center and requested direct review of the live operational queue.`,
             ``,
             `What to do now:`,
-            `- Open Axiom and review the current alert / exception queue for ${data.department}.`,
+            `- Open Axiom and review the current alert / exception queue.`,
             `- Triage any blocked item that needs leadership, finance, procurement, or cross-functional intervention.`,
             `- Reply directly to the requester if the next action needs to happen outside the app.`,
             ``,
@@ -114,7 +115,7 @@ export async function sendEscalationPing(data: {
         'ESCALATE',
         'user',
         data.leadId,
-        `Escalation ping sent to ${data.leadName} for ${data.department}. ${emailResult.success ? 'Email delivered.' : 'Email pending SMTP configuration or retry.'}`,
+        `Escalation ping sent to ${recipientName}. ${emailResult.success ? 'Email delivered.' : 'Email pending SMTP configuration or retry.'}`,
     );
 
     if (!notification.success && !emailResult.success) {

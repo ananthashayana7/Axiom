@@ -36,6 +36,7 @@ interface DepartmentLead {
 
 type DisplayDepartment = {
     id?: string;
+    leadName?: string;
     department?: string | null;
     name: string;
     email: string;
@@ -61,8 +62,9 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
             const leadEntry = {
                 ...departments[Math.max(existingIndex, 0)],
                 id: lead.id,
+                leadName: lead.name,
                 department: normalizedDepartment,
-                name: `${lead.name} (${normalizedDepartment})`,
+                name: lead.name,
                 email: lead.email,
                 description: `Lead escalation inbox for ${normalizedDepartment}`,
                 initials: lead.name.split(' ').map((n: string) => n.charAt(0)).join('').toUpperCase(),
@@ -91,7 +93,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
         startTransition(async () => {
             const result = await sendEscalationPing({
                 leadId: dept.id!,
-                leadName: dept.name,
+                leadName: dept.leadName || dept.name,
                 leadEmail: dept.email,
                 department: dept.department || dept.name,
             });
