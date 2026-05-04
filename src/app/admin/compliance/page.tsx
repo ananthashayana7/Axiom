@@ -6,6 +6,7 @@ import { CreateComplianceObligationDialog } from "@/components/admin/create-comp
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, AlertTriangle, FileX, Clock } from "lucide-react";
+import { COMPLIANCE_POLICY_PACKS } from "@/lib/compliance-policy-packs";
 
 const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -21,8 +22,14 @@ export default async function CompliancePage() {
         redirect('/');
     }
 
-    let obligations: any[] = [];
-    let dashboard = { expiringSoon: 0, expired: 0, missingEvidence: 0, byCategory: [] as any[], byPolicyPack: [] as any[] };
+    let obligations: Awaited<ReturnType<typeof getComplianceObligations>> = [];
+    let dashboard: Awaited<ReturnType<typeof getComplianceDashboard>> = {
+        expiringSoon: 0,
+        expired: 0,
+        missingEvidence: 0,
+        byCategory: [],
+        byPolicyPack: [],
+    };
     let suppliers: Array<{ id: string; name: string }> = [];
 
     try {
@@ -85,6 +92,29 @@ export default async function CompliancePage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Regional Policy Pack Coverage</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {COMPLIANCE_POLICY_PACKS.map((pack) => {
+                        const liveCount = dashboard.byPolicyPack.find((entry) => entry.policyPack === pack.id)?.total || 0;
+                        return (
+                            <div key={pack.id} className="rounded-xl border bg-background/70 p-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold text-foreground">{pack.label}</p>
+                                        <p className="mt-1 text-xs text-muted-foreground">{pack.region}</p>
+                                    </div>
+                                    <Badge variant="outline">{liveCount}</Badge>
+                                </div>
+                                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{pack.summary}</p>
+                            </div>
+                        );
+                    })}
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>

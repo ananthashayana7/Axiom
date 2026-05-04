@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { invoices, auditLogs, suppliers } from "@/db/schema";
+import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc, and, ilike, gte, lte } from "drizzle-orm";
@@ -13,7 +13,9 @@ import {
     normalizeDateToIso,
     normalizeInvoiceLineItems,
     optionalDecimalString,
+    type NormalizedInvoiceExtraction,
 } from "@/lib/invoices/normalization";
+import { assessInvoiceReviewSignals } from "@/lib/invoices/review";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -202,54 +204,127 @@ export async function createInvoice(data: {
 
         const lineItems = normalizeInvoiceLineItems(data.lineItems);
 
-        const [invoice] = await db.insert(invoices).values({
-            ...(orderId ? { orderId } : {}),
-            supplierId,
-            invoiceNumber,
-            amount: amount.toFixed(2),
-            currency: normalizeCurrencyCode(data.currency, "INR") || "INR",
-            invoiceDate,
-            dueDate,
-            taxAmount: taxAmount.value,
-            subtotal: subtotal.value,
-            lineItems: lineItems.length > 0 ? JSON.stringify(lineItems) : undefined,
-            paymentTerms: data.paymentTerms,
-            purchaseOrderRef: data.purchaseOrderRef,
-            documentUrl: data.documentUrl,
-            region: data.region,
-            country: data.country,
-            continent: data.continent,
-            status: 'pending'
-        }).returning();
+        const normalizedCurrency = normalizeCurrencyCode(data.currency, "INR") || "INR";
 
-        // Audit Log
-        await db.insert(auditLogs).values({
-            userId: session.user.id,
-            action: 'CREATE',
-            entityType: 'invoice',
-            entityId: invoice.id,
-            details: `Invoice ${invoiceNumber} created${orderId ? ` for order ${orderId}` : ''}`
+        const duplicateInvoice = await db.select({
+            id: invoices.id,
+        })
+            .from(invoices)
+            .where(and(
+                eq(invoices.supplierId, supplierId),
+                eq(invoices.invoiceNumber, invoiceNumber),
+            ))
+            .limit(1);
+
+        const reviewSignals = assessInvoiceReviewSignals({
+            invoiceNumber,
+            amount,
+            currency: normalizedCurrency,
+            supplierName: "selected-supplier",
+            invoiceDate: invoiceDate ? invoiceDate.toISOString().slice(0, 10) : null,
+            dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null,
+            taxAmount: taxAmount.value ? Number(taxAmount.value) : null,
+            subtotal: subtotal.value ? Number(subtotal.value) : null,
+            lineItems,
+            paymentTerms: data.paymentTerms || null,
+            purchaseOrderRef: data.purchaseOrderRef || null,
+        } satisfies Partial<NormalizedInvoiceExtraction>);
+
+        if (duplicateInvoice.length > 0) {
+            reviewSignals.push({
+                severity: "critical",
+                message: `Invoice number ${invoiceNumber} already exists for this supplier and is routed into dispute review.`,
+            });
+        }
+
+        const initialStatus = reviewSignals.some((signal) => signal.severity === "critical") ? 'disputed' : 'pending';
+
+        const [invoice] = await db.transaction(async (tx) => {
+            const [createdInvoice] = await tx.insert(invoices).values({
+                ...(orderId ? { orderId } : {}),
+                supplierId,
+                invoiceNumber,
+                amount: amount.toFixed(2),
+                currency: normalizedCurrency,
+                invoiceDate,
+                dueDate,
+                taxAmount: taxAmount.value,
+                subtotal: subtotal.value,
+                lineItems: lineItems.length > 0 ? JSON.stringify(lineItems) : undefined,
+                paymentTerms: data.paymentTerms,
+                purchaseOrderRef: data.purchaseOrderRef,
+                documentUrl: data.documentUrl,
+                region: data.region,
+                country: data.country,
+                continent: data.continent,
+                status: initialStatus,
+            }).returning();
+
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'CREATE',
+                entityType: 'invoice',
+                entityId: createdInvoice.id,
+                details: `Invoice ${invoiceNumber} created${orderId ? ` for order ${orderId}` : ''}${initialStatus === 'disputed' ? ' and routed to dispute review.' : ''}`,
+            });
+
+            if (reviewSignals.length > 0) {
+                await tx.insert(workflowTasks).values({
+                    title: `Review invoice ${invoiceNumber}`,
+                    description: reviewSignals.map((signal) => signal.message).join(' '),
+                    entityType: 'invoice',
+                    entityId: createdInvoice.id,
+                    priority: initialStatus === 'disputed' ? 'high' : 'medium',
+                    createdById: session.user.id,
+                    nextAction: initialStatus === 'disputed'
+                        ? 'Resolve the invoice discrepancy, rerun deterministic matching, then release payment.'
+                        : 'Review extracted invoice fields and confirm totals before matching.',
+                });
+            }
+
+            if (initialStatus === 'disputed') {
+                await tx.insert(fraudAlerts).values({
+                    entityType: 'invoice',
+                    entityId: createdInvoice.id,
+                    alertType: duplicateInvoice.length > 0 ? 'duplicate_invoice' : 'manual_review_required',
+                    severity: duplicateInvoice.length > 0 ? 'high' : 'medium',
+                    description: reviewSignals.map((signal) => signal.message).join(' '),
+                    indicators: JSON.stringify(reviewSignals),
+                    suggestedAction: 'Hold payment, confirm supplier evidence, and rerun invoice matching after corrections.',
+                    falsePositiveProbability: duplicateInvoice.length > 0 ? '10.00' : '35.00',
+                });
+            }
+
+            return [createdInvoice];
         });
 
         revalidatePath('/sourcing/invoices');
         revalidatePath('/sourcing/exceptions');
         revalidatePath('/portal/invoices');
         if (orderId) revalidatePath(`/sourcing/orders/${orderId}`);
-        return { success: true, data: invoice };
+        return {
+            success: true,
+            data: invoice,
+            warning: reviewSignals.length > 0
+                ? reviewSignals.map((signal) => signal.message).join(' ')
+                : undefined,
+        };
     } catch (error) {
         console.error("Failed to create invoice:", error);
         return { success: false, error: invoiceInsertErrorMessage(error) };
     }
 }
 
-export async function updateInvoiceStatus(id: string, status: 'matched' | 'disputed' | 'paid') {
+export async function updateInvoiceStatus(id: string, status: 'pending' | 'matched' | 'disputed' | 'paid') {
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
-        const updateData: { status: 'matched' | 'disputed' | 'paid'; matchedAt?: Date } = { status };
+        const updateData: { status: 'pending' | 'matched' | 'disputed' | 'paid'; matchedAt?: Date | null } = { status };
         if (status === 'matched') {
             updateData.matchedAt = new Date();
+        } else {
+            updateData.matchedAt = null;
         }
 
         await db.update(invoices)
@@ -283,5 +358,61 @@ export async function updateInvoiceStatus(id: string, status: 'matched' | 'dispu
     } catch (error) {
         console.error("Failed to update invoice status:", error);
         return { success: false, error: "Internal Server Error" };
+    }
+}
+
+export async function rerunInvoiceMatch(invoiceId: string) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const [invoice] = await db.select({
+            id: invoices.id,
+            orderId: invoices.orderId,
+            invoiceNumber: invoices.invoiceNumber,
+        }).from(invoices)
+            .where(eq(invoices.id, invoiceId))
+            .limit(1);
+
+        if (!invoice) {
+            return { success: false, error: "Invoice not found" };
+        }
+
+        if (!invoice.orderId) {
+            return { success: false, error: "Attach the invoice to a purchase order before running deterministic matching." };
+        }
+
+        const { validateThreeWayMatch } = await import("./orders");
+        const result = await validateThreeWayMatch(invoice.orderId);
+
+        if (!result.success) {
+            return { success: false, error: 'error' in result ? result.error || "Failed to rerun deterministic matching" : "Failed to rerun deterministic matching" };
+        }
+
+        if (!('status' in result)) {
+            return { success: false, error: "Invoice rule engine did not return a match state." };
+        }
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: 'UPDATE',
+            entityType: 'invoice',
+            entityId: invoiceId,
+            details: `Deterministic match rerun for invoice ${invoice.invoiceNumber}`,
+        });
+
+        revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
+
+        return {
+            success: true,
+            status: result.status,
+            reason: 'reason' in result ? result.reason : undefined,
+        };
+    } catch (error) {
+        console.error("Failed to rerun invoice match:", error);
+        return { success: false, error: "Failed to rerun invoice matching" };
     }
 }

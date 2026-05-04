@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { COMPLIANCE_POLICY_PACKS, getPolicyPackRegions } from "@/lib/compliance-policy-packs";
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -92,11 +93,21 @@ export function CreateComplianceObligationDialog({ suppliers }: CreateCompliance
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <Label htmlFor="policyPack">Policy Pack</Label>
-                            <Input id="policyPack" name="policyPack" placeholder="EU_REGULATORY" />
+                            <select id="policyPack" name="policyPack" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                                <option value="">No pack selected</option>
+                                {COMPLIANCE_POLICY_PACKS.map((pack) => (
+                                    <option key={pack.id} value={pack.id}>{pack.label}</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="region">Region</Label>
-                            <Input id="region" name="region" placeholder="EU" />
+                            <select id="region" name="region" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                                <option value="">Auto from policy pack</option>
+                                {getPolicyPackRegions().map((region) => (
+                                    <option key={region} value={region}>{region}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
 

@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { enforceMutationFirewall } from '@/lib/api-security';
 import { normalizeInvoiceExtraction } from '@/lib/invoices/normalization';
 import { extractInvoiceFromPdfBuffer } from '@/lib/invoices/pdf-fallback';
+import { assessInvoiceReviewSignals } from '@/lib/invoices/review';
 
 export const runtime = 'nodejs';
 
@@ -86,7 +87,7 @@ function buildManualReviewDraft(file: File) {
 
     return normalizeInvoiceExtraction({
         invoiceNumber: suggestedInvoiceNumber,
-        currency: 'INR',
+        currency: null,
         lineItems: [],
     });
 }
@@ -239,6 +240,7 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
         if (!extracted.lineItems.length) {
             warnings.push('No line items were confidently extracted from the document.');
         }
+        warnings.push(...assessInvoiceReviewSignals(extracted).map((signal) => signal.message));
 
         return NextResponse.json({
             success: true,

@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { platformSettings, users } from "@/db/schema";
+import { invoices, platformSettings, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -28,6 +28,12 @@ type SettingsUpdateInput = {
     isSettingsLocked: string;
     exchangeRates: string;
     updatedAt: Date;
+};
+
+type FinanceReadinessState = {
+    activeCurrencies: string[];
+    triCurrencyBreathingRoom: boolean;
+    bookRateCoverage: string[];
 };
 
 function readBookRate(formData: FormData, currency: string) {
@@ -82,6 +88,29 @@ function sanitizeSettingsRecord(settings: typeof platformSettings.$inferSelect) 
     return safeSettings;
 }
 
+async function getFinanceReadiness(defaultCurrency: string, exchangeRates: string | null | undefined): Promise<FinanceReadinessState> {
+    const finance = parseFinanceSettings(exchangeRates, defaultCurrency);
+    const currencyRows = await db.selectDistinct({
+        currency: invoices.currency,
+    }).from(invoices);
+
+    const activeCurrencies = Array.from(new Set(currencyRows
+        .map((row) => row.currency?.trim().toUpperCase())
+        .filter((value): value is string => Boolean(value))))
+        .sort((left, right) => left.localeCompare(right));
+
+    const breathingCurrencies = ['USD', 'EUR', 'GBP'];
+    const bookRateCoverage = breathingCurrencies.filter((currency) =>
+        currency === finance.reportingCurrency || Boolean(finance.bookRates[currency]),
+    );
+
+    return {
+        activeCurrencies,
+        triCurrencyBreathingRoom: breathingCurrencies.every((currency) => activeCurrencies.includes(currency) || bookRateCoverage.includes(currency)),
+        bookRateCoverage,
+    };
+}
+
 export async function getSettings() {
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
@@ -96,6 +125,11 @@ export async function getSettings() {
                 isTwoFactorEnabled: false,
                 finance: parseFinanceSettings(null, 'INR'),
                 aiCredentialState: getAiCredentialState(),
+                financeReadiness: {
+                    activeCurrencies: [],
+                    triCurrencyBreathingRoom: false,
+                    bookRateCoverage: [],
+                },
             };
         }
 
@@ -127,6 +161,7 @@ export async function getSettings() {
                 isTwoFactorEnabled,
                 finance: parseFinanceSettings(newSettings.exchangeRates, newSettings.defaultCurrency),
                 aiCredentialState: getAiCredentialState(newSettings),
+                financeReadiness: await getFinanceReadiness(newSettings.defaultCurrency, newSettings.exchangeRates),
             };
         }
 
@@ -136,6 +171,7 @@ export async function getSettings() {
             isTwoFactorEnabled,
             finance: parseFinanceSettings(settings.exchangeRates, settings.defaultCurrency),
             aiCredentialState: getAiCredentialState(settings),
+            financeReadiness: await getFinanceReadiness(settings.defaultCurrency, settings.exchangeRates),
         };
     } catch (error) {
         console.error("Failed to fetch settings:", error);
@@ -147,6 +183,11 @@ export async function getSettings() {
             isTwoFactorEnabled: false,
             finance: parseFinanceSettings(null, 'INR'),
             aiCredentialState: getAiCredentialState(),
+            financeReadiness: {
+                activeCurrencies: [],
+                triCurrencyBreathingRoom: false,
+                bookRateCoverage: [],
+            },
         };
     }
 }

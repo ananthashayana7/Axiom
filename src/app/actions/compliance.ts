@@ -2,9 +2,10 @@
 
 import { db } from "@/db";
 import { complianceObligations, supplierRequests, suppliers, users, notifications, workflowTasks } from "@/db/schema";
-import { eq, and, desc, asc, lte, gte, sql, inArray } from "drizzle-orm";
+import { eq, and, asc, lte, gte, sql, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+import { COMPLIANCE_POLICY_PACKS, inferPolicyPackRegion } from "@/lib/compliance-policy-packs";
 
 // ============================================================================
 // COMPLIANCE INTELLIGENCE - Deadline-driven compliance management
@@ -31,6 +32,7 @@ export async function createComplianceObligation(data: {
 }) {
     const user = await requireAuth();
     if (user.role !== 'admin') throw new Error('Admin access required');
+    const resolvedRegion = data.region || inferPolicyPackRegion(data.policyPack) || undefined;
 
     const [obligation] = await db.insert(complianceObligations).values({
         title: data.title,
@@ -43,7 +45,7 @@ export async function createComplianceObligation(data: {
         expiresAt: data.expiresAt,
         reminderDaysBefore: data.reminderDaysBefore || 30,
         policyPack: data.policyPack,
-        region: data.region,
+        region: resolvedRegion,
     }).returning();
 
     // Auto-create a workflow task for the owner
@@ -76,6 +78,12 @@ export async function createComplianceObligation(data: {
 
     revalidatePath('/admin/compliance');
     return obligation;
+}
+
+export async function getSupportedPolicyPacks() {
+    await requireAuth();
+
+    return COMPLIANCE_POLICY_PACKS;
 }
 
 export async function getComplianceObligations(filters?: {
@@ -188,7 +196,7 @@ export async function updateComplianceStatus(obligationId: string, status: 'acti
 }
 
 export async function submitComplianceEvidence(obligationId: string, documentUrl: string) {
-    const user = await requireAuth();
+    await requireAuth();
 
     const [updated] = await db.update(complianceObligations)
         .set({

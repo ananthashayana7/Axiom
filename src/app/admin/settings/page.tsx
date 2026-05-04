@@ -38,6 +38,11 @@ type SettingsState = {
         totalKeyCount: number;
         source: string;
     };
+    financeReadiness?: {
+        activeCurrencies: string[];
+        triCurrencyBreathingRoom: boolean;
+        bookRateCoverage: string[];
+    };
 };
 
 export default function AdminSettingsPage() {
@@ -102,6 +107,11 @@ export default function AdminSettingsPage() {
         environmentKeyCount: 0,
         totalKeyCount: 0,
         source: "Not configured",
+    };
+    const financeReadiness = settings.financeReadiness ?? {
+        activeCurrencies: [],
+        triCurrencyBreathingRoom: false,
+        bookRateCoverage: [],
     };
     const finance = settings.finance ?? parseFinanceSettings(null, settings.defaultCurrency || 'INR');
     const bookRateCurrencies = getSuggestedBookRateCurrencies(settings.defaultCurrency || 'INR', finance.reportingCurrency);
@@ -202,6 +212,14 @@ export default function AdminSettingsPage() {
                             >
                                 Flush Auth Cache
                             </Button>
+                        </div>
+
+                        <div className="rounded-xl border bg-background/80 p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Deployment Boundary</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">Identity, session controls, and review logs are enforced in-app.</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                Production-cloud encryption, certificate scope, and infrastructure attestations remain deployment controls outside this admin panel, so this screen only reports the app-side controls we can prove here.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
@@ -311,6 +329,36 @@ export default function AdminSettingsPage() {
                                 <p className="mt-2 text-sm font-semibold text-foreground">Header toggle switches between local and reporting currency views</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                     Internal users can flip from user-local currency conversion to fixed reporting-book rates without changing source data.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Active Ledger Currencies</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                    {financeReadiness.activeCurrencies.length > 0 ? financeReadiness.activeCurrencies.join(", ") : "No posted invoice currencies yet"}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Original invoice currencies stay intact instead of being flattened into one regional book.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">USD / EUR / GBP Coverage</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                    {financeReadiness.bookRateCoverage.length > 0 ? financeReadiness.bookRateCoverage.join(", ") : "Book rates missing"}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Book-rate coverage for the main global reporting currencies used in executive rollups.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Global Breath Test</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                    {financeReadiness.triCurrencyBreathingRoom ? "USD, EUR, and GBP pathways are covered" : "Global tri-currency coverage is still incomplete"}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    This is the quickest check for whether finance is behaving like a global system rather than a single-currency shell.
                                 </p>
                             </div>
                         </div>

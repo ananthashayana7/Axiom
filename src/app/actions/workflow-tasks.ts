@@ -11,6 +11,7 @@ type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 type TaskEntityType = 'requisition' | 'rfq' | 'order' | 'invoice' | 'contract' | 'supplier' | 'compliance_obligation' | 'agent_recommendation';
 type TaskCondition = ReturnType<typeof eq>;
 const ACTIVE_TASK_STATUSES: TaskStatus[] = ['open', 'in_progress', 'blocked', 'escalated'];
+const DEFAULT_TASK_FETCH_LIMIT = 200;
 
 // ============================================================================
 // WORKFLOW TASK ENGINE - First-class tasks across procurement objects
@@ -170,6 +171,7 @@ export async function getInboxTasks(filters?: {
     status?: string;
     priority?: string;
     entityType?: string;
+    limit?: number;
 }) {
     const user = await requireAuth();
     await reconcileStaleWorkflowTasks();
@@ -208,7 +210,8 @@ export async function getInboxTasks(filters?: {
       .orderBy(
           desc(sql`CASE ${workflowTasks.priority} WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 END`),
           asc(workflowTasks.dueDate)
-      );
+      )
+      .limit(Math.min(Math.max(filters?.limit || DEFAULT_TASK_FETCH_LIMIT, 1), DEFAULT_TASK_FETCH_LIMIT));
 
     return tasks;
 }
@@ -218,6 +221,7 @@ export async function getAllTasks(filters?: {
     priority?: string;
     entityType?: string;
     assigneeId?: string;
+    limit?: number;
 }) {
     const user = await requireAuth();
     if (user.role !== 'admin') throw new Error('Admin access required');
@@ -255,7 +259,8 @@ export async function getAllTasks(filters?: {
       .orderBy(
           desc(sql`CASE ${workflowTasks.priority} WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 END`),
           asc(workflowTasks.dueDate)
-      );
+      )
+      .limit(Math.min(Math.max(filters?.limit || DEFAULT_TASK_FETCH_LIMIT, 1), DEFAULT_TASK_FETCH_LIMIT));
 
     return tasks;
 }

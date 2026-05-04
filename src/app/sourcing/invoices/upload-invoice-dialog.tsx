@@ -47,7 +47,7 @@ const SUPPORTED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp']);
 const EMPTY_OCR_DATA: OCRData = {
     invoiceNumber: null,
     amount: null,
-    currency: 'INR',
+    currency: null,
     supplierName: null,
     invoiceDate: null,
     dueDate: null,
@@ -97,7 +97,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
         setEditableData({
             invoiceNumber: data.invoiceNumber || '',
             amount: data.amount?.toString() || '',
-            currency: data.currency || 'INR',
+            currency: data.currency || '',
             invoiceDate: data.invoiceDate || '',
             dueDate: data.dueDate || '',
             taxAmount: data.taxAmount?.toString() || '',
@@ -187,6 +187,10 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             toast.error("Valid amount is required");
             return;
         }
+        if (!editableData.currency) {
+            toast.error("Currency is required");
+            return;
+        }
 
         setStep('saving');
 
@@ -195,7 +199,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                 supplierId,
                 invoiceNumber: editableData.invoiceNumber,
                 amount: Number(editableData.amount),
-                currency: editableData.currency || 'INR',
+                currency: editableData.currency,
                 invoiceDate: editableData.invoiceDate || undefined,
                 dueDate: editableData.dueDate || undefined,
                 taxAmount: editableData.taxAmount ? Number(editableData.taxAmount) : undefined,
@@ -206,7 +210,13 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             });
 
             if (result.success) {
-                toast.success(`Invoice ${editableData.invoiceNumber} created successfully`);
+                if ('warning' in result && result.warning) {
+                    toast.warning(`Invoice ${editableData.invoiceNumber} created with review signals`, {
+                        description: result.warning,
+                    });
+                } else {
+                    toast.success(`Invoice ${editableData.invoiceNumber} created successfully`);
+                }
                 onSuccess();
                 onOpenChange(false);
                 reset();

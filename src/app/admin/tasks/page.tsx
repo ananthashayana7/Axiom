@@ -47,7 +47,9 @@ export default async function TaskInboxPage() {
     let summary: TaskSummary = { byStatus: {}, overdueCount: 0 };
 
     try {
-        tasks = session.user.role === 'admin' ? await getAllTasks() : await getInboxTasks();
+        tasks = session.user.role === 'admin'
+            ? await getAllTasks({ limit: 200 })
+            : await getInboxTasks({ limit: 200 });
         summary = await getTaskSummary();
     } catch {
         // Tables may not exist yet.
@@ -70,6 +72,9 @@ export default async function TaskInboxPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                     Workflow tasks, assignments, escalations, and SLA tracking across procurement objects.
                 </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Queue-safe view loads summary counts first and then the latest 200 tasks so heavy admin traffic does not force a full-table render.
+                </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -78,6 +83,25 @@ export default async function TaskInboxPage() {
                 <SummaryCard icon={<AlertTriangle className="h-8 w-8 text-red-500" />} label="Overdue" value={overdueCount} />
                 <SummaryCard icon={<CheckCircle className="h-8 w-8 text-green-500" />} label="Completed" value={completedCount} />
             </div>
+
+            <Card className="border-blue-200 bg-blue-50/30">
+                <CardContent className="pt-6">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Load window</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">Latest 200 tasks per request</p>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Hot path</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">Priority + due date sort stays server-side</p>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Operational note</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">Use summary counts for full backlog health, not raw list length.</p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
