@@ -65,88 +65,90 @@ const supplierLinks = [
     { label: "Requests & Tasks", icon: ClipboardList, href: "/portal/requests" },
 ];
 
-/* ---- tiny helper for nav links ---- */
-const navCls = "flex items-center rounded-md px-3 py-1 text-[13px] font-medium hover:bg-accent hover:text-accent-foreground transition-colors";
+const navCls = "flex items-center rounded-md px-3 py-1 text-[13px] font-medium text-sidebar-foreground/92 transition-colors hover:bg-accent hover:text-accent-foreground";
+const sectionLabelCls = "text-[10.5px] font-black uppercase tracking-[0.16em] text-sidebar-foreground/78";
+const sectionDividerCls = "h-px flex-1 bg-sidebar-foreground/18";
 
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
-    const visiblePriorityLinks = role === 'admin' ? adminPriorityLinks : [];
-    const visibleOperationalLinks = role === 'admin' ? adminOperationalLinks : [];
-    const workspaceLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Internal Workspace';
-    const workspaceDescription = role === 'admin'
-        ? 'Platform controls, approvals, intelligence, and operating oversight'
-        : role === 'supplier'
-            ? 'Vendor-facing workspace for bids, orders, documents, and requests'
-            : 'Operational sourcing, requisitions, and invoice coordination';
-    const workspaceBadgeClass = role === 'admin'
-        ? 'border-amber-200 bg-amber-50 text-amber-700'
-        : role === 'supplier'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-            : 'border-blue-200 bg-blue-50 text-blue-700';
-    const homeLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Workspace';
+    const visiblePriorityLinks = role === "admin" ? adminPriorityLinks : [];
+    const visibleOperationalLinks = role === "admin" ? adminOperationalLinks : [];
+    const workspaceLabel = role === "admin" ? "Admin Console" : role === "supplier" ? "Supplier Portal" : "Internal Workspace";
+    const workspaceDescription = role === "admin"
+        ? "Platform controls, approvals, intelligence, and operating oversight"
+        : role === "supplier"
+            ? "Vendor-facing workspace for bids, orders, documents, and requests"
+            : "Operational sourcing, requisitions, and invoice coordination";
+    const workspaceBadgeClass = role === "admin"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : role === "supplier"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-blue-200 bg-blue-50 text-blue-700";
+    const homeLabel = role === "admin" ? "Admin Console" : role === "supplier" ? "Supplier Portal" : "Workspace";
 
     return (
-        <div className={cn("flex h-full w-[17rem] min-w-[17rem] flex-col overflow-x-visible border-r border-border bg-sidebar text-sidebar-foreground xl:w-[18rem] xl:min-w-[18rem]", className)}>
-            <div className="show-scrollbar min-h-0 flex-1 overflow-y-auto pb-3">
-
-                {/* ── Brand ── */}
-                <div className="px-4 py-4 flex items-center gap-3 border-b border-border/40 mb-1">
-                    <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-primary/30 shrink-0">
+        <div
+            className={cn(
+                "flex h-[100dvh] min-h-[100dvh] w-[17rem] min-w-[17rem] flex-col overflow-hidden border-r border-sidebar-border/80 bg-sidebar text-sidebar-foreground xl:w-[18rem] xl:min-w-[18rem]",
+                className,
+            )}
+        >
+            <div className="show-scrollbar min-h-0 flex-1 overflow-y-auto pb-6">
+                <div className="mb-1 flex items-center gap-3 border-b border-sidebar-border/70 px-4 py-4">
+                    <div className="h-8 w-8 shrink-0 rounded-lg bg-primary shadow-md shadow-primary/30 flex items-center justify-center">
                         <AxiomLogo className="h-5 w-5 text-primary-foreground" />
                     </div>
                     <div className="flex flex-col leading-none">
-                        <span className="text-[16px] font-black tracking-tight text-foreground">Axiom</span>
-                        <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Procurement OS</span>
+                        <span className="text-[16px] font-black tracking-tight text-sidebar-foreground">Axiom</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/60">Procurement OS</span>
                     </div>
                 </div>
 
-                <div className="mx-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-3">
+                <div className="mx-3 rounded-2xl border border-sidebar-foreground/12 bg-white/70 px-3 py-3 text-slate-900">
                     <span className={cn("inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em]", workspaceBadgeClass)}>
                         {workspaceLabel}
                     </span>
-                    <p className="mt-2 text-[12px] font-semibold text-foreground">{workspaceDescription}</p>
+                    <p className="mt-2 text-[12px] font-semibold text-slate-900">{workspaceDescription}</p>
                 </div>
 
-                {/* ── Primary Nav ── */}
-                <div className="px-3 mt-2 space-y-0.5">
-                    <NavLink href={role === 'supplier' ? '/portal' : '/'} className={navCls}>
+                <div className="mt-2 space-y-0.5 px-3">
+                    <NavLink href={role === "supplier" ? "/portal" : "/"} className={navCls}>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         {homeLabel}
                     </NavLink>
-                    {role !== 'supplier' && (
+                    {role !== "supplier" && (
                         <NavLink href="/suppliers" className={navCls}>
                             <Building2 className="mr-2 h-4 w-4" />
                             Suppliers
                         </NavLink>
                     )}
                 </div>
-                {/* AI Features - highlighted */}
-                <div className="px-3 mt-2 space-y-1">
-                    {role !== 'supplier' && (
-                        <NavLink href="/copilot" className={cn(navCls, "bg-primary/8 text-primary border border-primary/15 hover:bg-primary/12 font-semibold")}>
+
+                <div className="mt-2 space-y-1 px-3">
+                    {role !== "supplier" && (
+                        <NavLink href="/copilot" className={cn(navCls, "border border-primary/25 bg-primary/12 text-emerald-100 font-semibold hover:bg-primary/18")}>
                             <AxiomLogo className="mr-2 h-4 w-4 text-primary" />
                             Axiom Copilot
                         </NavLink>
                     )}
-                    {role === 'admin' && (
+                    {role === "admin" && (
                         <Link href="/admin/agents">
-                            <span className="flex items-center rounded-md px-3 py-1.5 text-[13px] font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/20 bg-emerald-50/40 dark:bg-emerald-950/15 text-emerald-700 dark:text-emerald-400 transition-all border border-emerald-200/60 dark:border-emerald-800/40">
-                                <Layers className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="flex items-center rounded-md border border-emerald-400/25 bg-emerald-500/14 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 transition-all hover:bg-emerald-500/20">
+                                <Layers className="mr-2 h-4 w-4 text-emerald-200" />
                                 AI Agents
-                                <span className="ml-auto text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">10</span>
+                                <span className="ml-auto rounded-full bg-emerald-300/18 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">10</span>
                             </span>
                         </Link>
                     )}
                 </div>
 
-                {/* ── Sourcing ── */}
-                {role !== 'supplier' && (
-                    <div className="px-3 mt-4">
-                        <div className="flex items-center gap-2 mb-1.5 px-1">
-                            <span className="h-px flex-1 bg-border/50" />
-                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Sourcing</span>
-                            <span className="h-px flex-1 bg-border/50" />
+                {role !== "supplier" && (
+                    <div className="mt-4 px-3">
+                        <div className="mb-1.5 flex items-center gap-2 px-1">
+                            <span className={sectionDividerCls} />
+                            <span className={sectionLabelCls}>Sourcing</span>
+                            <span className={sectionDividerCls} />
                         </div>
                         <div className="space-y-0.5">
                             <NavLink href="/sourcing/parts" className={navCls}><Package className="mr-2 h-4 w-4" />Parts Catalog</NavLink>
@@ -159,13 +161,12 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
-                {/* ── Finance ── */}
-                {role !== 'supplier' && (
-                    <div className="px-3 mt-4">
-                        <div className="flex items-center gap-2 mb-1.5 px-1">
-                            <span className="h-px flex-1 bg-border/50" />
-                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Finance</span>
-                            <span className="h-px flex-1 bg-border/50" />
+                {role !== "supplier" && (
+                    <div className="mt-4 px-3">
+                        <div className="mb-1.5 flex items-center gap-2 px-1">
+                            <span className={sectionDividerCls} />
+                            <span className={sectionLabelCls}>Finance</span>
+                            <span className={sectionDividerCls} />
                         </div>
                         <div className="space-y-0.5">
                             <NavLink href="/sourcing/invoices" className={navCls}><ReceiptText className="mr-2 h-4 w-4" />Invoices</NavLink>
@@ -178,13 +179,12 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
-                {/* ── Vendor Portal ── */}
-                {role === 'supplier' && (
-                    <div className="px-3 mt-4">
-                        <div className="flex items-center gap-2 mb-1.5 px-1">
-                            <span className="h-px flex-1 bg-border/50" />
-                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Vendor Portal</span>
-                            <span className="h-px flex-1 bg-border/50" />
+                {role === "supplier" && (
+                    <div className="mt-4 px-3">
+                        <div className="mb-1.5 flex items-center gap-2 px-1">
+                            <span className={sectionDividerCls} />
+                            <span className={sectionLabelCls}>Vendor Portal</span>
+                            <span className={sectionDividerCls} />
                         </div>
                         <div className="space-y-0.5">
                             {supplierLinks.map((link) => {
@@ -200,28 +200,26 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 )}
 
-                {/* ── Resources ── */}
-                <div className="px-3 mt-4">
-                    <div className="flex items-center gap-2 mb-1.5 px-1">
-                        <span className="h-px flex-1 bg-border/50" />
-                        <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Resources</span>
-                        <span className="h-px flex-1 bg-border/50" />
+                <div className="mt-4 px-3">
+                    <div className="mb-1.5 flex items-center gap-2 px-1">
+                        <span className={sectionDividerCls} />
+                        <span className={sectionLabelCls}>Resources</span>
+                        <span className={sectionDividerCls} />
                     </div>
                     <div className="space-y-0.5">
-                        {role !== 'supplier' && (
+                        {role !== "supplier" && (
                             <NavLink href="/docs" className={navCls}><BookOpen className="mr-2 h-4 w-4" />Axiom Playbook</NavLink>
                         )}
                         <NavLink href="/support" className={navCls}><LifeBuoy className="mr-2 h-4 w-4" />Help & Support</NavLink>
                     </div>
                 </div>
 
-                {/* ── Admin / Intelligence ── */}
-                {role === 'admin' && (
-                    <div className="px-3 mt-4">
-                        <div className="flex items-center gap-2 mb-1.5 px-1">
-                            <span className="h-px flex-1 bg-border/50" />
-                            <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Intelligence</span>
-                            <span className="h-px flex-1 bg-border/50" />
+                {role === "admin" && (
+                    <div className="mt-4 px-3">
+                        <div className="mb-1.5 flex items-center gap-2 px-1">
+                            <span className={sectionDividerCls} />
+                            <span className={sectionLabelCls}>Intelligence</span>
+                            <span className={sectionDividerCls} />
                         </div>
                         <div className="space-y-0.5">
                             {visiblePriorityLinks.map((link) => {
@@ -236,10 +234,10 @@ export async function Sidebar({ className }: { className?: string }) {
                         </div>
                         {visibleOperationalLinks.length > 0 && (
                             <div className="mt-3">
-                                <div className="flex items-center gap-2 mb-1.5 px-1">
-                                    <span className="h-px flex-1 bg-border/50" />
-                                    <span className="text-[9.5px] font-black tracking-[0.12em] text-muted-foreground/50 uppercase">Operations</span>
-                                    <span className="h-px flex-1 bg-border/50" />
+                                <div className="mb-1.5 flex items-center gap-2 px-1">
+                                    <span className={sectionDividerCls} />
+                                    <span className={sectionLabelCls}>Operations</span>
+                                    <span className={sectionDividerCls} />
                                 </div>
                                 <div className="space-y-0.5">
                                     {visibleOperationalLinks.map((link) => {
@@ -256,9 +254,7 @@ export async function Sidebar({ className }: { className?: string }) {
                         )}
                     </div>
                 )}
-
             </div>
-            {/* ── Footer ── */}
         </div>
     );
 }

@@ -33,7 +33,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
-  const currentYear = new Date().getFullYear();
   const [settings] = await db
     .select({
       defaultCurrency: platformSettings.defaultCurrency,
@@ -58,26 +57,20 @@ export default async function RootLayout({
           <SessionProvider session={session}>
             <CurrencyProvider initialSettings={settings}>
               {session ? (
-                <div className="flex min-h-[100dvh] max-h-[100dvh] w-full overflow-hidden">
-                  <Sidebar className="hidden h-full shrink-0 lg:flex" />
-                  <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="flex h-[100dvh] w-full overflow-hidden">
+                  <Sidebar className="hidden h-[100dvh] shrink-0 self-stretch lg:flex" />
+                  <div className="flex h-[100dvh] min-w-0 flex-1 flex-col overflow-hidden">
                     <Header />
-                    <main className="flex-1 min-h-0 overflow-auto">
+                    <main className="min-h-0 flex-1 overflow-auto">
                       <PageTransition>{children}</PageTransition>
                     </main>
-                    <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur lg:px-8">
-                      Axiom Platform • Operational date system: {currentYear}
-                    </footer>
                     <CommandPalette />
                   </div>
                   <InactivityTracker />
                 </div>
               ) : (
-                <div className="flex min-h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="flex h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden">
                   <main className="flex-1 overflow-auto">{children}</main>
-                  <footer className="border-t border-border/60 bg-background/95 px-4 py-3 text-center text-xs text-muted-foreground backdrop-blur">
-                    Axiom Platform • Operational date system: {currentYear}
-                  </footer>
                 </div>
               )}
               <VersionShield
