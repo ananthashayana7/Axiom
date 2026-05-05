@@ -9,7 +9,6 @@ import { signOut } from "@/auth";
 import { cn } from "@/lib/utils";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { CurrencyDisplayToggle } from "@/components/layout/currency-display-toggle";
-import { EnvironmentPill } from "@/components/shared/environment-pill";
 
 type SessionUser = {
     role?: string | null;
@@ -48,7 +47,6 @@ export async function Header() {
                     <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
                     <span className="hidden text-[10px] font-medium text-muted-foreground/55 md:block">{workspaceSubtitle}</span>
                 </div>
-                <EnvironmentPill className="hidden lg:inline-flex" />
                 {role !== 'supplier' && (
                     <>
                         <div className="hidden h-5 w-px bg-border/60 lg:block" />

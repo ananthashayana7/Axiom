@@ -259,10 +259,6 @@ export async function Sidebar({ className }: { className?: string }) {
 
             </div>
             {/* ── Footer ── */}
-            <div className="px-4 py-2.5 border-t border-border/40 flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[9.5px] font-bold text-muted-foreground/50 uppercase tracking-[0.12em]">System Online</span>
-            </div>
         </div>
     );
 }
