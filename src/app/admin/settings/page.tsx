@@ -362,6 +362,39 @@ export default function AdminSettingsPage() {
                                 </p>
                             </div>
                         </div>
+
+                        <div className="grid gap-4 xl:grid-cols-4">
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Source of Truth</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">Posted invoices keep their original currency.</p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                    Switching the app lens never rewrites invoice, order, or contract records. It only changes how the numbers are displayed and rolled up.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">User-Local FX Lens</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">Best for buyers, plant users, and regional operators.</p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                    The header toggle converts display values into the user&apos;s operating currency using the local view. This helps day-to-day review without flattening source records.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Reporting-Book Lens</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">Best for finance, controllers, and executive rollups.</p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                    Book view uses fixed {finance.bookRatePeriod} rates into {finance.reportingCurrency}. It keeps savings and spend reporting stable across the accounting period.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border bg-background/80 p-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Operational Bottleneck</p>
+                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                    {financeReadiness.bookRateCoverage.length > 0 ? "Keep book rates fresh before using global totals." : "Do not trust global totals until book rates are loaded."}
+                                </p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                    If book rates are stale or missing, the safest fallback is to stay in source-currency or local views for operational decisions and refresh finance settings before executive reporting.
+                                </p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
 

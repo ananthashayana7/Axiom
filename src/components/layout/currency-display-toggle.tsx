@@ -16,7 +16,7 @@ export function CurrencyDisplayToggle() {
     const label = isReportingMode
         ? `${reportingCurrency} Book View`
         : `${geoLocale.currencyCode} Local View`;
-    const helper = isReportingMode ? "Fixed reporting lens" : "User-local FX lens";
+    const helper = isReportingMode ? "Fixed reporting-book lens" : "User-local FX lens";
 
     return (
         <Button
@@ -25,7 +25,7 @@ export function CurrencyDisplayToggle() {
             size="sm"
             onClick={toggleDisplayMode}
             className="hidden h-9 items-center gap-2 border-border/70 bg-background/80 px-3 text-left md:flex"
-            title="Toggle between local currency conversion and CFO reporting-book rates."
+            title="Local view converts the display into the user's operating currency. Book view converts the same records into fixed reporting-book rates without changing source invoices."
         >
             <Landmark className="h-3.5 w-3.5 text-primary" />
             <span className="flex flex-col leading-none">
