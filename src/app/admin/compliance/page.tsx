@@ -1,11 +1,14 @@
-import { auth } from "@/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AlertTriangle, ArrowUpRight, Clock, FileX, ShieldCheck } from "lucide-react";
+
+import { auth } from "@/auth";
 import { getComplianceObligations, getComplianceDashboard } from "@/app/actions/compliance";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { CreateComplianceObligationDialog } from "@/components/admin/create-compliance-obligation-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, AlertTriangle, FileX, Clock } from "lucide-react";
 import { COMPLIANCE_POLICY_PACKS } from "@/lib/compliance-policy-packs";
 
 const statusColors: Record<string, string> = {
@@ -39,7 +42,7 @@ export default async function CompliancePage() {
             getSuppliers(),
         ]);
     } catch {
-        // Tables may not exist yet
+        // Tables may not exist yet.
     }
 
     return (
@@ -54,7 +57,15 @@ export default async function CompliancePage() {
                         Deadline-driven compliance obligations, evidence tracking, and supplier attestations
                     </p>
                 </div>
-                {session.user.role === 'admin' ? <CreateComplianceObligationDialog suppliers={suppliers} /> : null}
+                <div className="flex flex-wrap gap-2">
+                    <Link href="/admin/tasks">
+                        <Button variant="outline" className="gap-2">
+                            <ArrowUpRight className="h-4 w-4" />
+                            Task Inbox
+                        </Button>
+                    </Link>
+                    {session.user.role === 'admin' ? <CreateComplianceObligationDialog suppliers={suppliers} /> : null}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -131,25 +142,52 @@ export default async function CompliancePage() {
                             {obligations.map((ob) => (
                                 <div key={ob.id} className="py-3 flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             <span className="font-medium text-sm">{ob.title}</span>
                                             <Badge variant="outline" className={`text-[10px] ${statusColors[ob.status] || ''}`}>
                                                 {ob.status?.replace(/_/g, ' ')}
                                             </Badge>
                                             <Badge variant="outline" className="text-[10px]">{ob.category}</Badge>
+                                            {ob.policyPack ? <Badge variant="outline" className="text-[10px]">{ob.policyPack}</Badge> : null}
                                         </div>
-                                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                            {ob.supplierName && <span>Supplier: {ob.supplierName}</span>}
-                                            {ob.ownerName && <span>Owner: {ob.ownerName}</span>}
-                                            {ob.expiresAt && (
+                                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                                            {ob.supplierName ? <span>Supplier: {ob.supplierName}</span> : null}
+                                            {ob.ownerName ? <span>Owner: {ob.ownerName}</span> : null}
+                                            {ob.region ? <span>Region: {ob.region}</span> : null}
+                                            {ob.expiresAt ? (
                                                 <span className={new Date(ob.expiresAt) < new Date() ? 'text-red-600 font-medium' : ''}>
                                                     Expires: {new Date(ob.expiresAt).toLocaleDateString()}
                                                 </span>
+                                            ) : null}
+                                            {ob.documentRequired === 'yes' && !ob.documentUrl ? (
+                                                <span className="text-orange-600">Evidence missing</span>
+                                            ) : null}
+                                            {ob.documentUrl ? <span className="text-green-600">Evidence submitted</span> : null}
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {ob.supplierId ? (
+                                                <Link href={`/suppliers/${ob.supplierId}`}>
+                                                    <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold uppercase">
+                                                        Open Supplier
+                                                    </Button>
+                                                </Link>
+                                            ) : null}
+                                            <Link href="/admin/tasks">
+                                                <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold uppercase">
+                                                    Review Tasks
+                                                </Button>
+                                            </Link>
+                                            {ob.documentUrl ? (
+                                                <Link href={ob.documentUrl}>
+                                                    <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold uppercase">
+                                                        Open Evidence
+                                                    </Button>
+                                                </Link>
+                                            ) : (
+                                                <Button size="sm" variant="outline" disabled className="h-8 text-[10px] font-bold uppercase">
+                                                    Awaiting Evidence
+                                                </Button>
                                             )}
-                                            {ob.documentRequired === 'yes' && !ob.documentUrl && (
-                                                <span className="text-orange-600">⚠ Evidence missing</span>
-                                            )}
-                                            {ob.documentUrl && <span className="text-green-600">✓ Evidence submitted</span>}
                                         </div>
                                     </div>
                                 </div>

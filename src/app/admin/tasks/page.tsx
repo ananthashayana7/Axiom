@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { auth } from "@/auth";
 import { getAllTasks, getInboxTasks, getTaskSummary } from "@/app/actions/workflow-tasks";
+import { TaskRowActions } from "@/components/admin/task-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -198,6 +199,7 @@ function TaskSection({
                                         <p className="mt-1 text-xs text-primary">Next: {task.nextAction}</p>
                                     )}
                                 </div>
+                                <TaskRowActions taskId={task.id} status={task.status} />
                             </div>
                         );
                     })
