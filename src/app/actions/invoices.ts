@@ -18,6 +18,7 @@ import {
 import { assessInvoiceReviewSignals } from "@/lib/invoices/review";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACTIVE_INVOICE_REVIEW_STATUSES = ['open', 'in_progress', 'blocked', 'escalated'] as const;
 const HIGH_VALUE_RELEASE_THRESHOLDS: Record<string, number> = {
     INR: 500_000,
     USD: 10_000,
@@ -64,6 +65,56 @@ function formatThresholdAmount(amount: number, currency: string) {
     } catch {
         return `${currency} ${amount.toLocaleString("en-US")}`;
     }
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function getInvoiceConfidenceLabel(score: number) {
+    if (score >= 90) return "High confidence";
+    if (score >= 75) return "Guarded release";
+    if (score >= 55) return "Needs review";
+    return "Human review required";
+}
+
+function buildInvoiceConfidenceScore(input: {
+    status: string | null;
+    hasOrder: boolean;
+    hasDocument: boolean;
+    openFraudAlerts: number;
+    openReviewTasks: number;
+    amount: number;
+    currency: string;
+}) {
+    let score = input.hasOrder ? 82 : 42;
+
+    if (input.status === "matched") {
+        score += 10;
+    } else if (input.status === "paid") {
+        score += 14;
+    } else if (input.status === "disputed") {
+        score = Math.min(score, 24);
+    }
+
+    if (!input.hasDocument) {
+        score -= 8;
+    }
+
+    if (input.openReviewTasks > 0) {
+        score -= 24;
+    }
+
+    if (input.openFraudAlerts > 0) {
+        score -= 34;
+    }
+
+    const threshold = getHumanReleaseThreshold(input.currency);
+    if (input.amount >= threshold) {
+        score -= 10;
+    }
+
+    return clamp(Math.round(score), 8, 99);
 }
 
 export async function getInvoices(filters?: {
@@ -147,7 +198,78 @@ export async function getInvoices(filters?: {
             .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(desc(invoices.createdAt));
 
-        return rows;
+        const invoiceIds = rows.map((row) => row.id);
+
+        const [openFraudRows, openTaskRows] = invoiceIds.length > 0
+            ? await Promise.all([
+                db.select({
+                    entityId: fraudAlerts.entityId,
+                })
+                    .from(fraudAlerts)
+                    .where(and(
+                        eq(fraudAlerts.entityType, 'invoice'),
+                        eq(fraudAlerts.status, 'open'),
+                        inArray(fraudAlerts.entityId, invoiceIds),
+                    )),
+                db.select({
+                    entityId: workflowTasks.entityId,
+                })
+                    .from(workflowTasks)
+                    .where(and(
+                        eq(workflowTasks.entityType, 'invoice'),
+                        inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
+                        inArray(workflowTasks.entityId, invoiceIds),
+                    )),
+            ])
+            : [[], []];
+
+        const openFraudByInvoice = new Map<string, number>();
+        for (const alert of openFraudRows) {
+            openFraudByInvoice.set(alert.entityId, (openFraudByInvoice.get(alert.entityId) || 0) + 1);
+        }
+
+        const openTasksByInvoice = new Map<string, number>();
+        for (const task of openTaskRows) {
+            openTasksByInvoice.set(task.entityId, (openTasksByInvoice.get(task.entityId) || 0) + 1);
+        }
+
+        return rows.map((row) => {
+            const currency = row.currency || 'INR';
+            const amount = Number(row.amount || 0);
+            const openFraudAlerts = openFraudByInvoice.get(row.id) || 0;
+            const openReviewTasks = openTasksByInvoice.get(row.id) || 0;
+            const humanReleaseThreshold = getHumanReleaseThreshold(currency);
+            const reviewConfidenceScore = buildInvoiceConfidenceScore({
+                status: row.status,
+                hasOrder: Boolean(row.orderId),
+                hasDocument: Boolean(row.documentUrl),
+                openFraudAlerts,
+                openReviewTasks,
+                amount,
+                currency,
+            });
+
+            const reviewSignals = [
+                !row.orderId ? "Missing purchase order link" : null,
+                openFraudAlerts > 0 ? `${openFraudAlerts} open fraud alert${openFraudAlerts === 1 ? "" : "s"}` : null,
+                openReviewTasks > 0 ? `${openReviewTasks} open human review task${openReviewTasks === 1 ? "" : "s"}` : null,
+                amount >= humanReleaseThreshold
+                    ? `Amount exceeds the ${formatThresholdAmount(humanReleaseThreshold, currency)} manual release threshold`
+                    : null,
+                row.status === 'disputed' ? "Invoice is already routed into dispute" : null,
+            ].filter((signal): signal is string => Boolean(signal));
+
+            return {
+                ...row,
+                openFraudAlerts,
+                openReviewTasks,
+                requiresHumanReview: reviewSignals.length > 0 || reviewConfidenceScore < 75,
+                reviewConfidenceScore,
+                confidenceLabel: getInvoiceConfidenceLabel(reviewConfidenceScore),
+                humanReleaseThreshold,
+                reviewSignals,
+            };
+        });
     } catch (error) {
         console.error("Failed to fetch invoices:", error);
         return [];
@@ -408,7 +530,7 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
                 .where(and(
                     eq(workflowTasks.entityType, 'invoice'),
                     eq(workflowTasks.entityId, id),
-                    inArray(workflowTasks.status, ['open', 'in_progress', 'blocked', 'escalated']),
+                    inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
                 ))
                 .limit(1);
 
@@ -452,6 +574,95 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
     } catch (error) {
         console.error("Failed to update invoice status:", error);
         return { success: false, error: "Internal Server Error" };
+    }
+}
+
+export async function escalateInvoiceToHumanReview(invoiceId: string) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const [invoice] = await db.select({
+            id: invoices.id,
+            invoiceNumber: invoices.invoiceNumber,
+            supplierId: invoices.supplierId,
+            supplierName: suppliers.name,
+        })
+            .from(invoices)
+            .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
+            .where(eq(invoices.id, invoiceId))
+            .limit(1);
+
+        if (!invoice) {
+            return { success: false, error: "Invoice not found" };
+        }
+
+        const [existingTask] = await db.select({
+            id: workflowTasks.id,
+            status: workflowTasks.status,
+        })
+            .from(workflowTasks)
+            .where(and(
+                eq(workflowTasks.entityType, 'invoice'),
+                eq(workflowTasks.entityId, invoiceId),
+                inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
+            ))
+            .orderBy(desc(workflowTasks.createdAt))
+            .limit(1);
+
+        const nextAction = "Review the original document, supplier identity, PO linkage, tax evidence, and banking controls before any release.";
+
+        if (existingTask) {
+            await db.update(workflowTasks)
+                .set({
+                    status: existingTask.status === 'blocked' ? 'open' : existingTask.status,
+                    priority: 'high',
+                    nextAction,
+                    updatedAt: new Date(),
+                })
+                .where(eq(workflowTasks.id, existingTask.id));
+        } else {
+            await db.insert(workflowTasks).values({
+                title: `Manual review for invoice ${invoice.invoiceNumber}`,
+                description: `Invoice ${invoice.invoiceNumber} for ${invoice.supplierName || 'the selected supplier'} was escalated for human validation before payment release.`,
+                entityType: 'invoice',
+                entityId: invoiceId,
+                priority: 'high',
+                createdById: session.user.id,
+                nextAction,
+            });
+        }
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: 'ESCALATE',
+            entityType: 'invoice',
+            entityId: invoiceId,
+            details: `Invoice ${invoice.invoiceNumber} escalated to human review from Financial Matching.`,
+        });
+
+        await createNotification({
+            userId: invoice.supplierId,
+            title: 'Invoice under manual review',
+            message: `Invoice ${invoice.invoiceNumber} is being reviewed before payment release.`,
+            type: 'warning',
+            link: '/portal/invoices',
+        });
+
+        revalidatePath('/admin/financial-matching');
+        revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
+        revalidatePath('/admin/tasks');
+
+        return {
+            success: true,
+            reused: Boolean(existingTask),
+        };
+    } catch (error) {
+        console.error("Failed to escalate invoice to human review:", error);
+        return { success: false, error: "Failed to route invoice into human review." };
     }
 }
 

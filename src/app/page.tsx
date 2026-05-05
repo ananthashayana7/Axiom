@@ -17,6 +17,7 @@ import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
+import { OperationalFreshnessStrip } from "@/components/dashboard/operational-freshness-strip";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { RequisitionDialog } from "@/app/sourcing/requisitions/requisition-dialog";
 
@@ -74,6 +75,7 @@ export default async function Home() {
   const dashboardSubtitle = isAdmin
     ? "Restricted intelligence, approvals, and platform control"
     : "Operational sourcing and requisition workspace";
+  const renderedAt = new Date().toISOString();
 
   const roleBadgeClass = isAdmin
     ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -98,6 +100,16 @@ export default async function Home() {
           {isAdmin ? <CreateOrderDialog suppliers={suppliers} parts={parts} /> : <RequisitionDialog />}
         </div>
       </div>
+
+      {isAdmin && operationalSignals && (
+        <OperationalFreshnessStrip
+          renderedAt={renderedAt}
+          telemetryTitle={operationalSignals.telemetry.title}
+          telemetryDetail={operationalSignals.telemetry.detail}
+          fxTitle={operationalSignals.fxRates.title}
+          fxDetail={operationalSignals.fxRates.detail}
+        />
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isAdmin ? (

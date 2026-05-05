@@ -2,12 +2,20 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
+import { escalateInvoiceToHumanReview, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { getThreeWayMatchReasonLabel } from "@/lib/utils/three-way-match";
 
-export function InvoiceActions({ invoiceId, status }: { invoiceId: string, status: string }) {
+export function InvoiceActions({
+    invoiceId,
+    status,
+    onChanged,
+}: {
+    invoiceId: string;
+    status: string;
+    onChanged?: () => Promise<void> | void;
+}) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleAction = async (newStatus: 'pending' | 'disputed' | 'paid') => {
@@ -15,6 +23,7 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
         try {
             const res = await updateInvoiceStatus(invoiceId, newStatus);
             if (res.success) {
+                await onChanged?.();
                 toast.success(
                     newStatus === "pending"
                         ? "Invoice moved back to review"
@@ -37,6 +46,7 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
         try {
             const res = await rerunInvoiceMatch(invoiceId);
             if (res.success) {
+                await onChanged?.();
                 toast.success(
                     res.status === "MATCHED"
                         ? "Deterministic match passed"
@@ -57,10 +67,34 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
         }
     };
 
+    const handleEscalate = async () => {
+        setIsLoading(true);
+        try {
+            const res = await escalateInvoiceToHumanReview(invoiceId);
+            if (res.success) {
+                await onChanged?.();
+                toast.success(
+                    res.reused ? "Review task refreshed" : "Escalated to human review",
+                    {
+                        description: res.reused
+                            ? "An open review task was raised back to the operator queue."
+                            : "A human validation task was created before any release can continue.",
+                    },
+                );
+            } else {
+                toast.error(res.error || "Failed to escalate invoice");
+            }
+        } catch {
+            toast.error("An error occurred");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     if (status === 'paid') return null;
 
     return (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 flex-wrap">
             <Button
                 variant="outline"
                 size="sm"
@@ -69,6 +103,16 @@ export function InvoiceActions({ invoiceId, status }: { invoiceId: string, statu
                 disabled={isLoading}
             >
                 {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Run Rules"}
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-[10px] font-bold uppercase tracking-tighter border-amber-200 text-amber-700 hover:bg-amber-50"
+                onClick={handleEscalate}
+                disabled={isLoading}
+            >
+                {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="mr-1 h-3 w-3" />}
+                Escalate Review
             </Button>
             {status === 'pending' && (
                 <Button

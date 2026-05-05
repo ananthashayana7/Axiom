@@ -15,10 +15,12 @@ import {
     X,
     Scale,
     ArrowUpRight,
+    ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getInvoices, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
+import { escalateInvoiceToHumanReview, getInvoices, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
+import { InvoiceReviewDialog } from "@/components/invoices/invoice-review-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -148,9 +150,31 @@ export default function FinancialMatchingPage() {
         });
     };
 
+    const handleEscalateToHuman = (invoiceId: string) => {
+        startTransition(async () => {
+            try {
+                const result = await escalateInvoiceToHumanReview(invoiceId);
+                if (!result.success) {
+                    toast.error(result.error || "Failed to route invoice to manual review");
+                    return;
+                }
+
+                toast.success(result.reused ? "Review task refreshed" : "Escalated to human review", {
+                    description: result.reused
+                        ? "An existing invoice review task was reopened in the queue."
+                        : "A manual validation task now blocks release until a human closes it.",
+                });
+                await fetchInvoices();
+            } catch {
+                toast.error("Failed to route invoice to manual review");
+            }
+        });
+    };
+
     const pendingCount = invoicesList.filter((invoice) => invoice.status === 'pending').length;
     const matchedCount = invoicesList.filter((invoice) => invoice.status === 'matched' || invoice.status === 'paid').length;
     const disputedCount = invoicesList.filter((invoice) => invoice.status === 'disputed').length;
+    const humanReviewCount = invoicesList.filter((invoice) => invoice.requiresHumanReview || invoice.openReviewTasks > 0).length;
 
     const statusBadge = (status: string) => {
         switch (status) {
@@ -163,6 +187,27 @@ export default function FinancialMatchingPage() {
             default:
                 return <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] font-black uppercase">Pending</Badge>;
         }
+    };
+
+    const confidenceBadge = (invoice: InvoiceRecord) => {
+        if (!invoice.confidenceLabel) {
+            return null;
+        }
+
+        const isEscalated = invoice.requiresHumanReview || invoice.reviewConfidenceScore < 75;
+        return (
+            <Badge
+                variant="outline"
+                className={cn(
+                    "text-[10px] font-black uppercase",
+                    isEscalated
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                )}
+            >
+                {invoice.reviewConfidenceScore}% · {invoice.confidenceLabel}
+            </Badge>
+        );
     };
 
     return (
@@ -194,7 +239,7 @@ export default function FinancialMatchingPage() {
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
                 <Card className="border-l-4 border-l-amber-500">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
@@ -223,6 +268,16 @@ export default function FinancialMatchingPage() {
                     <CardContent>
                         <div className="text-3xl font-black text-red-600">{disputedCount}</div>
                         <p className="text-xs text-muted-foreground mt-1">Requires resolution</p>
+                    </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-rose-500">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Manual Review Queue</CardTitle>
+                        <ShieldAlert className="h-4 w-4 text-rose-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black text-rose-600">{humanReviewCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Blocked until a human signs off</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-blue-500">
@@ -292,7 +347,7 @@ export default function FinancialMatchingPage() {
                             <table className="w-full caption-bottom text-sm">
                                 <thead>
                                     <tr className="border-b bg-muted/50">
-                                        {['Invoice #', 'Supplier', 'Amount', 'Status', 'Date', 'Control Actions'].map((heading) => (
+                                        {['Invoice #', 'Supplier', 'Amount', 'Status', 'Confidence', 'Date', 'Control Actions'].map((heading) => (
                                             <th
                                                 key={heading}
                                                 className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase"
@@ -327,11 +382,24 @@ export default function FinancialMatchingPage() {
                                                 ) : null}
                                             </td>
                                             <td className="p-4 align-middle">{statusBadge(invoice.status)}</td>
+                                            <td className="p-4 align-middle">
+                                                <div className="space-y-2">
+                                                    {confidenceBadge(invoice)}
+                                                    {invoice.reviewSignals?.length ? (
+                                                        <p className="max-w-[220px] text-[11px] leading-5 text-muted-foreground">
+                                                            {invoice.reviewSignals.slice(0, 2).join(" · ")}
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[11px] text-muted-foreground">No open review blockers.</p>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="p-4 align-middle text-muted-foreground text-xs">
                                                 {invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : '-'}
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex gap-2 flex-wrap">
+                                                    <InvoiceReviewDialog invoice={invoice} />
                                                     {invoice.status === 'pending' ? (
                                                         <>
                                                             <Button
@@ -352,29 +420,60 @@ export default function FinancialMatchingPage() {
                                                             >
                                                                 <AlertTriangle className="h-3 w-3 mr-1" /> Dispute
                                                             </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                                disabled={isPending}
+                                                                onClick={() => handleEscalateToHuman(invoice.id)}
+                                                            >
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                            </Button>
                                                         </>
                                                     ) : null}
                                                     {invoice.status === 'matched' ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-[10px] font-bold text-green-700 border-green-200 hover:bg-green-50"
-                                                            disabled={isPending}
-                                                            onClick={() => handleMarkPaid(invoice.id)}
-                                                        >
-                                                            <DollarSign className="h-3 w-3 mr-1" /> Release Payment
-                                                        </Button>
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                                disabled={isPending}
+                                                                onClick={() => handleEscalateToHuman(invoice.id)}
+                                                            >
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-[10px] font-bold text-green-700 border-green-200 hover:bg-green-50"
+                                                                disabled={isPending}
+                                                                onClick={() => handleMarkPaid(invoice.id)}
+                                                            >
+                                                                <DollarSign className="h-3 w-3 mr-1" /> Release Payment
+                                                            </Button>
+                                                        </>
                                                     ) : null}
                                                     {invoice.status === 'disputed' ? (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
-                                                            disabled={isPending}
-                                                            onClick={() => handleRunRules(invoice.id)}
-                                                        >
-                                                            <CheckCircle2 className="h-3 w-3 mr-1" /> Run Rules
-                                                        </Button>
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                                disabled={isPending}
+                                                                onClick={() => handleRunRules(invoice.id)}
+                                                            >
+                                                                <CheckCircle2 className="h-3 w-3 mr-1" /> Run Rules
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                                disabled={isPending}
+                                                                onClick={() => handleEscalateToHuman(invoice.id)}
+                                                            >
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                            </Button>
+                                                        </>
                                                     ) : null}
                                                     {invoice.status === 'paid' ? (
                                                         <span className="text-[10px] text-muted-foreground italic">Closed</span>
@@ -385,7 +484,7 @@ export default function FinancialMatchingPage() {
                                     ))}
                                     {invoicesList.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center text-muted-foreground italic">
+                                            <td colSpan={7} className="p-12 text-center text-muted-foreground italic">
                                                 <div className="flex flex-col items-center gap-3 not-italic">
                                                     <p className="text-sm font-medium text-foreground">No invoices match the current filters.</p>
                                                     <p className="max-w-xl text-xs text-muted-foreground">

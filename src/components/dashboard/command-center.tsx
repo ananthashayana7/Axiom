@@ -18,15 +18,19 @@ import {
     RefreshCcw,
     Search,
     Shield,
+    ShieldAlert,
     Sparkles,
     TrendingUp,
     TriangleAlert,
+    PowerOff,
+    PlayCircle,
     Zap,
 } from "lucide-react";
 
 import { AGENT_BUNDLE_META, AGENT_BUNDLES, AGENT_REGISTRY, QUICK_ACTION_AGENTS, type AgentBundleName, type AgentName } from "@/app/actions/agents/registry";
 import {
     getAgentDashboardSnapshot,
+    setAiFleetEmergencyStop,
     triggerAgentBundle,
     triggerAgentDispatch,
     type AgentDashboardSnapshot,
@@ -65,6 +69,12 @@ const EMPTY_SNAPSHOT: AgentDashboardSnapshot = {
     replenishmentAlerts: 0,
     degradedPanels: [],
     systemWarnings: [],
+    aiFleetStop: {
+        enabled: false,
+        reason: null,
+        triggeredAt: null,
+        triggeredBy: null,
+    },
 };
 
 const BUNDLE_ORDER: AgentBundleName[] = ['post-import', 'compliance-sweep', 'workflow-recovery'];
@@ -178,6 +188,7 @@ export function CommandCenter() {
     const [runningBundle, setRunningBundle] = useState<AgentBundleName | null>(null);
     const [progressLogs, setProgressLogs] = useState<string[]>([]);
     const [missionReport, setMissionReport] = useState<MissionReport | null>(null);
+    const [isTogglingFleetStop, setIsTogglingFleetStop] = useState(false);
 
     const refreshRequestRef = useRef(0);
     const runRequestRef = useRef(0);
@@ -228,6 +239,7 @@ export function CommandCenter() {
         snapshot.criticalFraudAlerts +
         snapshot.replenishmentAlerts +
         (snapshot.pendingPaymentOpportunities > 0 ? 1 : 0);
+    const aiFleetStopped = snapshot.aiFleetStop.enabled;
     const failedAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'failed');
     const stableAgents = AGENT_REGISTRY.filter((agent) => runtime[agent.name]?.status === 'success');
     const attentionCount = failedAgents.length + snapshot.degradedPanels.length + backlogAttentionCount;
@@ -259,7 +271,12 @@ export function CommandCenter() {
 
     const runAgent = async (agentName: AgentName) => {
         const agent = AGENT_REGISTRY.find((entry) => entry.name === agentName);
-        if (!agent || agent.dispatchMode === 'workspace' || runningAgent || runningBundle) {
+        if (!agent || agent.dispatchMode === 'workspace' || runningAgent || runningBundle || aiFleetStopped) {
+            if (aiFleetStopped) {
+                toast.error('AI fleet stop is active', {
+                    description: snapshot.aiFleetStop.reason || 'Resume the fleet before launching new agents.',
+                });
+            }
             return;
         }
 
@@ -354,7 +371,12 @@ export function CommandCenter() {
     };
 
     const runBundle = async (bundleName: AgentBundleName) => {
-        if (runningAgent || runningBundle) {
+        if (runningAgent || runningBundle || aiFleetStopped) {
+            if (aiFleetStopped) {
+                toast.error('AI fleet stop is active', {
+                    description: snapshot.aiFleetStop.reason || 'Resume the fleet before running bundles.',
+                });
+            }
             return;
         }
 
@@ -451,6 +473,37 @@ export function CommandCenter() {
         }
     };
 
+    const toggleFleetStop = async (enabled: boolean) => {
+        setIsTogglingFleetStop(true);
+        try {
+            const result = await setAiFleetEmergencyStop(enabled);
+            if (!result.success || !result.state) {
+                toast.error(result.error || 'Failed to update fleet stop.');
+                return;
+            }
+
+            setSnapshot((previous) => ({
+                ...previous,
+                generatedAt: new Date().toISOString(),
+                aiFleetStop: result.state,
+            }));
+
+            toast.success(
+                enabled ? 'AI fleet stopped' : 'AI fleet resumed',
+                {
+                    description: result.state.reason || (enabled ? 'New launches are blocked.' : 'New launches are available again.'),
+                },
+            );
+            await refreshSnapshot(true);
+        } catch (error) {
+            toast.error('Failed to update fleet stop', {
+                description: error instanceof Error ? error.message : 'Unexpected error while updating the dispatcher state.',
+            });
+        } finally {
+            setIsTogglingFleetStop(false);
+        }
+    };
+
     if (isBootstrapping) {
         return (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -475,6 +528,12 @@ export function CommandCenter() {
                                 <Badge variant="outline" className="border-slate-200 bg-white/80 text-slate-600">
                                     {AGENT_REGISTRY.filter((agent) => agent.dispatchMode === 'global').length} direct-launch agents
                                 </Badge>
+                                {aiFleetStopped && (
+                                    <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+                                        <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+                                        Emergency stop active
+                                    </Badge>
+                                )}
                                 <Badge variant="outline" className={cn(
                                     attentionCount === 0
                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -521,6 +580,35 @@ export function CommandCenter() {
                                     <p className="mt-1 text-xs text-slate-500">Live operational status captured from guarded server actions.</p>
                                 </div>
                             </div>
+
+                            {aiFleetStopped && (
+                                <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-rose-700">
+                                                <ShieldAlert className="h-4 w-4" />
+                                                <p className="text-xs font-black uppercase tracking-[0.25em]">Fleet emergency stop engaged</p>
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-900">
+                                                {snapshot.aiFleetStop.reason || 'New AI launches are blocked until an administrator resumes the fleet.'}
+                                            </p>
+                                            <p className="text-xs text-slate-600">
+                                                {snapshot.aiFleetStop.triggeredAt
+                                                    ? `Triggered ${formatRelative(snapshot.aiFleetStop.triggeredAt)} by ${snapshot.aiFleetStop.triggeredBy || 'an administrator'}.`
+                                                    : 'Trigger details are still syncing.'}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            className="gap-2 bg-rose-600 text-white hover:bg-rose-700"
+                                            onClick={() => toggleFleetStop(false)}
+                                            disabled={isTogglingFleetStop}
+                                        >
+                                            {isTogglingFleetStop ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                                            Resume AI Fleet
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
                             {(runningAgent || runningBundle) && (
                                 <div className="rounded-3xl border border-slate-900 bg-slate-950 p-5 text-white shadow-2xl">
@@ -580,7 +668,7 @@ export function CommandCenter() {
                                                 <Button
                                                     className="flex-1 gap-2"
                                                     onClick={() => runBundle(bundleName)}
-                                                    disabled={Boolean(runningAgent || runningBundle)}
+                                                    disabled={Boolean(runningAgent || runningBundle || aiFleetStopped)}
                                                 >
                                                     {isBundleRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                                                     {isBundleRunning ? 'Running' : 'Run Bundle'}
@@ -714,6 +802,21 @@ export function CommandCenter() {
                             <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
                             Sync Snapshot
                         </Button>
+                        <Button
+                            variant={aiFleetStopped ? "default" : "destructive"}
+                            className="gap-2"
+                            onClick={() => toggleFleetStop(!aiFleetStopped)}
+                            disabled={isTogglingFleetStop || Boolean(runningAgent || runningBundle)}
+                        >
+                            {isTogglingFleetStop ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : aiFleetStopped ? (
+                                <PlayCircle className="h-4 w-4" />
+                            ) : (
+                                <PowerOff className="h-4 w-4" />
+                            )}
+                            {aiFleetStopped ? 'Resume Fleet' : 'Emergency Stop'}
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -749,7 +852,7 @@ export function CommandCenter() {
                                         isRunning && "border-emerald-300 ring-2 ring-emerald-200",
                                     )}
                                     onClick={() => runAgent(agent.name)}
-                                    disabled={Boolean(runningAgent || runningBundle)}
+                                    disabled={Boolean(runningAgent || runningBundle || aiFleetStopped)}
                                 >
                                     <div className="space-y-1">
                                         <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{agent.focusLabel}</p>
@@ -969,7 +1072,7 @@ export function CommandCenter() {
                                                 <Button
                                                     className="flex-1 gap-2"
                                                     onClick={() => runAgent(agent.name)}
-                                                    disabled={Boolean(runningAgent || runningBundle)}
+                                                    disabled={Boolean(runningAgent || runningBundle || aiFleetStopped)}
                                                 >
                                                     {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <AxiomLogo className="h-4 w-4" />}
                                                     {isRunning ? 'Running' : 'Launch'}

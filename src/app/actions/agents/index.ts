@@ -5,7 +5,10 @@
  */
 
 import { auth } from "@/auth";
+import { db } from "@/db";
+import { auditLogs, systemTelemetry } from "@/db/schema";
 import { TelemetryService } from "@/lib/telemetry";
+import { and, desc, eq } from "drizzle-orm";
 import type {
     AgentResult,
     DemandForecast,
@@ -158,6 +161,14 @@ export interface AgentDashboardSnapshot {
     replenishmentAlerts: number;
     degradedPanels: string[];
     systemWarnings: string[];
+    aiFleetStop: AiFleetEmergencyStopState;
+}
+
+export interface AiFleetEmergencyStopState {
+    enabled: boolean;
+    reason: string | null;
+    triggeredAt: string | null;
+    triggeredBy: string | null;
 }
 
 type DispatchExecutor = () => Promise<AgentResult<unknown>>;
@@ -177,6 +188,8 @@ const AGENT_EXECUTORS: Partial<Record<AgentName, DispatchExecutor>> = {
         }),
     'supplier-ecosystem': () => buildSupplierEcosystem(),
 };
+const AI_FLEET_STOP_SCOPE = 'AIFleet';
+const AI_FLEET_STOP_KEY = 'emergency_stop';
 
 function getAgentMeta(agentName: AgentName) {
     return AGENT_REGISTRY.find((agent) => agent.name === agentName);
@@ -195,6 +208,99 @@ function createFailureSummary(
         headline,
         details,
         link: dashboardHref,
+    };
+}
+
+function parseAiFleetStopMetadata(raw: string | null | undefined) {
+    if (!raw?.trim()) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as Partial<AiFleetEmergencyStopState> & { enabled?: boolean };
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function getAiFleetEmergencyStopState(): Promise<AiFleetEmergencyStopState> {
+    const [latest] = await db.select({
+        value: systemTelemetry.value,
+        metadata: systemTelemetry.metadata,
+        createdAt: systemTelemetry.createdAt,
+    })
+        .from(systemTelemetry)
+        .where(and(
+            eq(systemTelemetry.scope, AI_FLEET_STOP_SCOPE),
+            eq(systemTelemetry.key, AI_FLEET_STOP_KEY),
+        ))
+        .orderBy(desc(systemTelemetry.createdAt))
+        .limit(1);
+
+    if (!latest) {
+        return {
+            enabled: false,
+            reason: null,
+            triggeredAt: null,
+            triggeredBy: null,
+        };
+    }
+
+    const metadata = parseAiFleetStopMetadata(latest.metadata);
+    return {
+        enabled: metadata?.enabled ?? Number(latest.value || 0) > 0,
+        reason: metadata?.reason ?? null,
+        triggeredAt: latest.createdAt ? latest.createdAt.toISOString() : null,
+        triggeredBy: metadata?.triggeredBy ?? null,
+    };
+}
+
+export async function setAiFleetEmergencyStop(enabled: boolean, reason?: string) {
+    const session = await auth();
+    if (!session?.user || (session.user as { role?: string }).role !== 'admin') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    const actorName = (session.user as { name?: string | null }).name || 'Admin';
+    const nextReason = enabled
+        ? (reason?.trim() || 'Emergency stop engaged from AI Mission Control.')
+        : (reason?.trim() || 'AI fleet resumed from AI Mission Control.');
+
+    await db.insert(systemTelemetry).values({
+        type: 'security',
+        scope: AI_FLEET_STOP_SCOPE,
+        key: AI_FLEET_STOP_KEY,
+        value: enabled ? '1' : '0',
+        metadata: JSON.stringify({
+            enabled,
+            reason: nextReason,
+            triggeredBy: actorName,
+        }),
+        userId: session.user.id,
+    });
+
+    await db.insert(auditLogs).values({
+        userId: session.user.id,
+        action: enabled ? 'STOP' : 'RESUME',
+        entityType: 'ai_fleet',
+        entityId: session.user.id,
+        details: nextReason,
+    });
+
+    await safeTrackEvent('AgentDispatch', enabled ? 'fleet_emergency_stop_enabled' : 'fleet_emergency_stop_disabled', {
+        actorName,
+        reason: nextReason,
+    });
+
+    return {
+        success: true,
+        state: {
+            enabled,
+            reason: nextReason,
+            triggeredAt: new Date().toISOString(),
+            triggeredBy: actorName,
+        } satisfies AiFleetEmergencyStopState,
     };
 }
 
@@ -394,6 +500,30 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
         };
     }
 
+    const fleetStopState = await getAiFleetEmergencyStopState();
+    if (fleetStopState.enabled) {
+        await safeTrackEvent('AgentDispatch', 'blocked_emergency_stop', {
+            agentName,
+            role,
+            reason: fleetStopState.reason,
+        });
+        return {
+            success: false,
+            error: "AI fleet emergency stop is active.",
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Fleet stop is active',
+                fleetStopState.reason || 'Axiom is blocking new agent launches until an administrator resumes the fleet.',
+                agentMeta.dashboardHref,
+            ),
+        };
+    }
+
     if (!agentMeta.isEnabled) {
         await safeTrackEvent('AgentDispatch', 'blocked_disabled', { agentName, role });
         return {
@@ -568,6 +698,7 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
         getOpenFraudAlerts(),
         getPaymentOptimizationSummary(),
         getReplenishmentAlerts(),
+        getAiFleetEmergencyStopState(),
     ]);
 
     const degradedPanels: string[] = [];
@@ -579,7 +710,7 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
     let pendingPaymentOpportunities = 0;
     let replenishmentAlerts = 0;
 
-    const [fraudResult, paymentResult, replenishmentResult] = panelResults;
+    const [fraudResult, paymentResult, replenishmentResult, fleetStopResult] = panelResults;
 
     if (fraudResult.status === 'fulfilled') {
         fraudAlerts = Array.isArray(fraudResult.value) ? fraudResult.value.length : 0;
@@ -608,6 +739,19 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
         systemWarnings.push('Inventory forecast alerts did not refresh. Use the parts workspace if you need live stock detail.');
     }
 
+    const aiFleetStop = fleetStopResult.status === 'fulfilled'
+        ? fleetStopResult.value
+        : {
+            enabled: false,
+            reason: null,
+            triggeredAt: null,
+            triggeredBy: null,
+        };
+
+    if (fleetStopResult.status === 'fulfilled' && fleetStopResult.value.enabled) {
+        systemWarnings.push(fleetStopResult.value.reason || 'AI fleet emergency stop is active. New autonomous runs are blocked until an administrator resumes them.');
+    }
+
     return {
         generatedAt: new Date().toISOString(),
         fraudAlerts,
@@ -617,5 +761,6 @@ export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapsho
         replenishmentAlerts,
         degradedPanels,
         systemWarnings,
+        aiFleetStop,
     };
 }

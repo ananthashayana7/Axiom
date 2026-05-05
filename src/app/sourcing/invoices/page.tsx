@@ -8,9 +8,12 @@ import { getInvoices } from "@/app/actions/invoices";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCurrency } from "@/components/currency-provider";
+import { InvoiceReviewDialog } from "@/components/invoices/invoice-review-dialog";
+import { convertCurrencyAmount } from "@/lib/finance";
 import {
     FileText, CheckCircle2, Clock, AlertTriangle,
-    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins, BarChart3, Upload
+    Filter, Download, X, RefreshCcw, Globe, Calendar, Coins, BarChart3, Upload, Landmark, ShieldAlert
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoiceActions } from "./invoice-actions";
@@ -23,6 +26,7 @@ import {
 } from 'recharts';
 
 export const dynamic = 'force-dynamic';
+type InvoiceRecord = Awaited<ReturnType<typeof getInvoices>>[number];
 
 const CURRENCY_LOCALE: Record<string, string> = {
     INR: 'en-IN', EUR: 'de-DE', USD: 'en-US', GBP: 'en-GB', JPY: 'ja-JP',
@@ -36,12 +40,37 @@ function formatAmount(amount: number, currencyCode: string): string {
     catch { return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 }
 
+function hasFxPath(sourceCurrency: string, targetCurrency: string, preferBookRates: boolean, finance: ReturnType<typeof useCurrency>["finance"]) {
+    const source = sourceCurrency.toUpperCase();
+    const target = targetCurrency.toUpperCase();
+
+    if (source === target) {
+        return true;
+    }
+
+    if (preferBookRates && target === finance.reportingCurrency.toUpperCase() && Number(finance.bookRates[source] || 0) > 0) {
+        return true;
+    }
+
+    const liveBase = finance.liveRates?.base?.toUpperCase();
+    const liveRates = finance.liveRates?.rates;
+    const sourceRate = source === liveBase ? 1 : Number(liveRates?.[source] || 0);
+    const targetRate = target === liveBase ? 1 : Number(liveRates?.[target] || 0);
+
+    if (sourceRate > 0 && targetRate > 0) {
+        return true;
+    }
+
+    return target === finance.reportingCurrency.toUpperCase() && Number(finance.bookRates[source] || 0) > 0;
+}
+
 export default function InvoicesPage() {
-    const [invoicesList, setInvoicesList] = useState<any[]>([]);
+    const [invoicesList, setInvoicesList] = useState<InvoiceRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
     const [suppliersList, setSuppliersList] = useState<{ id: string; name: string }[]>([]);
+    const { activeCurrencyCode, displayMode, finance, ready } = useCurrency();
     const [filters, setFilters] = useState({
         invoiceNumber: '', status: 'all', country: '', continent: 'all',
         region: '', dateFrom: '', dateTo: '', currency: 'all',
@@ -127,6 +156,29 @@ export default function InvoicesPage() {
         return acc;
     }, {});
     const currencyTotalEntries = Object.entries(currencyTotals);
+    const reviewQueueCount = invoicesList.filter(inv => inv.requiresHumanReview || Number(inv.openReviewTasks || 0) > 0).length;
+    const targetLensCurrency = displayMode === 'reporting' ? finance.reportingCurrency : activeCurrencyCode;
+    const preferBookRates = displayMode === 'reporting';
+    const lensLabel = !ready
+        ? 'Loading currency lens'
+        : displayMode === 'reporting'
+            ? `${finance.reportingCurrency} Book View`
+            : `${activeCurrencyCode} Local View`;
+    const convertedExposureTotal = invoicesList.reduce((sum, inv) => (
+        sum + convertCurrencyAmount(
+            Number(inv.amount) || 0,
+            inv.currency || finance.defaultCurrency,
+            targetLensCurrency,
+            finance,
+            { preferBookRates },
+        )
+    ), 0);
+    const coveredInvoices = invoicesList.filter((inv) => hasFxPath(
+        inv.currency || finance.defaultCurrency,
+        targetLensCurrency,
+        preferBookRates,
+        finance,
+    )).length;
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
@@ -153,6 +205,43 @@ export default function InvoicesPage() {
                     <Button variant="outline" onClick={exportToPDF} className="gap-2"><FileText className="h-4 w-4" /> PDF</Button>
                 </div>
             </div>
+
+            <Card className="border-slate-200 bg-slate-50/70">
+                <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                        <Landmark className="h-4 w-4 text-primary" />
+                        Currency and review lens
+                    </CardTitle>
+                    <CardDescription>
+                        Source invoice amounts stay untouched. The active lens changes display and rollups without rewriting supplier documents or country-specific tax evidence.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border bg-white p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Active lens</p>
+                        <p className="mt-2 text-lg font-black text-foreground">{lensLabel}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            {displayMode === 'reporting'
+                                ? "Stable reporting-book rates for finance rollups."
+                                : "User-local FX view for regional operators and procurement teams."}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Converted exposure</p>
+                        <p className="mt-2 text-lg font-black text-foreground">{formatAmount(convertedExposureTotal, targetLensCurrency)}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            {coveredInvoices}/{invoicesList.length || 0} visible invoices have active FX coverage in this lens.
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Tax and release posture</p>
+                        <p className="mt-2 text-lg font-black text-foreground">Source-country review</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            VAT, GST, and regional evidence stay tied to the original invoice and supplier country. Review the source document before release when tax handling is jurisdiction-sensitive.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Filter Panel */}
             {showFilters && (
@@ -224,7 +313,7 @@ export default function InvoicesPage() {
             )}
 
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
@@ -253,6 +342,16 @@ export default function InvoicesPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{invoicesList.filter(i => i.status === 'matched' || i.status === 'paid').length}</div>
                         <p className="text-xs text-muted-foreground mt-1">3-way verified</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Manual Review Queue</CardTitle>
+                        <ShieldAlert className="h-4 w-4 text-amber-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{reviewQueueCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Escalated or low-confidence invoices</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -291,7 +390,7 @@ export default function InvoicesPage() {
                 // This chart uses invoice counts rather than summed values so mixed currencies are never combined.
                 const continentData = Object.entries(
                     invoicesList.reduce((acc: Record<string, number>, inv) => {
-                        const c = inv.continent || inv.supplierContinent || 'Unknown';
+                        const c = inv.continent || 'Unknown';
                         acc[c] = (acc[c] || 0) + 1;
                         return acc;
                     }, {})
@@ -340,7 +439,7 @@ export default function InvoicesPage() {
                                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                                         <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                                         <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
-                                        <Tooltip formatter={(v: any) => `${Number(v)} invoices`} />
+                                        <Tooltip formatter={(value: number | string | undefined) => `${Number(value || 0)} invoices`} />
                                         <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -423,7 +522,10 @@ export default function InvoicesPage() {
                                                     {invoice.currency && <span className="text-[10px] text-muted-foreground ml-1 font-normal">{invoice.currency}</span>}
                                                 </td>
                                                 <td className="p-4 align-middle text-right">
-                                                    <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
+                                                    <div className="flex justify-end gap-2 flex-wrap">
+                                                        <InvoiceReviewDialog invoice={invoice} />
+                                                        <InvoiceActions invoiceId={invoice.id} status={invoice.status} onChanged={fetchInvoices} />
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
