@@ -16,12 +16,11 @@ interface Message {
     content: string;
 }
 
-const SUPPORTED_FILE_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls']);
+const SUPPORTED_FILE_EXTENSIONS = new Set(['pdf', 'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls']);
 
 function isSupportedCopilotFile(file: File) {
     const extension = file.name.toLowerCase().split('.').pop() ?? '';
     return file.type === 'application/pdf'
-        || file.type.startsWith('image/')
         || file.type === 'text/csv'
         || file.type === 'text/tab-separated-values'
         || file.type === 'text/plain'
@@ -68,7 +67,7 @@ export default function CopilotPage() {
                 setMessages(history);
             } else {
                 setMessages([
-                    { role: 'assistant', content: "Hello! I can help with Axiom workflows, AI agents, procurement data, and uploaded PDF, CSV, or Excel files." }
+                    { role: 'assistant', content: "Hello! I answer from Axiom's live workspace, seeded operating knowledge, and uploaded PDF, CSV, TXT, JSON, or Excel files." }
                 ]);
             }
             setLoadingHistory(false);
@@ -92,7 +91,7 @@ export default function CopilotPage() {
         }
 
         if (!isSupportedCopilotFile(file)) {
-            toast.error("Unsupported file type. Upload PDF, image, CSV, TSV, TXT, JSON, XLSX, or XLS files.");
+            toast.error("Unsupported file type. Upload PDF, CSV, TSV, TXT, JSON, XLSX, or XLS files.");
             return;
         }
 
@@ -158,7 +157,7 @@ export default function CopilotPage() {
                             Axiom Copilot
                         </h1>
                         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                            Reason over Axiom workflows, agents, and uploaded PDF, image, CSV, or Excel files.
+                            Ask grounded questions against suppliers, parts, contacts, invoices, orders, and parsed business documents.
                         </p>
                     </div>
                     <Button
@@ -166,7 +165,7 @@ export default function CopilotPage() {
                         size="sm"
                         onClick={async () => {
                             await clearChatHistory();
-                            setMessages([{ role: 'assistant', content: "Hello! Ask about Axiom workflows, live procurement context, or upload a file to analyze." }]);
+                            setMessages([{ role: 'assistant', content: "Hello! Ask about live Axiom data, operating workflows, or upload a document to parse." }]);
                         }}
                     >
                         Clear Session

@@ -3,7 +3,7 @@ import { AGENT_REGISTRY } from "@/app/actions/agents/registry";
 const APP_MODULES = [
     { label: "Dashboard", route: "/", description: "Monitors enterprise spend, supplier coverage, sourcing activity, and operational KPIs." },
     { label: "Suppliers", route: "/suppliers", description: "Manages supplier records, performance, risk visibility, and onboarding context." },
-    { label: "Axiom Copilot", route: "/copilot", description: "Answers product questions, analyzes procurement data, and reviews uploaded business documents." },
+    { label: "Axiom Copilot", route: "/copilot", description: "Answers product questions from live workspace data, seeded operating knowledge, and parsed business documents." },
     { label: "AI Agents", route: "/admin/agents", description: "Runs specialized AI workflows such as fraud detection, demand forecasting, and scenario modeling." },
     { label: "Parts Catalog", route: "/sourcing/parts", description: "Maintains part masters, benchmark pricing, and sourcing attributes." },
     { label: "Sourcing Requests", route: "/sourcing/rfqs", description: "Creates and tracks RFQs and competitive bidding events." },
@@ -40,12 +40,12 @@ const APP_WORKFLOWS = [
     {
         name: "Document and Invoice Analysis",
         summary: "Copilot can analyze procurement documents and guide users toward imports, matching, cost analysis, or risk review.",
-        actions: ["Upload PDFs, images, CSV, TSV, TXT, JSON, or XLSX to Copilot", "Use /admin/import for structured CSV ingestion", "Use /sourcing/invoices or /transactions for reconciliation"],
+        actions: ["Upload PDFs, CSV, TSV, TXT, JSON, or XLSX to Copilot", "Use /admin/import for structured CSV ingestion", "Use /sourcing/invoices or /transactions for reconciliation"],
     },
 ];
 
 const COPILOT_FILE_CAPABILITIES = [
-    "Native analysis for PDF and image uploads.",
+    "Deterministic analysis for searchable PDF uploads.",
     "Structured text analysis for CSV, TSV, TXT, JSON, and log-style files.",
     "Spreadsheet preview support for modern Excel .xlsx workbooks.",
     "Graceful fallback guidance for unsupported or partially readable files instead of silent failure.",

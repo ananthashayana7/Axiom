@@ -228,14 +228,25 @@ async function runPdfTextScript(pdfPath: string) {
     return null;
 }
 
-export async function extractInvoiceFromPdfBuffer(fileName: string, buffer: Buffer): Promise<PdfExtractionResult | null> {
+async function withTemporaryPdfBuffer<T>(fileName: string, buffer: Buffer, callback: (pdfPath: string) => Promise<T>) {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "axiom-pdf-"));
     const tempFilePath = path.join(tempDir, `${Date.now()}-${fileName.replace(/[^A-Za-z0-9._-]/g, "_") || "invoice"}.pdf`);
 
     try {
         await fs.writeFile(tempFilePath, buffer);
+        return await callback(tempFilePath);
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+    }
+}
 
-        const text = await runPdfTextScript(tempFilePath);
+export async function extractPdfTextFromBuffer(fileName: string, buffer: Buffer): Promise<string | null> {
+    return withTemporaryPdfBuffer(fileName, buffer, async (pdfPath) => runPdfTextScript(pdfPath));
+}
+
+export async function extractInvoiceFromPdfBuffer(fileName: string, buffer: Buffer): Promise<PdfExtractionResult | null> {
+    return withTemporaryPdfBuffer(fileName, buffer, async (pdfPath) => {
+        const text = await runPdfTextScript(pdfPath);
         if (!text) return null;
 
         const data = extractInvoiceFromText(text, fileName);
@@ -259,7 +270,5 @@ export async function extractInvoiceFromPdfBuffer(fileName: string, buffer: Buff
                 "Line items were not parsed automatically for this PDF.",
             ],
         };
-    } finally {
-        await fs.rm(tempDir, { recursive: true, force: true });
-    }
+    });
 }
