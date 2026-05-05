@@ -1044,6 +1044,91 @@ function answerFromWorkspaceSnapshot(query: string, snapshot: WorkspaceSnapshot)
     return renderWorkspaceHitDetail(hits[0], query);
 }
 
+function getCopilotGroundingIntro() {
+    return "Axiom Copilot is running in grounded workspace mode. I answer from live Axiom data, seeded product knowledge, and deterministic document parsing.";
+}
+
+function buildWorkspaceSummaryLine(context: Awaited<ReturnType<typeof getDatabaseContext>>) {
+    if (!context) {
+        return null;
+    }
+
+    return `Visible now: ${context.stats.suppliers} suppliers, ${context.stats.parts} parts, ${context.stats.orders} orders, and total tracked spend of ${context.stats.totalSpend}.`;
+}
+
+function maybeAnswerCopilotMetaQuery(
+    query: string,
+    context: Awaited<ReturnType<typeof getDatabaseContext>>,
+    snapshot: WorkspaceSnapshot
+) {
+    const normalized = normalizeSearchText(query);
+    const summaryLine = buildWorkspaceSummaryLine(context);
+
+    if (!normalized) {
+        return [
+            "Ask me about suppliers, orders, invoices, risk, compliance, documents, or Axiom workflow behavior.",
+            summaryLine,
+            "(Source: Workspace Snapshot + Product Knowledge)",
+        ].filter(Boolean).join("\n\n");
+    }
+
+    if (["hi", "hello", "hey", "yo"].includes(normalized) || /^good (morning|afternoon|evening)$/.test(normalized)) {
+        return [
+            "Axiom Copilot here.",
+            "I can answer from live Axiom records, explain how the product works, search operational data, and parse grounded documents.",
+            summaryLine,
+            "Try: `show high-risk suppliers`, `find invoice INV-1024`, or `what is Book View?`",
+            "(Source: Workspace Snapshot + Product Knowledge)",
+        ].filter(Boolean).join("\n\n");
+    }
+
+    if (
+        normalized.includes("who are you")
+        || normalized.includes("what are you")
+        || normalized === "introduce yourself"
+    ) {
+        return [
+            "I am Axiom Copilot, the grounded workspace assistant for Axiom.",
+            "I answer from live database records, product knowledge, and deterministic document parsing instead of free-form guessing.",
+            summaryLine,
+            "(Source: Workspace Snapshot + Product Knowledge)",
+        ].filter(Boolean).join("\n\n");
+    }
+
+    if (
+        normalized.includes("what can you do")
+        || normalized === "help"
+        || normalized.includes("how can you help")
+        || normalized.includes("capabilities")
+    ) {
+        return [
+            "I can help with these grounded jobs right now:",
+            "- Search live Axiom records across suppliers, parts, contacts, users, orders, invoices, contracts, documents, and cost centers.",
+            "- Explain Axiom workflows such as matching, exceptions, compliance, risk controls, currency lenses, and scenario analysis.",
+            "- Parse searchable PDFs and structured files like CSV, XLSX, TXT, JSON, and ZIP bundles.",
+            "- Trigger supported operational agents such as fraud detection, demand forecasting, and payment optimization.",
+            summaryLine,
+            "Best starter prompts: `show disputed invoices`, `find Atlas Logistics`, `what is Scenario Modeling?`, or `analyze this PDF`.",
+            "(Source: Workspace Snapshot + Product Knowledge)",
+        ].filter(Boolean).join("\n");
+    }
+
+    if (
+        normalized.includes("what do you know")
+        || normalized.includes("what data can you see")
+        || normalized.includes("what can you see")
+        || normalized.includes("what do you have access to")
+    ) {
+        return [
+            "Here is the current visible database footprint for this session.",
+            buildWorkspaceCountTable(snapshot),
+            "(Source: Workspace Snapshot)",
+        ].join("\n\n");
+    }
+
+    return null;
+}
+
 function formatOfflineCurrency(value: number) {
     return new Intl.NumberFormat("en-IN", {
         style: "currency",
@@ -1056,7 +1141,7 @@ function buildOfflineCopilotResponse(
     query: string,
     context: Awaited<ReturnType<typeof getDatabaseContext>>
 ) {
-    const intro = "Axiom Copilot is running in guided demo mode right now because live AI generation is unavailable. I can still answer from the current Axiom workspace snapshot.";
+    const intro = getCopilotGroundingIntro();
 
     if (!context) {
         return [
@@ -1070,7 +1155,7 @@ function buildOfflineCopilotResponse(
     const topCategory = context.topCategories[0];
     const topRiskySupplier = context.riskySuppliers[0];
     const recentOrder = context.recentOrders[0];
-    const summaryLine = `Current snapshot: ${context.stats.suppliers} suppliers, ${context.stats.parts} parts, ${context.stats.orders} orders, and total tracked spend of ${context.stats.totalSpend}.`;
+    const summaryLine = buildWorkspaceSummaryLine(context) || "Current workspace snapshot is available.";
 
     if (/(graph|chart|visual)/.test(normalizedQuery) && context.topCategories.length > 0) {
         const chart = {
@@ -1177,6 +1262,14 @@ export async function processCopilotQuery(
 
             if (attachment && attachment.data) {
                 return await processDocumentAttachment(query, attachment, context, history, session.user, workspace);
+            }
+
+            const metaResponse = maybeAnswerCopilotMetaQuery(query, context, workspace);
+            if (metaResponse) {
+                await saveChatMessage('user', query);
+                await saveChatMessage('assistant', metaResponse);
+                await TelemetryService.trackEvent("AxiomCopilot", "meta_answer", { query_length: query.length });
+                return metaResponse;
             }
 
             // Fast-path operational intents: allow Copilot to run AI agents directly.

@@ -27,9 +27,9 @@ export async function Header() {
                 : "Operations Workspace";
     const workspaceSubtitle =
         role === 'admin'
-            ? "Restricted intelligence, controls, and approvals"
+            ? "Platform intelligence, controls, approvals, and operating oversight"
             : role === 'supplier'
-                ? "Vendor-facing RFQs, orders, and requests"
+                ? "Vendor-facing RFQs, orders, documents, and requests"
                 : "Internal procurement execution workspace";
     const profileHref = role === 'supplier' ? "/portal/profile" : "/profile";
 

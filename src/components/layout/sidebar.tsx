@@ -75,10 +75,10 @@ export async function Sidebar({ className }: { className?: string }) {
     const visibleOperationalLinks = role === 'admin' ? adminOperationalLinks : [];
     const workspaceLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Internal Workspace';
     const workspaceDescription = role === 'admin'
-        ? 'Restricted controls, approvals, and intelligence'
+        ? 'Platform controls, approvals, intelligence, and operating oversight'
         : role === 'supplier'
-            ? 'External access limited to vendor-facing work'
-            : 'Operational sourcing and procurement workspace';
+            ? 'Vendor-facing workspace for bids, orders, documents, and requests'
+            : 'Operational sourcing, requisitions, and invoice coordination';
     const workspaceBadgeClass = role === 'admin'
         ? 'border-amber-200 bg-amber-50 text-amber-700'
         : role === 'supplier'
@@ -87,7 +87,7 @@ export async function Sidebar({ className }: { className?: string }) {
     const homeLabel = role === 'admin' ? 'Admin Console' : role === 'supplier' ? 'Supplier Portal' : 'Workspace';
 
     return (
-        <div className={cn("flex h-full w-64 flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground xl:w-72", className)}>
+        <div className={cn("flex h-full w-[17rem] min-w-[17rem] flex-col overflow-x-visible border-r border-border bg-sidebar text-sidebar-foreground xl:w-[18rem] xl:min-w-[18rem]", className)}>
             <div className="show-scrollbar min-h-0 flex-1 overflow-y-auto pb-3">
 
                 {/* ── Brand ── */}

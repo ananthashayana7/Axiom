@@ -28,7 +28,7 @@ export function InvoiceActions({
                     newStatus === "pending"
                         ? "Invoice moved back to review"
                         : newStatus === "paid"
-                            ? "Payment released"
+                            ? "Invoice marked as paid"
                             : `Invoice marked as ${newStatus}`,
                 );
             } else {
@@ -74,11 +74,11 @@ export function InvoiceActions({
             if (res.success) {
                 await onChanged?.();
                 toast.success(
-                    res.reused ? "Review task refreshed" : "Escalated to human review",
+                    res.reused ? "Review task refreshed" : "Escalated for review",
                     {
                         description: res.reused
                             ? "An open review task was raised back to the operator queue."
-                            : "A human validation task was created before any release can continue.",
+                            : "A manual validation task was created before any payment status update can continue.",
                     },
                 );
             } else {
@@ -104,15 +104,15 @@ export function InvoiceActions({
             >
                 {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Run Rules"}
             </Button>
-            <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-[10px] font-bold uppercase tracking-tighter border-amber-200 text-amber-700 hover:bg-amber-50"
-                onClick={handleEscalate}
-                disabled={isLoading}
-            >
-                {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="mr-1 h-3 w-3" />}
-                Escalate Review
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-[10px] font-bold uppercase tracking-tighter border-amber-200 text-amber-700 hover:bg-amber-50"
+                    onClick={handleEscalate}
+                    disabled={isLoading}
+                >
+                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="mr-1 h-3 w-3" />}
+                Escalate
             </Button>
             {status === 'pending' && (
                 <Button
@@ -143,7 +143,7 @@ export function InvoiceActions({
                     onClick={() => handleAction('paid')}
                     disabled={isLoading}
                 >
-                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Release Payment"}
+                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Paid"}
                 </Button>
                 </>
             )}

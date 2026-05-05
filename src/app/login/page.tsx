@@ -99,7 +99,7 @@ export default function LoginPage() {
             mode: 'admin',
             label: 'Admin Console',
             title: 'Administrator sign-in',
-            description: 'Restricted control-plane access for platform administrators.',
+            description: 'Platform-wide control, approvals, intelligence, and operating oversight.',
         },
         {
             mode: 'supplier',
@@ -132,7 +132,6 @@ export default function LoginPage() {
                             </div>
                             <div>
                                 <span className="text-[17px] font-black tracking-tight text-white">Axiom</span>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/55">a PMA product</p>
                             </div>
                         </div>
 
@@ -177,7 +176,6 @@ export default function LoginPage() {
                             </div>
                             <div>
                                 <span className="text-[17px] font-black tracking-tight text-foreground">Axiom</span>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">a PMA product</p>
                             </div>
                         </div>
 
@@ -185,7 +183,6 @@ export default function LoginPage() {
                             <div className="mb-5 flex items-center justify-between gap-3">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-primary/70">Axiom</p>
-                                    <p className="text-[11px] text-muted-foreground">a PMA product</p>
                                 </div>
                                 <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
                                     Secure sign in
@@ -274,10 +271,10 @@ export default function LoginPage() {
                                                 : 'border-blue-200 bg-blue-50 text-blue-800'
                                             }`}>
                                             {loginMode === 'admin'
-                                                ? 'Admin Console access is limited to platform administrators and protected routes only.'
+                                                ? 'Admin Console sessions can manage platform controls, approvals, intelligence, and operating routes.'
                                                 : loginMode === 'supplier'
                                                     ? 'Supplier Portal accounts are restricted to vendor-facing RFQs, documents, requests, and order visibility.'
-                                                    : 'Internal Workspace accounts can operate the procurement workspace without entering the admin control plane.'}
+                                                : 'Internal Workspace accounts can operate the procurement workspace without entering the admin control plane.'}
                                         </div>
                                     </>
                                 ) : showSetup2FA ? (
@@ -377,10 +374,6 @@ export default function LoginPage() {
                                 </div>
                             </form>
                         </div>
-
-                        <p className="mt-4 text-center text-[11px] text-muted-foreground/50">
-                            Axiom - a PMA product
-                        </p>
                     </div>
                 </div>
             </div>

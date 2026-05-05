@@ -73,7 +73,7 @@ export default async function Home() {
   const dashboardTitle = isAdmin ? "Admin Command Center" : "Operations Workspace";
   const sessionBadge = isAdmin ? "Admin Console Session" : "Internal User Session";
   const dashboardSubtitle = isAdmin
-    ? "Restricted intelligence, approvals, and platform control"
+    ? "Platform intelligence, approvals, and operational control"
     : "Operational sourcing and requisition workspace";
   const renderedAt = new Date().toISOString();
 
@@ -297,7 +297,7 @@ export default async function Home() {
 
               <div className="grid gap-3">
                 <Link href="/admin/risk">
-                  <Button className="w-full justify-between rounded-2xl bg-red-600 px-5 py-6 text-left text-sm font-bold text-white hover:bg-red-700">
+                  <Button className="w-full justify-between rounded-2xl bg-slate-900 px-5 py-6 text-left text-sm font-bold text-white hover:bg-slate-800">
                     Open Risk Intelligence
                     <ArrowUpRight className="h-4 w-4" />
                   </Button>

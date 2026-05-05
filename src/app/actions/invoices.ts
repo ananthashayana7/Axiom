@@ -75,7 +75,7 @@ function getInvoiceConfidenceLabel(score: number) {
     if (score >= 90) return "High confidence";
     if (score >= 75) return "Guarded release";
     if (score >= 55) return "Needs review";
-    return "Human review required";
+    return "Manual review required";
 }
 
 function buildInvoiceConfidenceScore(input: {
@@ -252,7 +252,7 @@ export async function getInvoices(filters?: {
             const reviewSignals = [
                 !row.orderId ? "Missing purchase order link" : null,
                 openFraudAlerts > 0 ? `${openFraudAlerts} open fraud alert${openFraudAlerts === 1 ? "" : "s"}` : null,
-                openReviewTasks > 0 ? `${openReviewTasks} open human review task${openReviewTasks === 1 ? "" : "s"}` : null,
+                openReviewTasks > 0 ? `${openReviewTasks} open manual review task${openReviewTasks === 1 ? "" : "s"}` : null,
                 amount >= humanReleaseThreshold
                     ? `Amount exceeds the ${formatThresholdAmount(humanReleaseThreshold, currency)} manual release threshold`
                     : null,
@@ -436,9 +436,9 @@ export async function createInvoice(data: {
                     priority: initialStatus === 'disputed' || requiresHumanRelease ? 'high' : 'medium',
                     createdById: session.user.id,
                     nextAction: initialStatus === 'disputed'
-                        ? 'Resolve the invoice discrepancy, rerun deterministic matching, then release payment.'
+                        ? 'Resolve the invoice discrepancy, rerun deterministic matching, then mark the invoice as paid.'
                         : requiresHumanRelease
-                            ? 'Confirm supplier, tax, and banking evidence, then close the review task before payment release.'
+                            ? 'Confirm supplier, tax, and banking evidence, then close the review task before the invoice can be marked as paid.'
                             : 'Review extracted invoice fields and confirm totals before matching.',
                 });
             }
@@ -507,8 +507,8 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
 
         if (status === 'paid') {
             if (invoice.status !== 'matched') {
-                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because the invoice is not in matched status.`);
-                return { success: false, error: "Only matched invoices can move into payment release." };
+                await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because the invoice is not in matched status.`);
+                return { success: false, error: "Only matched invoices can be marked as paid." };
             }
 
             const [openFraudAlert] = await db.select({ id: fraudAlerts.id })
@@ -521,8 +521,8 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
                 .limit(1);
 
             if (openFraudAlert) {
-                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because open fraud alerts still require review.`);
-                return { success: false, error: "Payment release blocked until open fraud alerts are resolved." };
+                await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because open fraud alerts still require review.`);
+                return { success: false, error: "Mark-paid action blocked until open fraud alerts are resolved." };
             }
 
             const [openWorkflowTask] = await db.select({ id: workflowTasks.id })
@@ -535,8 +535,8 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
                 .limit(1);
 
             if (openWorkflowTask) {
-                await logBlockedRelease(`Payment release blocked for invoice ${invoice.invoiceNumber} because a human review task is still open.`);
-                return { success: false, error: "Payment release blocked until invoice review tasks are closed." };
+                await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because a review task is still open.`);
+                return { success: false, error: "Mark-paid action blocked until invoice review tasks are closed." };
             }
         }
 
@@ -626,7 +626,7 @@ export async function escalateInvoiceToHumanReview(invoiceId: string) {
         } else {
             await db.insert(workflowTasks).values({
                 title: `Manual review for invoice ${invoice.invoiceNumber}`,
-                description: `Invoice ${invoice.invoiceNumber} for ${invoice.supplierName || 'the selected supplier'} was escalated for human validation before payment release.`,
+                description: `Invoice ${invoice.invoiceNumber} for ${invoice.supplierName || 'the selected supplier'} was escalated for manual validation before payment status can change.`,
                 entityType: 'invoice',
                 entityId: invoiceId,
                 priority: 'high',
@@ -640,13 +640,13 @@ export async function escalateInvoiceToHumanReview(invoiceId: string) {
             action: 'ESCALATE',
             entityType: 'invoice',
             entityId: invoiceId,
-            details: `Invoice ${invoice.invoiceNumber} escalated to human review from Financial Matching.`,
+            details: `Invoice ${invoice.invoiceNumber} escalated to manual review from Financial Matching.`,
         });
 
         await createNotification({
             userId: invoice.supplierId,
             title: 'Invoice under manual review',
-            message: `Invoice ${invoice.invoiceNumber} is being reviewed before payment release.`,
+            message: `Invoice ${invoice.invoiceNumber} is being reviewed before it can be marked as paid.`,
             type: 'warning',
             link: '/portal/invoices',
         });
@@ -661,8 +661,8 @@ export async function escalateInvoiceToHumanReview(invoiceId: string) {
             reused: Boolean(existingTask),
         };
     } catch (error) {
-        console.error("Failed to escalate invoice to human review:", error);
-        return { success: false, error: "Failed to route invoice into human review." };
+        console.error("Failed to escalate invoice to manual review:", error);
+        return { success: false, error: "Failed to route invoice into manual review." };
     }
 }
 

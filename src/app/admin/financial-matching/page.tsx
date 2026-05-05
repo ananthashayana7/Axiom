@@ -138,11 +138,11 @@ export default function FinancialMatchingPage() {
             try {
                 const result = await updateInvoiceStatus(invoiceId, 'paid');
                 if (!result.success) {
-                    toast.error(result.error || "Failed to release payment");
+                    toast.error(result.error || "Failed to mark invoice as paid");
                     return;
                 }
 
-                toast.success("Payment released");
+                toast.success("Invoice marked as paid");
                 await fetchInvoices();
             } catch {
                 toast.error("Failed to update invoice");
@@ -159,10 +159,10 @@ export default function FinancialMatchingPage() {
                     return;
                 }
 
-                toast.success(result.reused ? "Review task refreshed" : "Escalated to human review", {
+                toast.success(result.reused ? "Review task refreshed" : "Escalated for review", {
                     description: result.reused
                         ? "An existing invoice review task was reopened in the queue."
-                        : "A manual validation task now blocks release until a human closes it.",
+                        : "A manual validation task now blocks the status change until the review task is closed.",
                 });
                 await fetchInvoices();
             } catch {
@@ -334,7 +334,7 @@ export default function FinancialMatchingPage() {
                     <CardDescription>
                         {loading
                             ? "Loading..."
-                            : `${invoicesList.length} invoice(s). Run rules before release, dispute exceptions, and release payment only after a clean match.`}
+                            : `${invoicesList.length} invoice(s). Run rules before status updates, dispute exceptions, and mark an invoice paid only after a clean match.`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -427,7 +427,7 @@ export default function FinancialMatchingPage() {
                                                                 disabled={isPending}
                                                                 onClick={() => handleEscalateToHuman(invoice.id)}
                                                             >
-                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate
                                                             </Button>
                                                         </>
                                                     ) : null}
@@ -440,7 +440,7 @@ export default function FinancialMatchingPage() {
                                                                 disabled={isPending}
                                                                 onClick={() => handleEscalateToHuman(invoice.id)}
                                                             >
-                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate
                                                             </Button>
                                                             <Button
                                                                 size="sm"
@@ -449,7 +449,7 @@ export default function FinancialMatchingPage() {
                                                                 disabled={isPending}
                                                                 onClick={() => handleMarkPaid(invoice.id)}
                                                             >
-                                                                <DollarSign className="h-3 w-3 mr-1" /> Release Payment
+                                                                <DollarSign className="h-3 w-3 mr-1" /> Mark Paid
                                                             </Button>
                                                         </>
                                                     ) : null}
@@ -471,7 +471,7 @@ export default function FinancialMatchingPage() {
                                                                 disabled={isPending}
                                                                 onClick={() => handleEscalateToHuman(invoice.id)}
                                                             >
-                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate to Human
+                                                                <ShieldAlert className="h-3 w-3 mr-1" /> Escalate
                                                             </Button>
                                                         </>
                                                     ) : null}
