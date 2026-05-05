@@ -17,6 +17,22 @@ type NavigatorWithConnection = Navigator & {
     };
 };
 
+function formatUtcTimestamp(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
+}
+
 export function OperationalFreshnessStrip({
     renderedAt,
     telemetryTitle,
@@ -33,6 +49,7 @@ export function OperationalFreshnessStrip({
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [connectionMode, setConnectionMode] = useState<'live' | 'degraded'>('live');
+    const renderedAtLabel = formatUtcTimestamp(renderedAt);
 
     useEffect(() => {
         const updateConnectionMode = () => {
@@ -65,7 +82,7 @@ export function OperationalFreshnessStrip({
                         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Data last synced</p>
                         <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-foreground">
                             <Clock3 className="h-4 w-4 text-primary" />
-                            {new Date(renderedAt).toLocaleString()}
+                            {renderedAtLabel}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                             This surface renders from guarded server actions. Force refresh if you need a fresh read before presenting.
