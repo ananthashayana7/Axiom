@@ -44,10 +44,17 @@ CardTitle.displayName = "CardTitle"
 const CardDescription = React.forwardRef<
     HTMLDivElement,
     React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => (
     <div
         ref={ref}
+        data-slot="card-description"
         className={cn("text-sm text-muted-foreground", className)}
+        style={{
+            fontSize: "0.875rem",
+            lineHeight: 1.45,
+            fontWeight: 500,
+            ...style,
+        }}
         {...props}
     />
 ))

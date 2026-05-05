@@ -120,7 +120,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
                     </div>
                     Escalation Channels
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                <CardDescription className="font-bold text-muted-foreground uppercase tracking-widest mt-1">
                     Directory-backed escalation routes
                 </CardDescription>
             </CardHeader>
@@ -139,7 +139,7 @@ export function CommunicationHub({ leads = [] }: { leads?: DepartmentLead[] }) {
                                 <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover/item:text-emerald-600 transition-colors">
                                     {dept.name}
                                 </h4>
-                                <p className="text-[10px] text-muted-foreground font-medium">{dept.description}</p>
+                                <p className="text-sm text-muted-foreground font-medium leading-snug">{dept.description}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-1 opacity-40 group-hover/item:opacity-100 transition-opacity">
