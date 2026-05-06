@@ -5,7 +5,7 @@ import { Activity, ArrowUpRight, Boxes, CreditCard, Database, Landmark, ShieldAl
 import { Badge } from "@/components/ui/badge";
 import { LazyDataExplorer } from "@/components/dashboard/dashboard-intelligence-lazy";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
-import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics, getMarketBenchmarks, getCountrySpendBreakdown } from "@/app/actions/dashboard";
+import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics, getCountrySpendBreakdown } from "@/app/actions/dashboard";
 import { getOperationalSignals } from "@/app/actions/operational-readiness";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
@@ -46,7 +46,6 @@ export default async function Home() {
     categorySpend,
     riskySuppliers,
     supplierAnalytics,
-    marketBenchmarks,
     countrySpend,
     suppliers,
     parts,
@@ -61,7 +60,6 @@ export default async function Home() {
     getCategorySpend(),
     getHighRiskSuppliers(),
     getSupplierAnalytics(),
-    getMarketBenchmarks(),
     getCountrySpendBreakdown(),
     getSuppliers(),
     getParts(),
@@ -163,7 +161,6 @@ export default async function Home() {
       {isAdmin ? (
         <ProcurementCommandBoard
           quickActions={quickActions}
-          benchmarks={marketBenchmarks}
           monthlyData={monthlySpend}
           categoryData={categorySpend}
           countryData={countrySpend}
