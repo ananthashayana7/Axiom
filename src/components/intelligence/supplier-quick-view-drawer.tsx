@@ -30,7 +30,6 @@ export function SupplierQuickViewDrawer({
     onOpenChange: (open: boolean) => void;
 }) {
     const [data, setData] = useState<SupplierQuickViewData>(null);
-    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!open || !supplierId) {
@@ -38,14 +37,11 @@ export function SupplierQuickViewDrawer({
         }
 
         let cancelled = false;
-        setData(null);
-        setLoading(true);
 
         void (async () => {
             const result = await getSupplierQuickView(supplierId);
             if (!cancelled) {
                 setData(result);
-                setLoading(false);
             }
         })();
 
@@ -54,15 +50,17 @@ export function SupplierQuickViewDrawer({
         };
     }, [open, supplierId]);
 
-    const supplier = data?.supplier;
-    const quickView = data;
-    const totalCarbon = data?.sustainability.totalCarbon || 0;
-    const renewableShare = data?.sustainability.renewableEnergyShare || 0;
-    const delayedOrders = data?.orderStats.delayedOrders || 0;
+    const matchesRequestedSupplier = Boolean(supplierId && data?.supplier?.id === supplierId);
+    const loading = open && Boolean(supplierId) && !matchesRequestedSupplier;
+    const supplier = matchesRequestedSupplier ? data?.supplier : null;
+    const quickView = matchesRequestedSupplier ? data : null;
+    const totalCarbon = quickView?.sustainability.totalCarbon || 0;
+    const renewableShare = quickView?.sustainability.renewableEnergyShare || 0;
+    const delayedOrders = quickView?.orderStats.delayedOrders || 0;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="overflow-hidden">
+            <SheetContent className="overflow-hidden sm:max-w-[760px] lg:max-w-[900px]">
                 <SheetHeader>
                     <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                         <div className="space-y-2">
@@ -100,7 +98,7 @@ export function SupplierQuickViewDrawer({
 
                     {!loading && supplier && quickView && (
                         <>
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="grid gap-3 md:grid-cols-2">
                                 <MetricCard
                                     label="Financial Health"
                                     value={`${supplier.financialScore || 0}/100`}
@@ -133,7 +131,7 @@ export function SupplierQuickViewDrawer({
                                     Risk and performance pulse
                                 </div>
                                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                    <div className="space-y-3">
+                                    <div className="min-w-0 space-y-3">
                                         <div className="flex items-center justify-between text-sm">
                                             <span>On-time delivery</span>
                                             <span className="font-semibold">{Math.round(quickView.performance?.onTimeDeliveryRate || 0)}%</span>
@@ -145,7 +143,7 @@ export function SupplierQuickViewDrawer({
                                         </div>
                                         <Progress value={quickView.performance?.collaborationScore || 0} className="h-2" />
                                     </div>
-                                    <div className="space-y-3 rounded-2xl border bg-background p-4 text-sm">
+                                    <div className="min-w-0 space-y-3 rounded-2xl border bg-background p-4 text-sm">
                                         <div className="flex items-center justify-between">
                                             <span className="text-muted-foreground">Open RFQ invites</span>
                                             <span className="font-semibold">{quickView.rfqStats.activeInvites}</span>
@@ -167,8 +165,8 @@ export function SupplierQuickViewDrawer({
                                     <Globe2 className="h-4 w-4 text-primary" />
                                     Sustainability scorecard
                                 </div>
-                                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_200px]">
-                                    <div className="space-y-3">
+                                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                                    <div className="min-w-0 space-y-3">
                                         <div className="flex items-center justify-between text-sm">
                                             <span>Renewable energy share</span>
                                             <span className="font-semibold">{renewableShare}%</span>
@@ -180,7 +178,7 @@ export function SupplierQuickViewDrawer({
                                             <CarbonBox label="Scope 3" value={quickView.sustainability.scope3} />
                                         </div>
                                     </div>
-                                    <div className="rounded-2xl border bg-background p-4">
+                                    <div className="min-w-0 rounded-2xl border bg-background p-4">
                                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
                                             Disclosure Band
                                         </p>
@@ -232,7 +230,7 @@ export function SupplierQuickViewDrawer({
                                         </div>
                                         <div className="flex items-start justify-between gap-4">
                                             <span className="text-muted-foreground">Supply categories</span>
-                                            <div className="flex max-w-[60%] flex-wrap justify-end gap-2">
+                                            <div className="flex max-w-full flex-wrap justify-end gap-2 md:max-w-[60%]">
                                                 {(supplier.categories || []).length > 0 ? (
                                                     supplier.categories?.map((category: string) => (
                                                         <Badge key={category} variant="secondary">{category}</Badge>
@@ -284,20 +282,20 @@ function MetricCard({
     icon: ReactNode;
 }) {
     return (
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
+        <div className="min-w-0 rounded-2xl border bg-background p-4 shadow-sm">
             <div className="flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
                 {icon}
             </div>
-            <p className="mt-3 text-2xl font-semibold text-foreground">{value}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
+            <p className="mt-3 text-[1.85rem] font-semibold leading-tight tracking-tight text-foreground [overflow-wrap:anywhere]">{value}</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground [overflow-wrap:anywhere]">{hint}</p>
         </div>
     );
 }
 
 function CarbonBox({ label, value }: { label: string; value: number }) {
     return (
-        <div className="rounded-2xl border bg-background p-3">
+        <div className="min-w-0 rounded-2xl border bg-background p-3">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
             <p className="mt-2 text-lg font-semibold">{value.toFixed(1)} tCO2e</p>
         </div>
