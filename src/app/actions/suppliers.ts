@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, procurementOrders, supplierPerformanceLogs, documents, rfqSuppliers, type Supplier } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -333,6 +333,154 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
     } catch (error) {
         console.error("Failed to fetch supplier:", error);
         return null;
+    }
+}
+
+export async function getSupplierWorkspaceRows() {
+    const session = await auth();
+    if (!session) return [];
+
+    try {
+        const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt);
+        const scopedSuppliers = session.user.role === 'supplier'
+            ? allSuppliers.filter((supplier) => supplier.id === session.user.supplierId)
+            : isRegionalOperator(session.user)
+                ? allSuppliers.filter((supplier) => isWithinRegionalScope(session.user, {
+                    country: supplier.countryCode,
+                    region: supplier.city,
+                }))
+                : allSuppliers;
+
+        if (scopedSuppliers.length === 0) {
+            return [];
+        }
+
+        const supplierIds = scopedSuppliers.map((supplier) => supplier.id);
+        const [orderRows, documentRows, rfqRows] = await Promise.all([
+            db.select({
+                supplierId: procurementOrders.supplierId,
+                totalAmount: procurementOrders.totalAmount,
+                status: procurementOrders.status,
+                createdAt: procurementOrders.createdAt,
+            })
+                .from(procurementOrders)
+                .where(inArray(procurementOrders.supplierId, supplierIds)),
+            db.select({
+                supplierId: documents.supplierId,
+                count: sql<number>`count(*)::int`.mapWith(Number),
+            })
+                .from(documents)
+                .where(inArray(documents.supplierId, supplierIds))
+                .groupBy(documents.supplierId),
+            db.select({
+                supplierId: rfqSuppliers.supplierId,
+                invited: sql<number>`count(*) filter (where ${rfqSuppliers.status} = 'invited')::int`.mapWith(Number),
+                quoted: sql<number>`count(*) filter (where ${rfqSuppliers.status} = 'quoted')::int`.mapWith(Number),
+            })
+                .from(rfqSuppliers)
+                .where(inArray(rfqSuppliers.supplierId, supplierIds))
+                .groupBy(rfqSuppliers.supplierId),
+        ]);
+
+        const currentYear = new Date().getUTCFullYear();
+        const previousYear = currentYear - 1;
+        const orderMap = new Map<string, {
+            currentYearVolume: number;
+            previousYearVolume: number;
+            activeOrders: number;
+            totalOrders: number;
+        }>();
+
+        for (const row of orderRows) {
+            const metrics = orderMap.get(row.supplierId) || {
+                currentYearVolume: 0,
+                previousYearVolume: 0,
+                activeOrders: 0,
+                totalOrders: 0,
+            };
+            const amount = Number(row.totalAmount || 0);
+            const orderYear = row.createdAt ? new Date(row.createdAt).getUTCFullYear() : null;
+
+            if (orderYear === currentYear) {
+                metrics.currentYearVolume += amount;
+            }
+            if (orderYear === previousYear) {
+                metrics.previousYearVolume += amount;
+            }
+            if (['approved', 'sent', 'pending_approval'].includes(row.status || '')) {
+                metrics.activeOrders += 1;
+            }
+            metrics.totalOrders += 1;
+            orderMap.set(row.supplierId, metrics);
+        }
+
+        const documentMap = new Map(documentRows.map((row) => [row.supplierId, row.count]));
+        const rfqMap = new Map(rfqRows.map((row) => [row.supplierId, { invited: row.invited, quoted: row.quoted }]));
+
+        return scopedSuppliers.map((supplier, index) => {
+            const orderMetrics = orderMap.get(supplier.id) || {
+                currentYearVolume: 0,
+                previousYearVolume: 0,
+                activeOrders: 0,
+                totalOrders: 0,
+            };
+            const documentCount = documentMap.get(supplier.id) || 0;
+            const rfqMetrics = rfqMap.get(supplier.id) || { invited: 0, quoted: 0 };
+            const certificationCount = (supplier.isoCertifications || []).length;
+            const complianceCoverage = Math.min(
+                100,
+                certificationCount * 14
+                + (supplier.modernSlaveryStatement === 'yes' ? 14 : 0)
+                + (supplier.conflictMineralsStatus === 'compliant' ? 14 : 0)
+                + (supplier.countryCode ? 8 : 0)
+                + (supplier.city ? 8 : 0)
+                + ((supplier.categories || []).length > 0 ? 10 : 0)
+                + (documentCount > 0 ? 12 : 0)
+                + ((supplier.esgScore || 0) >= 60 ? 10 : 0)
+                + ((supplier.performanceScore || 0) >= 70 ? 10 : 0),
+            );
+            const trustScore = Math.round((
+                (supplier.performanceScore || 0)
+                + (supplier.financialScore || 0)
+                + (supplier.esgScore || 0)
+                + Math.max(0, 100 - (supplier.riskScore || 0))
+            ) / 4);
+
+            return {
+                id: supplier.id,
+                supplierCode: String(index + 1).padStart(6, '0'),
+                name: supplier.name,
+                contactEmail: supplier.contactEmail,
+                countryCode: supplier.countryCode || null,
+                city: supplier.city || null,
+                status: supplier.status || 'active',
+                lifecycleStatus: supplier.lifecycleStatus || 'prospect',
+                tierLevel: supplier.tierLevel || 'tier_3',
+                abcClassification: supplier.abcClassification || 'None',
+                riskScore: supplier.riskScore || 0,
+                performanceScore: supplier.performanceScore || 0,
+                financialScore: supplier.financialScore || 0,
+                esgScore: supplier.esgScore || 0,
+                onTimeDeliveryRate: toNumber(supplier.onTimeDeliveryRate),
+                defectRate: toNumber(supplier.defectRate),
+                categories: supplier.categories || [],
+                isoCertifications: supplier.isoCertifications || [],
+                modernSlaveryStatement: supplier.modernSlaveryStatement || 'no',
+                conflictMineralsStatus: supplier.conflictMineralsStatus || 'unknown',
+                currentYearVolume: Number(orderMetrics.currentYearVolume.toFixed(2)),
+                previousYearVolume: Number(orderMetrics.previousYearVolume.toFixed(2)),
+                activeOrders: orderMetrics.activeOrders,
+                totalOrders: orderMetrics.totalOrders,
+                documentCount,
+                invitedRfqs: rfqMetrics.invited,
+                quotedRfqs: rfqMetrics.quoted,
+                trustScore,
+                complianceCoverage,
+            };
+        });
+    } catch (error) {
+        console.error("Failed to fetch supplier workspace rows:", error);
+        return [];
     }
 }
 

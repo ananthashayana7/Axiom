@@ -3,11 +3,9 @@ export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Activity, ArrowUpRight, Boxes, CreditCard, Database, Landmark, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/utils/currency";
-import { LazyDataExplorer, LazyInsightInfographics } from "@/components/dashboard/dashboard-intelligence-lazy";
+import { LazyDataExplorer } from "@/components/dashboard/dashboard-intelligence-lazy";
 import { RecentProcurements } from "@/components/dashboard/recent-procurements";
-import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics } from "@/app/actions/dashboard";
+import { getDashboardStats, getRecentOrders, getMonthlySpend, getCategorySpend, getHighRiskSuppliers, getSupplierAnalytics, getMarketBenchmarks, getCountrySpendBreakdown } from "@/app/actions/dashboard";
 import { getOperationalSignals } from "@/app/actions/operational-readiness";
 import { getSuppliers } from "@/app/actions/suppliers";
 import { getParts } from "@/app/actions/parts";
@@ -21,6 +19,9 @@ import { OperationalFreshnessStrip } from "@/components/dashboard/operational-fr
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { RequisitionDialog } from "@/app/sourcing/requisitions/requisition-dialog";
 import { canAccessAIFleet, canAccessRiskIntelligence, canAccessScenarioModeling, canManageSourcing, canManageSuppliers } from "@/lib/rbac";
+import { ProcurementCommandBoard } from "@/components/dashboard/procurement-command-board";
+import { getAllTasks } from "@/app/actions/workflow-tasks";
+import { getAllTickets } from "@/app/actions/support";
 
 type SessionUser = {
   id?: string;
@@ -45,10 +46,14 @@ export default async function Home() {
     categorySpend,
     riskySuppliers,
     supplierAnalytics,
+    marketBenchmarks,
+    countrySpend,
     suppliers,
     parts,
     departmentLeads,
     operationalSignals,
+    openTasks,
+    supportTickets,
   ] = await Promise.all([
     getDashboardStats(),
     getRecentOrders(),
@@ -56,10 +61,14 @@ export default async function Home() {
     getCategorySpend(),
     getHighRiskSuppliers(),
     getSupplierAnalytics(),
+    getMarketBenchmarks(),
+    getCountrySpendBreakdown(),
     getSuppliers(),
     getParts(),
     getDepartmentLeads(),
     getOperationalSignals(),
+    isAdmin ? getAllTasks({ status: 'open', limit: 200 }) : Promise.resolve([]),
+    isAdmin ? getAllTickets() : Promise.resolve([]),
   ]);
 
   const leads = departmentLeads.filter((lead) => lead.id !== currentUser?.id);
@@ -86,6 +95,36 @@ export default async function Home() {
   const roleBadgeClass = isAdmin
     ? "bg-amber-50 text-amber-700 border-amber-200"
     : "bg-blue-50 text-blue-700 border-blue-200";
+  const quickActions = isAdmin ? [
+    {
+      key: "support" as const,
+      href: "/admin/support",
+      title: "Open Helpdesk",
+      subtitle: "Support queue and escalations",
+      countLabel: `${supportTickets.filter((ticket) => ticket.status !== 'closed').length} active`,
+    },
+    {
+      key: "suppliers" as const,
+      href: "/suppliers",
+      title: "All Suppliers",
+      subtitle: "Classification, onboarding, and compliance",
+      countLabel: `${stats.supplierCount} tracked`,
+    },
+    {
+      key: "findings" as const,
+      href: "/admin/risk",
+      title: "Open Findings",
+      subtitle: "Risk watchlist and intervention routes",
+      countLabel: `${riskySuppliers.length} critical`,
+    },
+    {
+      key: "tasks" as const,
+      href: "/admin/tasks",
+      title: "All Tasks",
+      subtitle: "Workflow inbox and approvals",
+      countLabel: `${openTasks.length} open`,
+    },
+  ] : [];
 
   return (
     <div className="p-4 lg:p-10 space-y-8 bg-background min-h-full">
@@ -121,57 +160,18 @@ export default async function Home() {
         />
       )}
 
+      {isAdmin ? (
+        <ProcurementCommandBoard
+          quickActions={quickActions}
+          benchmarks={marketBenchmarks}
+          monthlyData={monthlySpend}
+          categoryData={categorySpend}
+          countryData={countrySpend}
+        />
+      ) : null}
+
+      {!isAdmin ? (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {isAdmin ? (
-        <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Global Spend</CardTitle>
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-              <Landmark className="h-4 w-4 text-emerald-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-foreground tracking-tighter">
-              {formatCurrency(stats.totalSpend)}
-            </div>
-            <div className="flex items-center gap-1 mt-2">
-              {!stats.isFirstMonth && stats.showMomChange ? (
-                <Badge variant="outline" className={cn(
-                  "text-[10px] font-bold px-1.5 py-0",
-                  Number(stats.momChange) >= 0 ? "bg-emerald-50/50 text-emerald-700 border-emerald-100" : "bg-red-50/50 text-red-700 border-red-100"
-                )}>
-                  <TrendingUp className={cn("h-3 w-3 mr-1", Number(stats.momChange) < 0 && "rotate-180")} />
-                  {Number(stats.momChange) >= 0 ? "+" : ""}{stats.momChange}%
-                </Badge>
-              ) : !stats.isFirstMonth ? (
-                <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
-                  Current month open
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground border-border px-1.5 py-0">
-                  New baseline
-                </Badge>
-              )}
-              <span className="text-[10px] text-muted-foreground font-medium uppercase">{stats.momentumLabel || 'vs last month'}</span>
-            </div>
-            <p className="mt-3 text-[10px] font-medium uppercase text-muted-foreground">
-              UTC ledger windows keep global reporting stable while local currency views and reporting-book rates stay aligned.
-            </p>
-            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-              <Link href="/admin/analytics" className="flex-1">
-                <Button size="sm" variant="outline" className="w-full h-7 text-[10px] font-bold uppercase">
-                  View Analytics
-                </Button>
-              </Link>
-              <Link href="/sourcing/orders">
-                <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-600 hover:bg-emerald-700 text-white">
-                  New Order
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-        ) : (
         <Card className="glass-card border-l-4 border-l-emerald-600 shadow-lg hover:shadow-emerald-500/20 transition-all h-full accent-shimmer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">Purchase Requests</CardTitle>
@@ -197,7 +197,6 @@ export default async function Home() {
             </div>
           </CardContent>
         </Card>
-        )}
 
         {/* Active Suppliers */}
         <Card className="glass-card border-l-4 border-l-emerald-500 shadow-lg hover:shadow-emerald-500/20 transition-all h-full">
@@ -282,6 +281,7 @@ export default async function Home() {
           </CardContent>
         </Card>
       </div>
+      ) : null}
 
       {isAdmin && canOpenRiskRoutes && topRiskSupplier && (
         <Card className="overflow-hidden border-red-200 bg-[radial-gradient(circle_at_top_left,rgba(248,113,113,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.16),transparent_36%),linear-gradient(135deg,#fff7f7_0%,#ffffff_52%,#fff1f2_100%)] shadow-xl">
@@ -413,16 +413,6 @@ export default async function Home() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {isAdmin && (
-        <LazyInsightInfographics
-          monthlyData={monthlySpend}
-          categoryData={categorySpend}
-          supplierData={supplierAnalytics}
-          riskySuppliers={riskySuppliers}
-          stats={stats}
-        />
       )}
 
       {isAdmin && canOpenAIFleet && (

@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { suppliers, procurementOrders, parts, orderItems, auditLogs, rfqs } from "@/db/schema";
+import { suppliers, procurementOrders, parts, orderItems, auditLogs, rfqs, marketPriceIndex } from "@/db/schema";
 import { count, eq, sum, sql, desc, inArray, and } from "drizzle-orm";
 import { auth } from "@/auth";
 import { isRegionalOperator } from "@/lib/rbac";
@@ -562,6 +562,109 @@ export async function getSupplierAnalytics() {
         }));
     } catch (error) {
         console.error("Failed to fetch supplier analytics:", error);
+        return [];
+    }
+}
+
+export async function getMarketBenchmarks() {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    try {
+        const [benchmarks, catalogParts] = await Promise.all([
+            db.select({
+                id: marketPriceIndex.id,
+                partCategory: marketPriceIndex.partCategory,
+                commodity: marketPriceIndex.commodity,
+                benchmarkPrice: marketPriceIndex.benchmarkPrice,
+                source: marketPriceIndex.source,
+                validFrom: marketPriceIndex.validFrom,
+                validTo: marketPriceIndex.validTo,
+            })
+                .from(marketPriceIndex)
+                .orderBy(desc(marketPriceIndex.createdAt))
+                .limit(6),
+            db.select({
+                category: parts.category,
+                marketTrend: parts.marketTrend,
+            }).from(parts),
+        ]);
+
+        const trendLookup = new Map<string, Array<string | null>>();
+        for (const part of catalogParts) {
+            const key = (part.category || '').trim().toLowerCase();
+            if (!key) continue;
+            const existing = trendLookup.get(key) || [];
+            existing.push(part.marketTrend);
+            trendLookup.set(key, existing);
+        }
+
+        const resolveTrend = (category: string) => {
+            const entries = trendLookup.get(category.trim().toLowerCase()) || [];
+            if (entries.length === 0) return 'stable';
+            const rising = entries.filter((entry) => entry === 'up' || entry === 'rising').length;
+            const falling = entries.filter((entry) => entry === 'down' || entry === 'falling').length;
+            const volatile = entries.filter((entry) => entry === 'volatile').length;
+            if (volatile >= Math.max(rising, falling) && volatile > 0) return 'volatile';
+            if (rising > falling) return 'rising';
+            if (falling > rising) return 'falling';
+            return 'stable';
+        };
+
+        return benchmarks.map((benchmark) => {
+            const benchmarkValue = Number(benchmark.benchmarkPrice || 0);
+            const trend = resolveTrend(benchmark.partCategory);
+            const expiresAt = benchmark.validTo ? new Date(benchmark.validTo) : null;
+            const expiresInDays = expiresAt
+                ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                : null;
+
+            return {
+                ...benchmark,
+                benchmarkValue,
+                trend,
+                freshnessLabel: expiresInDays === null
+                    ? 'Open validity window'
+                    : expiresInDays === 0
+                        ? 'Refresh required today'
+                        : `${expiresInDays}d validity remaining`,
+            };
+        });
+    } catch (error) {
+        console.error("Failed to fetch market benchmarks:", error);
+        return [];
+    }
+}
+
+export async function getCountrySpendBreakdown() {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    try {
+        const scope = await getRegionalDashboardScope(session.user);
+        const rows = await db.select({
+            countryCode: suppliers.countryCode,
+            total: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`,
+            orders: count(procurementOrders.id),
+        })
+            .from(procurementOrders)
+            .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
+            .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(combineConditions(
+                scopeCondition(procurementOrders.id, scope.orderIds),
+                scopeCondition(suppliers.id, scope.supplierIds),
+            ))
+            .groupBy(suppliers.countryCode)
+            .orderBy(desc(sql`SUM(${effectiveOrderTotal})`))
+            .limit(8);
+
+        return rows.map((row) => ({
+            countryCode: row.countryCode || 'UN',
+            total: Number(row.total || 0),
+            orders: Number(row.orders || 0),
+        }));
+    } catch (error) {
+        console.error("Failed to fetch country spend breakdown:", error);
         return [];
     }
 }
