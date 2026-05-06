@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { parts } from "@/db/schema";
-import { sql, desc, asc } from "drizzle-orm";
+import { getParts } from "@/app/actions/parts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -24,14 +22,15 @@ import { cn } from "@/lib/utils";
 export const dynamic = 'force-dynamic';
 
 type SessionUser = { role?: string | null };
+type InventoryPart = Awaited<ReturnType<typeof getParts>>[number];
 
 export default async function InventoryPage() {
     const session = await auth();
     const role = (session?.user as SessionUser | undefined)?.role;
     if (role === 'supplier') redirect('/portal');
 
-    // Fetch all parts with stock data
-    const allParts = await db.select().from(parts).orderBy(asc(parts.name));
+    // Fetch parts through the scoped action so regional operators only see their inventory slice
+    const allParts = await getParts({ limit: 1000 });
 
     // Compute stats
     const totalSKUs = allParts.length;
@@ -52,13 +51,13 @@ export default async function InventoryPage() {
         acc[p.category] = (acc[p.category] ?? 0) + 1;
         return acc;
     }, {} as Record<string, number>);
-    const topCategories = Object.entries(categoryMap)
+    const topCategories = (Object.entries(categoryMap) as Array<[string, number]>)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 6);
 
     const stockHealthPct = totalSKUs > 0 ? Math.round((wellStocked.length / totalSKUs) * 100) : 0;
 
-    function getStockStatus(part: typeof allParts[0]) {
+    function getStockStatus(part: InventoryPart) {
         const stock = part.stockLevel ?? 0;
         const reorder = part.reorderPoint ?? 50;
         const min = part.minStockLevel ?? 20;

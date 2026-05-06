@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { suppliers, procurementOrders, parts, orderItems, auditLogs, rfqs } from "@/db/schema";
 import { count, eq, sum, sql, desc, inArray, and } from "drizzle-orm";
 import { auth } from "@/auth";
+import { isRegionalOperator } from "@/lib/rbac";
 
 const orderItemTotals = db.select({
     orderId: orderItems.orderId,
@@ -13,6 +14,145 @@ const orderItemTotals = db.select({
 const effectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${orderItemTotals.lineTotal} AS numeric), 0)`;
 const convertedFromRfqPattern = /Converted from RFQ ([A-F0-9]{8})/i;
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+type ScopedSessionUser = {
+    role?: string | null;
+    accessProfile?: string | null;
+    countryScope?: string | null;
+    regionScope?: string | null;
+};
+type ScopedWhereCondition = ReturnType<typeof sql>;
+
+function normalizeScopeCountry(value: string | null | undefined) {
+    return value?.trim().toUpperCase() || null;
+}
+
+function normalizeScopeRegion(value: string | null | undefined) {
+    return value?.trim().toLowerCase().replace(/\s+/g, " ") || null;
+}
+
+function combineConditions(...conditions: Array<ScopedWhereCondition | undefined>) {
+    const activeConditions = conditions.filter((condition) => condition !== undefined);
+    return activeConditions.length > 0 ? and(...activeConditions) : undefined;
+}
+
+function scopeCondition(column: Parameters<typeof inArray>[0], ids: string[] | null): ScopedWhereCondition | undefined {
+    if (ids === null) {
+        return undefined;
+    }
+
+    if (ids.length === 0) {
+        return sql`false`;
+    }
+
+    return inArray(column, ids);
+}
+
+async function getRegionalDashboardScope(user: ScopedSessionUser | null | undefined) {
+    if (!isRegionalOperator(user)) {
+        return {
+            supplierIds: null as string[] | null,
+            orderIds: null as string[] | null,
+            partIds: null as string[] | null,
+        };
+    }
+
+    const scopedCountry = normalizeScopeCountry(user?.countryScope);
+    const scopedRegion = normalizeScopeRegion(user?.regionScope);
+
+    if (!scopedCountry && !scopedRegion) {
+        return {
+            supplierIds: [],
+            orderIds: [],
+            partIds: [],
+        };
+    }
+
+    const supplierConditions = [];
+    if (scopedCountry) {
+        supplierConditions.push(sql`(
+            upper(coalesce(${suppliers.countryCode}, '')) = ${scopedCountry}
+            or exists (
+                select 1
+                from ${procurementOrders}
+                inner join ${orderItems} on ${orderItems.orderId} = ${procurementOrders.id}
+                inner join ${parts} on ${orderItems.partId} = ${parts.id}
+                where ${procurementOrders.supplierId} = ${suppliers.id}
+                  and upper(coalesce(${parts.countryCode}, '')) = ${scopedCountry}
+            )
+        )`);
+    }
+    if (scopedRegion) {
+        supplierConditions.push(sql`exists (
+            select 1
+            from ${procurementOrders}
+            inner join ${orderItems} on ${orderItems.orderId} = ${procurementOrders.id}
+            inner join ${parts} on ${orderItems.partId} = ${parts.id}
+            where ${procurementOrders.supplierId} = ${suppliers.id}
+              and lower(trim(coalesce(${parts.region}, ''))) = ${scopedRegion}
+        )`);
+    }
+
+    const partConditions = [];
+    if (scopedCountry) {
+        partConditions.push(sql`(
+            upper(coalesce(${parts.countryCode}, '')) = ${scopedCountry}
+            or exists (
+                select 1
+                from ${orderItems}
+                inner join ${procurementOrders} on ${orderItems.orderId} = ${procurementOrders.id}
+                inner join ${suppliers} on ${procurementOrders.supplierId} = ${suppliers.id}
+                where ${orderItems.partId} = ${parts.id}
+                  and upper(coalesce(${suppliers.countryCode}, '')) = ${scopedCountry}
+            )
+        )`);
+    }
+    if (scopedRegion) {
+        partConditions.push(sql`lower(trim(coalesce(${parts.region}, ''))) = ${scopedRegion}`);
+    }
+
+    const orderConditions = [];
+    if (scopedCountry) {
+        orderConditions.push(sql`(
+            upper(coalesce(${suppliers.countryCode}, '')) = ${scopedCountry}
+            or exists (
+                select 1
+                from ${orderItems}
+                inner join ${parts} on ${orderItems.partId} = ${parts.id}
+                where ${orderItems.orderId} = ${procurementOrders.id}
+                  and upper(coalesce(${parts.countryCode}, '')) = ${scopedCountry}
+            )
+        )`);
+    }
+    if (scopedRegion) {
+        orderConditions.push(sql`exists (
+            select 1
+            from ${orderItems}
+            inner join ${parts} on ${orderItems.partId} = ${parts.id}
+            where ${orderItems.orderId} = ${procurementOrders.id}
+              and lower(trim(coalesce(${parts.region}, ''))) = ${scopedRegion}
+        )`);
+    }
+
+    const [supplierRows, partRows, orderRows] = await Promise.all([
+        db.select({ id: suppliers.id })
+            .from(suppliers)
+            .where(combineConditions(...supplierConditions)),
+        db.select({ id: parts.id })
+            .from(parts)
+            .where(combineConditions(...partConditions)),
+        db.select({ id: procurementOrders.id })
+            .from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(combineConditions(...orderConditions)),
+    ]);
+
+    return {
+        supplierIds: Array.from(new Set(supplierRows.map((row) => row.id))),
+        partIds: Array.from(new Set(partRows.map((row) => row.id))),
+        orderIds: Array.from(new Set(orderRows.map((row) => row.id))),
+    };
+}
 
 function startOfUtcMonth(date: Date) {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -89,21 +229,29 @@ export async function getDashboardStats() {
         };
     }
     try {
-        const [supplierCount] = await db.select({ count: count() }).from(suppliers);
-        const [orderCount] = await db.select({ count: count() }).from(procurementOrders);
-        const [partCount] = await db.select({ count: count() }).from(parts);
-        const [stockedSkuCount] = await db.select({ count: count() }).from(parts).where(sql`${parts.stockLevel} > 0`);
+        const scope = await getRegionalDashboardScope(session.user);
+        const supplierScope = scopeCondition(suppliers.id, scope.supplierIds);
+        const orderScope = scopeCondition(procurementOrders.id, scope.orderIds);
+        const partScope = scopeCondition(parts.id, scope.partIds);
+
+        const [supplierCount] = await db.select({ count: count() }).from(suppliers).where(supplierScope);
+        const [orderCount] = await db.select({ count: count() }).from(procurementOrders).where(orderScope);
+        const [partCount] = await db.select({ count: count() }).from(parts).where(partScope);
+        const [stockedSkuCount] = await db.select({ count: count() })
+            .from(parts)
+            .where(combineConditions(partScope, sql`${parts.stockLevel} > 0`));
 
         // Sum up total inventory across all parts
         const [inventoryResult] = await db.select({
             totalInventory: sum(parts.stockLevel)
-        }).from(parts);
+        }).from(parts).where(partScope);
 
         // Calculate total spend
         const result = await db.select({
             total: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`
         }).from(procurementOrders)
-            .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id));
+            .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
+            .where(orderScope);
 
         const totalSpend = Number(result[0]?.total || 0);
 
@@ -117,13 +265,19 @@ export async function getDashboardStats() {
             count: count(),
         }).from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
-            .where(sql`${procurementOrders.createdAt} >= ${firstDayCurrentMonth}`);
+            .where(combineConditions(
+                orderScope,
+                sql`${procurementOrders.createdAt} >= ${firstDayCurrentMonth}`,
+            ));
 
         const lastMonthSpendResult = await db.select({
             total: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`
         }).from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
-            .where(sql`${procurementOrders.createdAt} >= ${firstDayLastMonth} AND ${procurementOrders.createdAt} < ${firstDayCurrentMonth}`);
+            .where(combineConditions(
+                orderScope,
+                sql`${procurementOrders.createdAt} >= ${firstDayLastMonth} AND ${procurementOrders.createdAt} < ${firstDayCurrentMonth}`,
+            ));
 
         const currentMonthSpend = Number(currentMonthSpendResult[0]?.total || 0);
         const currentMonthOrders = Number(currentMonthSpendResult[0]?.count || 0);
@@ -147,6 +301,7 @@ export async function getDashboardStats() {
             count: count()
         })
             .from(procurementOrders)
+            .where(orderScope)
             .groupBy(procurementOrders.status);
 
         const statusMap: Record<string, number> = {};
@@ -195,6 +350,7 @@ export async function getRecentOrders() {
     const session = await auth();
     if (!session?.user) return [];
     try {
+        const scope = await getRegionalDashboardScope(session.user);
         const recentOrders = await db
             .select({
                 id: procurementOrders.id,
@@ -210,6 +366,7 @@ export async function getRecentOrders() {
             .from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(scopeCondition(procurementOrders.id, scope.orderIds))
             .orderBy(desc(procurementOrders.createdAt))
             .limit(5);
 
@@ -233,6 +390,7 @@ export async function getMonthlySpend() {
     const session = await auth();
     if (!session?.user) return [];
     try {
+        const scope = await getRegionalDashboardScope(session.user);
         const now = new Date();
         const currentUtcMonth = startOfUtcMonth(now);
         const twelveMonthsAgo = addUtcMonths(currentUtcMonth, -11);
@@ -242,7 +400,10 @@ export async function getMonthlySpend() {
             createdAt: procurementOrders.createdAt,
         }).from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
-            .where(sql`${procurementOrders.createdAt} >= ${twelveMonthsAgo}`);
+            .where(combineConditions(
+                scopeCondition(procurementOrders.id, scope.orderIds),
+                sql`${procurementOrders.createdAt} >= ${twelveMonthsAgo}`,
+            ));
 
         // Build a rolling 12-month window in chronological order
         const buckets: { name: string; year: number; month: number; total: number; orders: number }[] = [];
@@ -280,7 +441,10 @@ export async function getMonthlySpend() {
 }
 
 export async function getCategorySpend() {
+    const session = await auth();
+    if (!session?.user) return [];
     try {
+        const scope = await getRegionalDashboardScope(session.user);
         const result = await db.select({
             category: parts.category,
             total: sum(sql<number>`${orderItems.quantity} * ${orderItems.unitPrice}`),
@@ -288,6 +452,7 @@ export async function getCategorySpend() {
         })
             .from(orderItems)
             .innerJoin(parts, eq(orderItems.partId, parts.id))
+            .where(scopeCondition(parts.id, scope.partIds))
             .groupBy(parts.category);
 
         const ordersWithoutItems = await db.select({
@@ -295,14 +460,20 @@ export async function getCategorySpend() {
             total: effectiveOrderTotal,
         }).from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
-            .where(sql`NOT EXISTS (SELECT 1 FROM ${orderItems} AS oi WHERE oi.order_id = ${procurementOrders.id}) AND ${effectiveOrderTotal} > 0`);
+            .where(combineConditions(
+                scopeCondition(procurementOrders.id, scope.orderIds),
+                sql`NOT EXISTS (SELECT 1 FROM ${orderItems} AS oi WHERE oi.order_id = ${procurementOrders.id}) AND ${effectiveOrderTotal} > 0`,
+            ));
 
         const [unclassifiedSpend] = await db.select({
             total: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`,
             count: count(),
         }).from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
-            .where(sql`NOT EXISTS (SELECT 1 FROM ${orderItems} AS oi WHERE oi.order_id = ${procurementOrders.id}) AND ${effectiveOrderTotal} > 0`);
+            .where(combineConditions(
+                scopeCondition(procurementOrders.id, scope.orderIds),
+                sql`NOT EXISTS (SELECT 1 FROM ${orderItems} AS oi WHERE oi.order_id = ${procurementOrders.id}) AND ${effectiveOrderTotal} > 0`,
+            ));
 
         const mapped = result.map((r: { category: string | null, total: number | unknown, count: number | unknown }) => ({
             name: r.category || "Other",
@@ -337,14 +508,20 @@ export async function getCategorySpend() {
 }
 
 export async function getHighRiskSuppliers() {
+    const session = await auth();
+    if (!session?.user) return [];
     try {
+        const scope = await getRegionalDashboardScope(session.user);
         const result = await db.select({
             id: suppliers.id,
             name: suppliers.name,
             riskScore: suppliers.riskScore,
         })
             .from(suppliers)
-            .where(sql`COALESCE(${suppliers.riskScore}, 0) >= 60`)
+            .where(combineConditions(
+                scopeCondition(suppliers.id, scope.supplierIds),
+                sql`COALESCE(${suppliers.riskScore}, 0) >= 60`,
+            ))
             .orderBy(desc(suppliers.riskScore))
             .limit(3);
         return result;
@@ -354,7 +531,10 @@ export async function getHighRiskSuppliers() {
     }
 }
 export async function getSupplierAnalytics() {
+    const session = await auth();
+    if (!session?.user) return [];
     try {
+        const scope = await getRegionalDashboardScope(session.user);
         const result = await db.select({
             name: suppliers.name,
             spend: sql<string>`COALESCE(SUM(${effectiveOrderTotal}), 0)`,
@@ -365,6 +545,10 @@ export async function getSupplierAnalytics() {
             .from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .innerJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .where(combineConditions(
+                scopeCondition(procurementOrders.id, scope.orderIds),
+                scopeCondition(suppliers.id, scope.supplierIds),
+            ))
             .groupBy(suppliers.id, suppliers.name, suppliers.performanceScore, suppliers.riskScore)
             .orderBy(desc(sql`SUM(${effectiveOrderTotal})`))
             .limit(5);

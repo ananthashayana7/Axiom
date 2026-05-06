@@ -39,6 +39,8 @@ interface Part {
     sku: string;
     name: string;
     category: string;
+    countryCode: string | null;
+    region: string | null;
     stockLevel: number;
     price: string | null;
     marketTrend: string | null;
@@ -128,6 +130,8 @@ export function PartMenuActions({ part }: { part: Part }) {
                         <input type="hidden" name="expectedMarketTrend" value={part.marketTrend || ''} />
                         <input type="hidden" name="expectedReorderPoint" value={part.reorderPoint == null ? '' : String(part.reorderPoint)} />
                         <input type="hidden" name="expectedMinStockLevel" value={part.minStockLevel == null ? '' : String(part.minStockLevel)} />
+                        <input type="hidden" name="expectedCountryCode" value={part.countryCode || ''} />
+                        <input type="hidden" name="expectedRegion" value={part.region || ''} />
                         <div className="grid gap-4 py-4">
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="name" className="text-right">
@@ -197,6 +201,27 @@ export function PartMenuActions({ part }: { part: Part }) {
                                     className="col-span-3 font-bold"
                                     min="0"
                                     required
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="countryCode" className="text-right text-[10px] font-bold uppercase">
+                                    Country
+                                </Label>
+                                <Input
+                                    id="countryCode"
+                                    name="countryCode"
+                                    defaultValue={part.countryCode || ''}
+                                    className="col-span-1 uppercase"
+                                    maxLength={2}
+                                />
+                                <Label htmlFor="region" className="text-right text-[10px] font-bold uppercase">
+                                    Region
+                                </Label>
+                                <Input
+                                    id="region"
+                                    name="region"
+                                    defaultValue={part.region || ''}
+                                    className="col-span-1"
                                 />
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">

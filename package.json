@@ -12,6 +12,7 @@
     "test:smoke": "node --import tsx --test \"tests/smoke/**/*.test.ts\"",
     "lint": "eslint",
     "smoke:prelive": "node scripts/smoke-prelive.mjs",
+    "db:harden:audit": "node scripts/harden-audit-log-worm.mjs",
     "worker:supplier-score": "tsx src/workers/supplier-score-worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",

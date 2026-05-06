@@ -12,6 +12,8 @@ export const tierLevelEnum = pgEnum('tier_level', ['tier_1', 'tier_2', 'tier_3',
 export const incotermsEnum = pgEnum('incoterms', ['EXW', 'FCA', 'CPT', 'CIP', 'DAT', 'DAP', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']);
 export const requisitionStatusEnum = pgEnum('requisition_status', ['draft', 'pending_approval', 'approved', 'rejected', 'converted_to_po']);
 export const invoiceStatusEnum = pgEnum('invoice_status', ['pending', 'matched', 'disputed', 'paid']);
+export const invoiceOverrideTypeEnum = pgEnum('invoice_override_type', ['place_hold', 'clear_hold', 'payment_reversal']);
+export const invoiceOverrideStatusEnum = pgEnum('invoice_override_status', ['pending', 'approved', 'rejected']);
 export const telemetryTypeEnum = pgEnum('telemetry_type', ['event', 'metric', 'error', 'security']);
 export const inspectionStatusEnum = pgEnum('inspection_status', ['pending', 'passed', 'failed', 'conditional']);
 
@@ -129,6 +131,8 @@ export const parts = pgTable('parts', {
     name: text('name').notNull(),
     description: text('description'),
     category: text('category').notNull(),
+    countryCode: text('country_code'),
+    region: text('region'),
     abcClassification: abcClassificationEnum('abc_classification').default('None'),
     price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
     marketTrend: text('market_trend').default('stable'),
@@ -139,6 +143,8 @@ export const parts = pgTable('parts', {
 }, (table: any) => ({
     skuIdx: uniqueIndex('sku_idx').on(table.sku),
     categoryIdx: index('category_idx').on(table.category),
+    partCountryIdx: index('part_country_idx').on(table.countryCode),
+    partRegionIdx: index('part_region_idx').on(table.region),
 }));
 
 export const procurementOrders = pgTable('procurement_orders', {
@@ -388,11 +394,40 @@ export const invoices = pgTable('invoices', {
     purchaseOrderRef: text('purchase_order_ref'),
     documentUrl: text('document_url'),
     matchedAt: timestamp('matched_at'),
+    releaseHold: boolean('release_hold').notNull().default(false),
+    releaseHoldReason: text('release_hold_reason'),
+    releaseHoldAppliedAt: timestamp('release_hold_applied_at'),
+    reversedAt: timestamp('reversed_at'),
+    reversalReason: text('reversal_reason'),
+    reversalReference: text('reversal_reference'),
+    reversedById: uuid('reversed_by_id').references(() => users.id),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     invoiceOrderIdx: index('invoice_order_idx').on(table.orderId),
     invoiceSupplierIdx: index('invoice_supplier_idx').on(table.supplierId),
     invoiceStatusIdx: index('invoice_status_idx').on(table.status),
+    invoiceHoldIdx: index('invoice_hold_idx').on(table.releaseHold),
+    invoiceReversalIdx: index('invoice_reversed_idx').on(table.reversedAt),
+}));
+
+export const invoiceOverrideRequests = pgTable('invoice_override_requests', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    invoiceId: uuid('invoice_id').references(() => invoices.id).notNull(),
+    requestType: invoiceOverrideTypeEnum('request_type').notNull(),
+    status: invoiceOverrideStatusEnum('status').default('pending').notNull(),
+    reason: text('reason').notNull(),
+    decisionNotes: text('decision_notes'),
+    requestedById: uuid('requested_by_id').references(() => users.id).notNull(),
+    approvedById: uuid('approved_by_id').references(() => users.id),
+    requestedAt: timestamp('requested_at').defaultNow(),
+    approvedAt: timestamp('approved_at'),
+    rejectedAt: timestamp('rejected_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+}, (table: any) => ({
+    invoiceOverrideInvoiceIdx: index('invoice_override_invoice_idx').on(table.invoiceId),
+    invoiceOverrideStatusIdx: index('invoice_override_status_idx').on(table.status),
+    invoiceOverrideRequesterIdx: index('invoice_override_requester_idx').on(table.requestedById),
 }));
 
 // ============================================================================

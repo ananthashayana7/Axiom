@@ -8,6 +8,7 @@ import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { computeShouldCost } from "./cost-intelligence";
 import { calculateAdaptiveReorderPlan, estimatePartCarbonFootprint } from "@/lib/procurement-intelligence";
+import { isRegionalOperator, isWithinRegionalScope } from "@/lib/rbac";
 
 const ACTIVE_REORDER_STATUSES = ['draft', 'pending_approval', 'approved'] as const;
 
@@ -17,6 +18,19 @@ function normalizeText(value: string) {
 
 function normalizeSku(value: string) {
     return normalizeText(value).toUpperCase();
+}
+
+function normalizeScopeCountry(value: string | null | undefined) {
+    return value?.trim().toUpperCase() || null;
+}
+
+function normalizeScopeRegion(value: string | null | undefined) {
+    return value?.trim().toLowerCase().replace(/\s+/g, " ") || null;
+}
+
+function normalizeOptionalText(value: FormDataEntryValue | null) {
+    const normalized = String(value ?? "").trim();
+    return normalized ? normalized.replace(/\s+/g, " ") : null;
 }
 
 function parseIntegerValue(value: FormDataEntryValue | null, fallback = 0) {
@@ -41,8 +55,55 @@ function toNumber(value: string | number | null | undefined) {
     return Number.isFinite(numeric) ? numeric : 0;
 }
 
-async function acquireWriteLock(executor: { execute: (query: any) => any }, key: string) {
+type SqlQuery = ReturnType<typeof sql>;
+type SqlExecutor = { execute: (query: SqlQuery) => Promise<unknown> };
+
+async function acquireWriteLock(executor: SqlExecutor, key: string) {
     await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
+}
+
+async function getScopedPartIds(user: {
+    role?: string | null;
+    accessProfile?: string | null;
+    countryScope?: string | null;
+    regionScope?: string | null;
+} | null | undefined) {
+    if (!isRegionalOperator(user)) {
+        return null;
+    }
+
+    const scopedCountry = normalizeScopeCountry(user?.countryScope);
+    const scopedRegion = normalizeScopeRegion(user?.regionScope);
+
+    if (!scopedCountry && !scopedRegion) {
+        return [];
+    }
+
+    const conditions = [];
+
+    if (scopedCountry) {
+        conditions.push(sql`(
+            upper(coalesce(${parts.countryCode}, '')) = ${scopedCountry}
+            or exists (
+                select 1
+                from ${orderItems}
+                inner join ${procurementOrders} on ${orderItems.orderId} = ${procurementOrders.id}
+                inner join ${suppliers} on ${procurementOrders.supplierId} = ${suppliers.id}
+                where ${orderItems.partId} = ${parts.id}
+                  and upper(coalesce(${suppliers.countryCode}, '')) = ${scopedCountry}
+            )
+        )`);
+    }
+
+    if (scopedRegion) {
+        conditions.push(sql`lower(trim(coalesce(${parts.region}, ''))) = ${scopedRegion}`);
+    }
+
+    const rows = await db.select({ id: parts.id })
+        .from(parts)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    return Array.from(new Set(rows.map((row) => row.id)));
 }
 
 async function getPartSignalMaps(partIds?: string[]) {
@@ -82,10 +143,25 @@ async function getPartSignalMaps(partIds?: string[]) {
 }
 
 export async function getParts(options?: { limit?: number; offset?: number }): Promise<Part[]> {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return [];
+    }
+
     try {
-        const limit = options?.limit ?? 100;
+        const limit = options?.limit ?? 500;
         const offset = options?.offset ?? 0;
-        const allParts = await db.select().from(parts).orderBy(parts.createdAt).limit(limit).offset(offset);
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && scopedPartIds.length === 0) {
+            return [];
+        }
+
+        const allParts = await db.select()
+            .from(parts)
+            .where(scopedPartIds ? inArray(parts.id, scopedPartIds) : undefined)
+            .orderBy(parts.createdAt)
+            .limit(limit)
+            .offset(offset);
         return allParts;
     } catch (error) {
         console.error("Failed to fetch parts:", error);
@@ -94,8 +170,20 @@ export async function getParts(options?: { limit?: number; offset?: number }): P
 }
 
 export async function getPartsCount(): Promise<number> {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return 0;
+    }
+
     try {
-        const [result] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(parts);
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && scopedPartIds.length === 0) {
+            return 0;
+        }
+
+        const [result] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+            .from(parts)
+            .where(scopedPartIds ? inArray(parts.id, scopedPartIds) : undefined);
         return result.count;
     } catch (error) {
         console.error("Failed to fetch parts count:", error);
@@ -104,15 +192,29 @@ export async function getPartsCount(): Promise<number> {
 }
 
 export async function getPartLinkedCounts() {
+    const session = await auth();
+    if (!session?.user || session.user.role === 'supplier') {
+        return [];
+    }
+
     try {
-        const partRows = await db.select({ id: parts.id }).from(parts);
-        const { orderExposureMap, forecastMap } = await getPartSignalMaps();
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && scopedPartIds.length === 0) {
+            return [];
+        }
+
+        const partRows = await db.select({ id: parts.id })
+            .from(parts)
+            .where(scopedPartIds ? inArray(parts.id, scopedPartIds) : undefined);
+        const partIds = partRows.map((row) => row.id);
+        const { orderExposureMap, forecastMap } = await getPartSignalMaps(partIds);
 
         const ordersByPart = await db.select({
             partId: orderItems.partId,
             orderCount: sql<number>`count(distinct ${orderItems.orderId})`.mapWith(Number),
         })
             .from(orderItems)
+            .where(partIds.length > 0 ? inArray(orderItems.partId, partIds) : undefined)
             .groupBy(orderItems.partId);
 
         const invoicesByPart = await db.select({
@@ -121,6 +223,7 @@ export async function getPartLinkedCounts() {
         })
             .from(orderItems)
             .innerJoin(invoices, eq(invoices.orderId, orderItems.orderId))
+            .where(partIds.length > 0 ? inArray(orderItems.partId, partIds) : undefined)
             .groupBy(orderItems.partId);
 
         const rfqsByPart = await db.select({
@@ -128,6 +231,7 @@ export async function getPartLinkedCounts() {
             rfqCount: sql<number>`count(distinct ${rfqItems.rfqId})`.mapWith(Number),
         })
             .from(rfqItems)
+            .where(partIds.length > 0 ? inArray(rfqItems.partId, partIds) : undefined)
             .groupBy(rfqItems.partId);
 
         const orderMap = new Map(ordersByPart.map((row) => [row.partId, row.orderCount]));
@@ -154,6 +258,11 @@ export async function getPartQuickView(partId: string) {
     if (!session?.user || session.user.role === 'supplier') return null;
 
     try {
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && !scopedPartIds.includes(partId)) {
+            return null;
+        }
+
         const [part] = await db.select().from(parts).where(eq(parts.id, partId)).limit(1);
         if (!part) return null;
 
@@ -275,6 +384,8 @@ export async function addPart(formData: FormData) {
         const marketTrend = normalizeText(String(formData.get("marketTrend") ?? "stable")).toLowerCase() || 'stable';
         const reorderPoint = Math.max(0, parseIntegerValue(formData.get("reorderPoint"), 50));
         const minStockLevel = Math.max(0, parseIntegerValue(formData.get("minStockLevel"), 20));
+        const countryCode = normalizeScopeCountry(normalizeOptionalText(formData.get("countryCode")));
+        const region = normalizeOptionalText(formData.get("region"));
 
         if (!name || !sku || !category) {
             return { success: false, error: "Name, SKU, and category are required." };
@@ -282,6 +393,16 @@ export async function addPart(formData: FormData) {
 
         if (!price) {
             return { success: false, error: "Price must be a valid non-negative amount." };
+        }
+
+        if (isRegionalOperator(session.user)) {
+            if (!countryCode && !region) {
+                return { success: false, error: "Regional operators must assign a country or region to new parts." };
+            }
+
+            if (!isWithinRegionalScope(session.user, { country: countryCode, region })) {
+                return { success: false, error: "This part must stay within your assigned regional scope." };
+            }
         }
 
         const result = await db.transaction(async (tx) => {
@@ -305,6 +426,8 @@ export async function addPart(formData: FormData) {
                 marketTrend,
                 reorderPoint,
                 minStockLevel,
+                countryCode,
+                region,
             }).returning();
 
             return { success: true as const, data: newPart };
@@ -340,6 +463,8 @@ export async function updatePart(id: string, formData: FormData) {
         const marketTrend = marketTrendRaw ? marketTrendRaw.toLowerCase() : null;
         const reorderPoint = parseNullableIntegerValue(formData.get("reorderPoint"));
         const minStockLevel = parseNullableIntegerValue(formData.get("minStockLevel"));
+        const countryCode = normalizeScopeCountry(normalizeOptionalText(formData.get("countryCode")));
+        const region = normalizeOptionalText(formData.get("region"));
 
         const expectedName = normalizeText(String(formData.get("expectedName") ?? ""));
         const expectedSku = normalizeSku(String(formData.get("expectedSku") ?? ""));
@@ -350,6 +475,8 @@ export async function updatePart(id: string, formData: FormData) {
         const expectedMarketTrend = expectedMarketTrendRaw ? expectedMarketTrendRaw.toLowerCase() : null;
         const expectedReorderPoint = parseNullableIntegerValue(formData.get("expectedReorderPoint"));
         const expectedMinStockLevel = parseNullableIntegerValue(formData.get("expectedMinStockLevel"));
+        const expectedCountryCode = normalizeScopeCountry(normalizeOptionalText(formData.get("expectedCountryCode")));
+        const expectedRegion = normalizeOptionalText(formData.get("expectedRegion"));
 
         if (!name || !sku || !category) {
             return { success: false, error: "Name, SKU, and category are required." };
@@ -367,6 +494,15 @@ export async function updatePart(id: string, formData: FormData) {
             !expectedPrice
         ) {
             return { success: false, error: "This part view is stale. Refresh inventory before saving changes." };
+        }
+
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && !scopedPartIds.includes(id)) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        if (isRegionalOperator(session.user) && !isWithinRegionalScope(session.user, { country: countryCode, region })) {
+            return { success: false, error: "This part must stay within your assigned regional scope." };
         }
 
         const result = await db.transaction(async (tx) => {
@@ -395,6 +531,8 @@ export async function updatePart(id: string, formData: FormData) {
                 expectedMarketTrend === null ? isNull(parts.marketTrend) : eq(parts.marketTrend, expectedMarketTrend),
                 expectedReorderPoint === null ? isNull(parts.reorderPoint) : eq(parts.reorderPoint, expectedReorderPoint),
                 expectedMinStockLevel === null ? isNull(parts.minStockLevel) : eq(parts.minStockLevel, expectedMinStockLevel),
+                expectedCountryCode === null ? isNull(parts.countryCode) : eq(parts.countryCode, expectedCountryCode),
+                expectedRegion === null ? isNull(parts.region) : eq(parts.region, expectedRegion),
             );
 
             const [updated] = await tx.update(parts)
@@ -407,6 +545,8 @@ export async function updatePart(id: string, formData: FormData) {
                     marketTrend,
                     reorderPoint,
                     minStockLevel,
+                    countryCode,
+                    region,
                 })
                 .where(originalStateMatches)
                 .returning();
@@ -444,6 +584,11 @@ export async function deletePart(id: string) {
     }
 
     try {
+        const scopedPartIds = await getScopedPartIds(session.user);
+        if (scopedPartIds && !scopedPartIds.includes(id)) {
+            return { success: false, error: "Unauthorized" };
+        }
+
         const result = await db.transaction(async (tx) => {
             await acquireWriteLock(tx, `part:delete:${id}`);
 

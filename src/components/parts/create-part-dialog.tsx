@@ -44,7 +44,7 @@ export function CreatePartDialog() {
             } else {
                 toast.error("Failed to add part");
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error("An error occurred");
         } finally {
             setIsSubmitting(false);
@@ -108,6 +108,27 @@ export function CreatePartDialog() {
                                     <SelectItem value="Other">Other</SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="countryCode" className="text-right text-[10px] font-bold uppercase">
+                                Country
+                            </Label>
+                            <Input
+                                id="countryCode"
+                                name="countryCode"
+                                placeholder="DE"
+                                className="col-span-1 uppercase"
+                                maxLength={2}
+                            />
+                            <Label htmlFor="region" className="text-right text-[10px] font-bold uppercase">
+                                Region
+                            </Label>
+                            <Input
+                                id="region"
+                                name="region"
+                                placeholder="Europe"
+                                className="col-span-1"
+                            />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="stock" className="text-right">
@@ -195,7 +216,7 @@ export function CreatePartDialog() {
                                             setMarketTrendValue(intelligence.trend);
                                             setTrendReason(intelligence.reason);
                                             toast.success("Intelligence fetched for 2026!");
-                                        } catch (error) {
+                                        } catch (_error) {
                                             toast.error("Failed to fetch market intelligence");
                                         } finally {
                                             setIsFetchingTrend(false);

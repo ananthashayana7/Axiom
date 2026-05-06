@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { escalateInvoiceToHumanReview, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
+import { escalateInvoiceToHumanReview, requestInvoiceOverride, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
 import { toast } from "sonner";
-import { Loader2, Lock, ShieldAlert } from "lucide-react";
+import { Loader2, Lock, RotateCcw, ShieldAlert } from "lucide-react";
 import { getThreeWayMatchReasonLabel } from "@/lib/utils/three-way-match";
 import { useSession } from "next-auth/react";
 import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules } from "@/lib/rbac";
@@ -12,10 +12,16 @@ import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules } from
 export function InvoiceActions({
     invoiceId,
     status,
+    releaseHold,
+    reversedAt,
+    pendingOverrideRequestType,
     onChanged,
 }: {
     invoiceId: string;
     status: string;
+    releaseHold?: boolean | null;
+    reversedAt?: Date | string | null;
+    pendingOverrideRequestType?: string | null;
     onChanged?: () => Promise<void> | void;
 }) {
     const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +30,8 @@ export function InvoiceActions({
     const canRunRules = canRunInvoiceRules(currentUser);
     const canEscalate = canEscalateInvoiceReview(currentUser);
     const canMarkPaid = canMarkInvoicePaid(currentUser);
+    const isReversed = Boolean(reversedAt);
+    const hasPendingOverride = Boolean(pendingOverrideRequestType);
 
     const handleAction = async (newStatus: 'pending' | 'disputed' | 'paid') => {
         setIsLoading(true);
@@ -98,11 +106,70 @@ export function InvoiceActions({
         }
     };
 
-    if (status === 'paid') {
+    const handleOverrideRequest = async (requestType: 'place_hold' | 'clear_hold' | 'payment_reversal') => {
+        const actionLabel = requestType === 'place_hold'
+            ? 'place a release hold'
+            : requestType === 'clear_hold'
+                ? 'clear the release hold'
+                : 'reverse the payment';
+        const reason = window.prompt(`Record the reason to ${actionLabel} for this invoice.`);
+        if (!reason) return;
+
+        setIsLoading(true);
+        try {
+            const res = await requestInvoiceOverride({
+                invoiceId,
+                requestType,
+                reason,
+            });
+            if (res.success) {
+                await onChanged?.();
+                toast.success("Dual approval request submitted", {
+                    description: "A different finance approver must now approve or reject this request.",
+                });
+            } else {
+                toast.error(res.error || "Failed to route override request");
+            }
+        } catch {
+            toast.error("An error occurred");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (status === 'paid' && !isReversed) {
         return (
-            <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
-                <Lock className="h-3 w-3" />
-                Archived
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                    <Lock className="h-3 w-3" />
+                    Archived
+                </div>
+                {hasPendingOverride ? (
+                    <div className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                        <ShieldAlert className="h-3 w-3" />
+                        Dual Approval Pending
+                    </div>
+                ) : canMarkPaid ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-[10px] font-bold uppercase tracking-tighter border-rose-200 text-rose-700 hover:bg-rose-50"
+                        onClick={() => handleOverrideRequest('payment_reversal')}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="mr-1 h-3 w-3" />}
+                        Request Reversal
+                    </Button>
+                ) : null}
+            </div>
+        );
+    }
+
+    if (isReversed) {
+        return (
+            <div className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-rose-700">
+                <RotateCcw className="h-3 w-3" />
+                Reversed
             </div>
         );
     }
@@ -147,15 +214,32 @@ export function InvoiceActions({
                 <>
                     <div className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
                         <Lock className="h-3 w-3" />
-                        Compliance Locked
+                        {releaseHold ? 'Hold Active' : 'Compliance Locked'}
                     </div>
+                    {hasPendingOverride ? (
+                        <div className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                            <ShieldAlert className="h-3 w-3" />
+                            Dual Approval Pending
+                        </div>
+                    ) : canRunRules ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-[10px] font-bold uppercase tracking-tighter border-rose-200 text-rose-700 hover:bg-rose-50"
+                            onClick={() => handleOverrideRequest(releaseHold ? 'clear_hold' : 'place_hold')}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="mr-1 h-3 w-3" />}
+                            {releaseHold ? 'Request Hold Release' : 'Request Hold'}
+                        </Button>
+                    ) : null}
                     {canMarkPaid ? (
                         <Button
                             variant="outline"
                             size="sm"
                             className="h-8 text-[10px] font-bold uppercase tracking-tighter border-green-200 text-green-700 hover:bg-green-50"
                             onClick={() => handleAction('paid')}
-                            disabled={isLoading}
+                            disabled={isLoading || Boolean(releaseHold) || hasPendingOverride}
                         >
                             {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Paid"}
                         </Button>

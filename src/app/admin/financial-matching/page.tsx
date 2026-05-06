@@ -17,10 +17,11 @@ import {
     ArrowUpRight,
     ShieldAlert,
     Lock,
+    RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { escalateInvoiceToHumanReview, getInvoices, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
+import { escalateInvoiceToHumanReview, getInvoiceOverrideRequests, getInvoices, requestInvoiceOverride, rerunInvoiceMatch, reviewInvoiceOverride, updateInvoiceStatus } from "@/app/actions/invoices";
 import { InvoiceReviewDialog } from "@/components/invoices/invoice-review-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,9 +63,11 @@ function formatAmount(amount: number, currencyCode: string): string {
 }
 
 type InvoiceRecord = Awaited<ReturnType<typeof getInvoices>>[number];
+type OverrideRequestRecord = Awaited<ReturnType<typeof getInvoiceOverrideRequests>>[number];
 
 export default function FinancialMatchingPage() {
     const [invoicesList, setInvoicesList] = useState<InvoiceRecord[]>([]);
+    const [overrideRequests, setOverrideRequests] = useState<OverrideRequestRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
     const [statusFilter, setStatusFilter] = useState<string>('pending');
@@ -73,11 +76,15 @@ export default function FinancialMatchingPage() {
     const fetchInvoices = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await getInvoices({
-                status: statusFilter !== 'all' ? statusFilter : undefined,
-                invoiceNumber: search || undefined,
-            });
+            const [data, overrides] = await Promise.all([
+                getInvoices({
+                    status: statusFilter !== 'all' ? statusFilter : undefined,
+                    invoiceNumber: search || undefined,
+                }),
+                getInvoiceOverrideRequests({ status: 'pending', limit: 20 }),
+            ]);
             setInvoicesList(data);
+            setOverrideRequests(overrides);
         } finally {
             setLoading(false);
         }
@@ -172,10 +179,73 @@ export default function FinancialMatchingPage() {
         });
     };
 
+    const handleOverrideRequest = (invoiceId: string, requestType: 'place_hold' | 'clear_hold' | 'payment_reversal') => {
+        startTransition(async () => {
+            const actionLabel = requestType === 'place_hold'
+                ? 'place a release hold'
+                : requestType === 'clear_hold'
+                    ? 'clear the release hold'
+                    : 'reverse the payment';
+            const reason = window.prompt(`Record the reason to ${actionLabel} for this invoice.`);
+            if (!reason) {
+                return;
+            }
+
+            try {
+                const result = await requestInvoiceOverride({ invoiceId, requestType, reason });
+                if (!result.success) {
+                    toast.error(result.error || "Failed to route override request");
+                    return;
+                }
+
+                toast.success("Dual approval request submitted", {
+                    description: "A second finance approver must now approve or reject this request.",
+                });
+                await fetchInvoices();
+            } catch {
+                toast.error("Failed to route override request");
+            }
+        });
+    };
+
+    const handleOverrideDecision = (requestId: string, decision: 'approved' | 'rejected', requestType: string) => {
+        startTransition(async () => {
+            const decisionNotes = window.prompt(
+                decision === 'approved'
+                    ? 'Record the approval note for this dual-approval request.'
+                    : 'Record the rejection reason for this dual-approval request.',
+            ) || "";
+            const reversalReference = requestType === 'payment_reversal' && decision === 'approved'
+                ? window.prompt('Optional reversal reference or accounting journal ID.') || ""
+                : "";
+
+            try {
+                const result = await reviewInvoiceOverride({
+                    requestId,
+                    decision,
+                    decisionNotes,
+                    reversalReference,
+                });
+                if (!result.success) {
+                    toast.error(result.error || "Failed to review override request");
+                    return;
+                }
+
+                toast.success(
+                    decision === 'approved' ? 'Dual approval recorded' : 'Override request rejected',
+                );
+                await fetchInvoices();
+            } catch {
+                toast.error("Failed to review override request");
+            }
+        });
+    };
+
     const pendingCount = invoicesList.filter((invoice) => invoice.status === 'pending').length;
     const matchedCount = invoicesList.filter((invoice) => invoice.status === 'matched' || invoice.status === 'paid').length;
     const disputedCount = invoicesList.filter((invoice) => invoice.status === 'disputed').length;
     const humanReviewCount = invoicesList.filter((invoice) => invoice.requiresHumanReview || invoice.openReviewTasks > 0).length;
+    const dualApprovalCount = overrideRequests.length;
 
     const statusBadge = (status: string) => {
         switch (status) {
@@ -292,6 +362,64 @@ export default function FinancialMatchingPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Card className="border-amber-200 bg-amber-50/30">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <ShieldAlert className="h-5 w-5 text-amber-600" />
+                        Dual-Approval Override Queue
+                    </CardTitle>
+                    <CardDescription>
+                        A requester cannot approve their own finance override. Holds and payment reversals need a second approver before the invoice state can change.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {dualApprovalCount === 0 ? (
+                        <p className="text-sm text-muted-foreground">No invoice overrides are waiting on a second approver.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {overrideRequests.map((request) => (
+                                <div key={request.id} className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-white p-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                                {request.requestType.replace(/_/g, ' ')}
+                                            </Badge>
+                                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                                                Invoice {request.invoiceNumber}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-900">{request.reason}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Requested by {request.requestedByName} on {request.requestedAt ? new Date(request.requestedAt).toLocaleString() : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                            disabled={isPending}
+                                            onClick={() => handleOverrideDecision(request.id, 'approved', request.requestType)}
+                                        >
+                                            Approve
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-red-200 text-red-700 hover:bg-red-50"
+                                            disabled={isPending}
+                                            onClick={() => handleOverrideDecision(request.id, 'rejected', request.requestType)}
+                                        >
+                                            Reject
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             <div className="flex flex-wrap gap-3 items-center">
                 <div className="flex gap-1 rounded-lg border bg-card p-1">
@@ -435,8 +563,23 @@ export default function FinancialMatchingPage() {
                                                     {invoice.status === 'matched' ? (
                                                         <>
                                                             <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
-                                                                <Lock className="mr-1 h-3 w-3" /> Locked
+                                                                <Lock className="mr-1 h-3 w-3" /> {invoice.releaseHold ? 'Hold Active' : 'Locked'}
                                                             </span>
+                                                            {invoice.pendingOverrideRequestType ? (
+                                                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                                                                    <ShieldAlert className="mr-1 h-3 w-3" /> Approval Pending
+                                                                </span>
+                                                            ) : (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-[10px] font-bold text-rose-700 border-rose-200 hover:bg-rose-50"
+                                                                    disabled={isPending}
+                                                                    onClick={() => handleOverrideRequest(invoice.id, invoice.releaseHold ? 'clear_hold' : 'place_hold')}
+                                                                >
+                                                                    <ShieldAlert className="h-3 w-3 mr-1" /> {invoice.releaseHold ? 'Request Hold Release' : 'Request Hold'}
+                                                                </Button>
+                                                            )}
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -450,7 +593,7 @@ export default function FinancialMatchingPage() {
                                                                 size="sm"
                                                                 variant="outline"
                                                                 className="h-7 text-[10px] font-bold text-green-700 border-green-200 hover:bg-green-50"
-                                                                disabled={isPending}
+                                                                disabled={isPending || Boolean(invoice.releaseHold) || Boolean(invoice.pendingOverrideRequestType)}
                                                                 onClick={() => handleMarkPaid(invoice.id)}
                                                             >
                                                                 <DollarSign className="h-3 w-3 mr-1" /> Mark Paid
@@ -480,9 +623,43 @@ export default function FinancialMatchingPage() {
                                                         </>
                                                     ) : null}
                                                     {invoice.status === 'paid' ? (
-                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
-                                                            <Lock className="mr-1 h-3 w-3" /> Archived
-                                                        </span>
+                                                        <>
+                                                            {invoice.reversedAt ? (
+                                                                <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-rose-700">
+                                                                    <RotateCcw className="mr-1 h-3 w-3" /> Reversed
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                                                                    <Lock className="mr-1 h-3 w-3" /> Archived
+                                                                </span>
+                                                            )}
+                                                            {invoice.pendingOverrideRequestType ? (
+                                                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                                                                    <ShieldAlert className="mr-1 h-3 w-3" /> Approval Pending
+                                                                </span>
+                                                            ) : !invoice.reversedAt ? (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 text-[10px] font-bold text-rose-700 border-rose-200 hover:bg-rose-50"
+                                                                        disabled={isPending}
+                                                                        onClick={() => handleOverrideRequest(invoice.id, 'payment_reversal')}
+                                                                    >
+                                                                        <RotateCcw className="h-3 w-3 mr-1" /> Request Reversal
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 text-[10px] font-bold text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                                        disabled={isPending}
+                                                                        onClick={() => handleOverrideRequest(invoice.id, invoice.releaseHold ? 'clear_hold' : 'place_hold')}
+                                                                    >
+                                                                        <ShieldAlert className="h-3 w-3 mr-1" /> {invoice.releaseHold ? 'Request Hold Release' : 'Request Hold'}
+                                                                    </Button>
+                                                                </>
+                                                            ) : null}
+                                                        </>
                                                     ) : null}
                                                 </div>
                                             </td>

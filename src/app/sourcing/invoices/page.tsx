@@ -524,7 +524,14 @@ export default function InvoicesPage() {
                                                 <td className="p-4 align-middle text-right">
                                                     <div className="flex justify-end gap-2 flex-wrap">
                                                         <InvoiceReviewDialog invoice={invoice} />
-                                                        <InvoiceActions invoiceId={invoice.id} status={invoice.status} onChanged={fetchInvoices} />
+                                                        <InvoiceActions
+                                                            invoiceId={invoice.id}
+                                                            status={invoice.status}
+                                                            releaseHold={invoice.releaseHold}
+                                                            reversedAt={invoice.reversedAt}
+                                                            pendingOverrideRequestType={invoice.pendingOverrideRequestType}
+                                                            onChanged={fetchInvoices}
+                                                        />
                                                     </div>
                                                 </td>
                                             </tr>

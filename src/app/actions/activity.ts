@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { auditLogs, comments, users } from "@/db/schema";
 import { auth } from "@/auth";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { canAccessAuditTrail } from "@/lib/rbac";
 
@@ -16,6 +16,10 @@ function canAccessEntity(user: { role?: string | null; supplierId?: string | nul
     }
 
     return false;
+}
+
+function readBooleanCell(value: unknown) {
+    return value === true || value === "t" || value === "true" || value === 1 || value === "1";
 }
 
 /**
@@ -119,6 +123,40 @@ export async function getComments(entityType: string, entityId: string) {
     } catch (error) {
         console.error("Failed to fetch comments:", error);
         return [];
+    }
+}
+
+export async function getAuditStoragePosture() {
+    const session = await auth();
+    if (!session || !canAccessAuditTrail(session.user)) return null;
+
+    try {
+        const result = await db.execute(sql`
+            select
+                exists(select 1 from pg_proc where proname = 'block_audit_log_mutation') as has_mutation_function,
+                exists(select 1 from pg_trigger where tgname = 'audit_logs_block_mutation' and not tgisinternal) as has_mutation_trigger,
+                exists(select 1 from pg_trigger where tgname = 'audit_logs_block_truncate' and not tgisinternal) as has_truncate_trigger
+        `);
+
+        const row = (result.rows?.[0] ?? {}) as Record<string, unknown>;
+        const hasMutationFunction = readBooleanCell(row.has_mutation_function);
+        const hasMutationTrigger = readBooleanCell(row.has_mutation_trigger);
+        const hasTruncateTrigger = readBooleanCell(row.has_truncate_trigger);
+
+        return {
+            hasMutationFunction,
+            hasMutationTrigger,
+            hasTruncateTrigger,
+            immutableEnforced: hasMutationFunction && hasMutationTrigger && hasTruncateTrigger,
+        };
+    } catch (error) {
+        console.error("Failed to inspect audit storage posture:", error);
+        return {
+            hasMutationFunction: false,
+            hasMutationTrigger: false,
+            hasTruncateTrigger: false,
+            immutableEnforced: false,
+        };
     }
 }
 

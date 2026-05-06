@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from "@/db";
-import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks } from "@/db/schema";
+import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks, invoiceOverrideRequests, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, ilike, gte, lte, inArray, or } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, inArray, or, sql } from "drizzle-orm";
 import { createNotification } from "./notifications";
 import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules, isRegionalOperator } from "@/lib/rbac";
 import {
@@ -20,6 +20,8 @@ import { assessInvoiceReviewSignals } from "@/lib/invoices/review";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_INVOICE_REVIEW_STATUSES = ['open', 'in_progress', 'blocked', 'escalated'] as const;
+const _ACTIVE_OVERRIDE_TYPES = ['place_hold', 'clear_hold', 'payment_reversal'] as const;
+const OVERRIDE_REVIEWER_PROFILES = ['super_admin', 'finance_auditor'] as const;
 const HIGH_VALUE_RELEASE_THRESHOLDS: Record<string, number> = {
     INR: 500_000,
     USD: 10_000,
@@ -77,6 +79,32 @@ function getInvoiceConfidenceLabel(score: number) {
     if (score >= 75) return "Guarded release";
     if (score >= 55) return "Needs review";
     return "Manual review required";
+}
+
+function getOverrideActionLabel(type: (typeof _ACTIVE_OVERRIDE_TYPES)[number]) {
+    switch (type) {
+        case 'place_hold':
+            return 'Hold requested';
+        case 'clear_hold':
+            return 'Hold release requested';
+        case 'payment_reversal':
+            return 'Payment reversal requested';
+        default:
+            return 'Override requested';
+    }
+}
+
+function getOverrideTitle(type: (typeof _ACTIVE_OVERRIDE_TYPES)[number]) {
+    switch (type) {
+        case 'place_hold':
+            return 'Place release hold';
+        case 'clear_hold':
+            return 'Clear release hold';
+        case 'payment_reversal':
+            return 'Payment reversal';
+        default:
+            return 'Invoice override';
+    }
 }
 
 function buildInvoiceConfidenceScore(input: {
@@ -209,6 +237,12 @@ export async function getInvoices(filters?: {
                 paymentTerms: invoices.paymentTerms,
                 purchaseOrderRef: invoices.purchaseOrderRef,
                 documentUrl: invoices.documentUrl,
+                releaseHold: invoices.releaseHold,
+                releaseHoldReason: invoices.releaseHoldReason,
+                releaseHoldAppliedAt: invoices.releaseHoldAppliedAt,
+                reversedAt: invoices.reversedAt,
+                reversalReason: invoices.reversalReason,
+                reversalReference: invoices.reversalReference,
                 supplierName: suppliers.name,
                 supplierCountry: suppliers.countryCode,
             })
@@ -219,7 +253,7 @@ export async function getInvoices(filters?: {
 
         const invoiceIds = rows.map((row) => row.id);
 
-        const [openFraudRows, openTaskRows] = invoiceIds.length > 0
+        const [openFraudRows, openTaskRows, pendingOverrideRows] = invoiceIds.length > 0
             ? await Promise.all([
                 db.select({
                     entityId: fraudAlerts.entityId,
@@ -239,8 +273,20 @@ export async function getInvoices(filters?: {
                         inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
                         inArray(workflowTasks.entityId, invoiceIds),
                     )),
+                db.select({
+                    invoiceId: invoiceOverrideRequests.invoiceId,
+                    requestType: invoiceOverrideRequests.requestType,
+                    requestedAt: invoiceOverrideRequests.requestedAt,
+                    requesterName: users.name,
+                })
+                    .from(invoiceOverrideRequests)
+                    .leftJoin(users, eq(invoiceOverrideRequests.requestedById, users.id))
+                    .where(and(
+                        eq(invoiceOverrideRequests.status, 'pending'),
+                        inArray(invoiceOverrideRequests.invoiceId, invoiceIds),
+                    ))
             ])
-            : [[], []];
+            : [[], [], []];
 
         const openFraudByInvoice = new Map<string, number>();
         for (const alert of openFraudRows) {
@@ -252,11 +298,28 @@ export async function getInvoices(filters?: {
             openTasksByInvoice.set(task.entityId, (openTasksByInvoice.get(task.entityId) || 0) + 1);
         }
 
+        const pendingOverrideByInvoice = new Map<string, {
+            requestType: 'place_hold' | 'clear_hold' | 'payment_reversal';
+            requestedAt: Date | null;
+            requesterName: string | null;
+        }>();
+
+        for (const request of pendingOverrideRows) {
+            if (!pendingOverrideByInvoice.has(request.invoiceId)) {
+                pendingOverrideByInvoice.set(request.invoiceId, {
+                    requestType: request.requestType,
+                    requestedAt: request.requestedAt,
+                    requesterName: request.requesterName,
+                });
+            }
+        }
+
         return rows.map((row) => {
             const currency = row.currency || 'INR';
             const amount = Number(row.amount || 0);
             const openFraudAlerts = openFraudByInvoice.get(row.id) || 0;
             const openReviewTasks = openTasksByInvoice.get(row.id) || 0;
+            const pendingOverride = pendingOverrideByInvoice.get(row.id);
             const humanReleaseThreshold = getHumanReleaseThreshold(currency);
             const reviewConfidenceScore = buildInvoiceConfidenceScore({
                 status: row.status,
@@ -276,13 +339,19 @@ export async function getInvoices(filters?: {
                     ? `Amount exceeds the ${formatThresholdAmount(humanReleaseThreshold, currency)} manual release threshold`
                     : null,
                 row.status === 'disputed' ? "Invoice is already routed into dispute" : null,
+                row.releaseHold ? "Release hold is active on this invoice" : null,
+                row.reversedAt ? "Payment reversal has been completed for this invoice" : null,
+                pendingOverride ? getOverrideActionLabel(pendingOverride.requestType) : null,
             ].filter((signal): signal is string => Boolean(signal));
 
             return {
                 ...row,
                 openFraudAlerts,
                 openReviewTasks,
-                requiresHumanReview: reviewSignals.length > 0 || reviewConfidenceScore < 75,
+                pendingOverrideRequestType: pendingOverride?.requestType || null,
+                pendingOverrideRequestedAt: pendingOverride?.requestedAt || null,
+                pendingOverrideRequesterName: pendingOverride?.requesterName || null,
+                requiresHumanReview: reviewSignals.length > 0 || reviewConfidenceScore < 75 || Boolean(row.releaseHold),
                 reviewConfidenceScore,
                 confidenceLabel: getInvoiceConfidenceLabel(reviewConfidenceScore),
                 humanReleaseThreshold,
@@ -514,6 +583,8 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             supplierId: invoices.supplierId,
             invoiceNumber: invoices.invoiceNumber,
             status: invoices.status,
+            releaseHold: invoices.releaseHold,
+            reversedAt: invoices.reversedAt,
         }).from(invoices)
             .where(eq(invoices.id, id))
             .limit(1);
@@ -564,6 +635,16 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             if (currentStatus !== 'matched') {
                 await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because the invoice is not in matched status.`);
                 return { success: false, error: "Only matched invoices can be marked as paid." };
+            }
+
+            if (invoice.releaseHold) {
+                await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because an approved release hold is still active.`);
+                return { success: false, error: "Mark-paid action blocked until the approved release hold is cleared through dual approval." };
+            }
+
+            if (invoice.reversedAt) {
+                await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because the invoice already has a completed payment reversal.`);
+                return { success: false, error: "This invoice already carries a completed reversal record." };
             }
 
             const [openFraudAlert] = await db.select({ id: fraudAlerts.id })
@@ -772,5 +853,412 @@ export async function rerunInvoiceMatch(invoiceId: string) {
     } catch (error) {
         console.error("Failed to rerun invoice match:", error);
         return { success: false, error: "Failed to rerun invoice matching" };
+    }
+}
+
+export async function getInvoiceOverrideRequests(filters?: {
+    status?: 'pending' | 'approved' | 'rejected';
+    invoiceId?: string;
+    limit?: number;
+}) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin' || !canRunInvoiceRules(session.user)) {
+        return [];
+    }
+
+    try {
+        const conditions = [];
+
+        if (filters?.status) {
+            conditions.push(eq(invoiceOverrideRequests.status, filters.status));
+        }
+
+        if (filters?.invoiceId) {
+            conditions.push(eq(invoiceOverrideRequests.invoiceId, filters.invoiceId));
+        }
+
+        const rows = await db.select({
+            id: invoiceOverrideRequests.id,
+            invoiceId: invoiceOverrideRequests.invoiceId,
+            requestType: invoiceOverrideRequests.requestType,
+            status: invoiceOverrideRequests.status,
+            reason: invoiceOverrideRequests.reason,
+            decisionNotes: invoiceOverrideRequests.decisionNotes,
+            requestedById: invoiceOverrideRequests.requestedById,
+            approvedById: invoiceOverrideRequests.approvedById,
+            requestedAt: invoiceOverrideRequests.requestedAt,
+            approvedAt: invoiceOverrideRequests.approvedAt,
+            rejectedAt: invoiceOverrideRequests.rejectedAt,
+            updatedAt: invoiceOverrideRequests.updatedAt,
+            invoiceNumber: invoices.invoiceNumber,
+            invoiceStatus: invoices.status,
+            releaseHold: invoices.releaseHold,
+            reversedAt: invoices.reversedAt,
+        })
+            .from(invoiceOverrideRequests)
+            .innerJoin(invoices, eq(invoiceOverrideRequests.invoiceId, invoices.id))
+            .where(conditions.length > 0 ? and(...conditions) : undefined)
+            .orderBy(desc(invoiceOverrideRequests.requestedAt))
+            .limit(Math.min(Math.max(filters?.limit || 25, 1), 100));
+
+        const userIds = Array.from(new Set(rows.flatMap((row) => [row.requestedById, row.approvedById]).filter(Boolean))) as string[];
+        const userRows = userIds.length > 0
+            ? await db.select({
+                id: users.id,
+                name: users.name,
+            }).from(users).where(inArray(users.id, userIds))
+            : [];
+        const userMap = new Map(userRows.map((row) => [row.id, row.name]));
+
+        return rows.map((row) => ({
+            ...row,
+            requestedByName: userMap.get(row.requestedById) || 'Unknown user',
+            approvedByName: row.approvedById ? userMap.get(row.approvedById) || 'Unknown user' : null,
+        }));
+    } catch (error) {
+        console.error("Failed to fetch invoice override requests:", error);
+        return [];
+    }
+}
+
+export async function requestInvoiceOverride(data: {
+    invoiceId: string;
+    requestType: 'place_hold' | 'clear_hold' | 'payment_reversal';
+    reason: string;
+}) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    const canRequest = data.requestType === 'payment_reversal'
+        ? canMarkInvoicePaid(session.user)
+        : canRunInvoiceRules(session.user);
+
+    if (!canRequest) {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    const reason = String(data.reason || "").trim();
+    if (reason.length < 8) {
+        return { success: false, error: "Please record a specific override reason before routing this request." };
+    }
+
+    try {
+        const [invoice] = await db.select({
+            id: invoices.id,
+            supplierId: invoices.supplierId,
+            invoiceNumber: invoices.invoiceNumber,
+            status: invoices.status,
+            releaseHold: invoices.releaseHold,
+            reversedAt: invoices.reversedAt,
+        }).from(invoices)
+            .where(eq(invoices.id, data.invoiceId))
+            .limit(1);
+
+        if (!invoice) {
+            return { success: false, error: "Invoice not found" };
+        }
+
+        const currentStatus = (invoice.status || 'pending') as 'pending' | 'matched' | 'disputed' | 'paid';
+
+        if (data.requestType === 'place_hold') {
+            if (!['matched', 'paid'].includes(currentStatus)) {
+                return { success: false, error: "A release hold can only be requested after the invoice reaches matched or paid state." };
+            }
+            if (invoice.releaseHold) {
+                return { success: false, error: "A release hold is already active for this invoice." };
+            }
+        }
+
+        if (data.requestType === 'clear_hold') {
+            if (!invoice.releaseHold) {
+                return { success: false, error: "This invoice does not currently have an approved release hold." };
+            }
+            if (invoice.reversedAt) {
+                return { success: false, error: "A reversed invoice cannot clear the hold state back into payment flow." };
+            }
+        }
+
+        if (data.requestType === 'payment_reversal') {
+            if (currentStatus !== 'paid') {
+                return { success: false, error: "Only paid invoices can enter the payment reversal flow." };
+            }
+            if (invoice.reversedAt) {
+                return { success: false, error: "This invoice already has a completed reversal record." };
+            }
+        }
+
+        const [existingPending] = await db.select({
+            id: invoiceOverrideRequests.id,
+        }).from(invoiceOverrideRequests)
+            .where(and(
+                eq(invoiceOverrideRequests.invoiceId, data.invoiceId),
+                eq(invoiceOverrideRequests.status, 'pending'),
+            ))
+            .limit(1);
+
+        if (existingPending) {
+            return { success: false, error: "A dual-approval override is already pending for this invoice." };
+        }
+
+        const [request] = await db.transaction(async (tx) => {
+            const [created] = await tx.insert(invoiceOverrideRequests).values({
+                invoiceId: data.invoiceId,
+                requestType: data.requestType,
+                reason,
+                requestedById: session.user.id,
+            }).returning();
+
+            await tx.insert(workflowTasks).values({
+                title: `${getOverrideTitle(data.requestType)} for invoice ${invoice.invoiceNumber}`,
+                description: `${reason} A second finance approver must approve or reject this request before the invoice state changes.`,
+                entityType: 'invoice',
+                entityId: data.invoiceId,
+                priority: data.requestType === 'payment_reversal' ? 'critical' : 'high',
+                createdById: session.user.id,
+                nextAction: 'Open Financial Matching, review the override queue, and record an approval or rejection with notes.',
+            });
+
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: 'REQUEST_OVERRIDE',
+                entityType: 'invoice',
+                entityId: data.invoiceId,
+                details: `${getOverrideTitle(data.requestType)} requested for invoice ${invoice.invoiceNumber}. Reason: ${reason}`,
+            });
+
+            return [created];
+        });
+
+        const reviewers = await db.select({
+            id: users.id,
+        }).from(users)
+            .where(and(
+                eq(users.role, 'admin'),
+                inArray(users.accessProfile, [...OVERRIDE_REVIEWER_PROFILES]),
+                sql`${users.id} <> ${session.user.id}`,
+            ));
+
+        await Promise.allSettled(reviewers.map((reviewer) => createNotification({
+            userId: reviewer.id,
+            title: 'Dual approval required',
+            message: `${getOverrideTitle(data.requestType)} was requested for invoice ${invoice.invoiceNumber}. A second approver must review it before the finance state can change.`,
+            type: 'warning',
+            link: '/admin/financial-matching',
+        })));
+
+        revalidatePath('/admin/financial-matching');
+        revalidatePath('/admin/tasks');
+        revalidatePath('/sourcing/invoices');
+
+        return { success: true, requestId: request.id };
+    } catch (error) {
+        console.error("Failed to request invoice override:", error);
+        return { success: false, error: "Failed to route the override request." };
+    }
+}
+
+export async function reviewInvoiceOverride(data: {
+    requestId: string;
+    decision: 'approved' | 'rejected';
+    decisionNotes?: string;
+    reversalReference?: string;
+}) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin' || !canMarkInvoicePaid(session.user)) {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const [request] = await db.select({
+            id: invoiceOverrideRequests.id,
+            invoiceId: invoiceOverrideRequests.invoiceId,
+            requestType: invoiceOverrideRequests.requestType,
+            status: invoiceOverrideRequests.status,
+            reason: invoiceOverrideRequests.reason,
+            requestedById: invoiceOverrideRequests.requestedById,
+            invoiceNumber: invoices.invoiceNumber,
+            invoiceStatus: invoices.status,
+            supplierId: invoices.supplierId,
+            releaseHold: invoices.releaseHold,
+            reversedAt: invoices.reversedAt,
+        }).from(invoiceOverrideRequests)
+            .innerJoin(invoices, eq(invoiceOverrideRequests.invoiceId, invoices.id))
+            .where(eq(invoiceOverrideRequests.id, data.requestId))
+            .limit(1);
+
+        if (!request) {
+            return { success: false, error: "Override request not found" };
+        }
+
+        if (request.status !== 'pending') {
+            return { success: false, error: "This override request is already closed." };
+        }
+
+        if (request.requestedById === session.user.id) {
+            return { success: false, error: "Four-eyes enforcement blocks self-approval. A different approver must review this override." };
+        }
+
+        const decisionNotes = String(data.decisionNotes || "").trim();
+        const reversalReference = String(data.reversalReference || "").trim();
+
+        await db.transaction(async (tx) => {
+            const [freshInvoice] = await tx.select({
+                id: invoices.id,
+                status: invoices.status,
+                releaseHold: invoices.releaseHold,
+                reversedAt: invoices.reversedAt,
+                invoiceNumber: invoices.invoiceNumber,
+            }).from(invoices)
+                .where(eq(invoices.id, request.invoiceId))
+                .limit(1);
+
+            if (!freshInvoice) {
+                throw new Error("Invoice not found");
+            }
+
+            if (data.decision === 'approved') {
+                if (request.requestType === 'place_hold') {
+                    await tx.update(invoices)
+                        .set({
+                            releaseHold: true,
+                            releaseHoldReason: request.reason,
+                            releaseHoldAppliedAt: new Date(),
+                        })
+                        .where(eq(invoices.id, request.invoiceId));
+                }
+
+                if (request.requestType === 'clear_hold') {
+                    await tx.update(invoices)
+                        .set({
+                            releaseHold: false,
+                            releaseHoldReason: null,
+                            releaseHoldAppliedAt: null,
+                        })
+                        .where(eq(invoices.id, request.invoiceId));
+                }
+
+                if (request.requestType === 'payment_reversal') {
+                    await tx.update(invoices)
+                        .set({
+                            releaseHold: true,
+                            releaseHoldReason: request.reason,
+                            releaseHoldAppliedAt: new Date(),
+                            reversedAt: new Date(),
+                            reversalReason: request.reason,
+                            reversalReference: reversalReference || null,
+                            reversedById: session.user.id,
+                        })
+                        .where(eq(invoices.id, request.invoiceId));
+                }
+            }
+
+            await tx.update(invoiceOverrideRequests)
+                .set({
+                    status: data.decision,
+                    approvedById: session.user.id,
+                    approvedAt: data.decision === 'approved' ? new Date() : null,
+                    rejectedAt: data.decision === 'rejected' ? new Date() : null,
+                    decisionNotes: decisionNotes || null,
+                    updatedAt: new Date(),
+                })
+                .where(eq(invoiceOverrideRequests.id, data.requestId));
+
+            await tx.insert(auditLogs).values({
+                userId: session.user.id,
+                action: data.decision === 'approved' ? 'APPROVE_OVERRIDE' : 'REJECT_OVERRIDE',
+                entityType: 'invoice',
+                entityId: request.invoiceId,
+                details: `${getOverrideTitle(request.requestType)} ${data.decision} for invoice ${request.invoiceNumber}.${decisionNotes ? ` Notes: ${decisionNotes}` : ''}${reversalReference ? ` Reversal reference: ${reversalReference}` : ''}`,
+            });
+
+            const [openOverrideTasks] = await tx.select({
+                id: workflowTasks.id,
+            }).from(workflowTasks)
+                .where(and(
+                    eq(workflowTasks.entityType, 'invoice'),
+                    eq(workflowTasks.entityId, request.invoiceId),
+                    inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
+                    ilike(workflowTasks.title, `%invoice ${request.invoiceNumber}%`),
+                ))
+                .limit(1);
+
+            if (openOverrideTasks) {
+                await tx.update(workflowTasks)
+                    .set({
+                        status: 'completed',
+                        completedAt: new Date(),
+                        completionEvidence: `${getOverrideTitle(request.requestType)} ${data.decision} by second approver.`,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(workflowTasks.id, openOverrideTasks.id));
+            }
+
+            if (data.decision === 'approved' && request.requestType === 'place_hold') {
+                const [existingTask] = await tx.select({
+                    id: workflowTasks.id,
+                    status: workflowTasks.status,
+                }).from(workflowTasks)
+                    .where(and(
+                        eq(workflowTasks.entityType, 'invoice'),
+                        eq(workflowTasks.entityId, request.invoiceId),
+                        inArray(workflowTasks.status, [...ACTIVE_INVOICE_REVIEW_STATUSES]),
+                    ))
+                    .orderBy(desc(workflowTasks.createdAt))
+                    .limit(1);
+
+                if (existingTask) {
+                    await tx.update(workflowTasks)
+                        .set({
+                            status: existingTask.status === 'blocked' ? 'open' : existingTask.status,
+                            priority: 'high',
+                            nextAction: 'Release hold is active. Resolve the dispute, then request dual approval to clear the hold before payment can resume.',
+                            updatedAt: new Date(),
+                        })
+                        .where(eq(workflowTasks.id, existingTask.id));
+                } else {
+                    await tx.insert(workflowTasks).values({
+                        title: `Manual review for invoice ${request.invoiceNumber}`,
+                        description: `Release hold approved. Resolve the issue before requesting a dual-approved hold release.`,
+                        entityType: 'invoice',
+                        entityId: request.invoiceId,
+                        priority: 'high',
+                        createdById: session.user.id,
+                        nextAction: 'Resolve the issue, then route a hold-release approval when the invoice is safe to continue.',
+                    });
+                }
+            }
+        });
+
+        await createNotification({
+            userId: request.requestedById,
+            title: data.decision === 'approved' ? 'Invoice override approved' : 'Invoice override rejected',
+            message: `${getOverrideTitle(request.requestType)} for invoice ${request.invoiceNumber} was ${data.decision}.`,
+            type: data.decision === 'approved' ? 'success' : 'warning',
+            link: '/admin/financial-matching',
+        });
+
+        if (data.decision === 'approved' && request.supplierId) {
+            await createNotification({
+                userId: request.supplierId,
+                title: request.requestType === 'payment_reversal' ? 'Invoice payment reversed' : 'Invoice finance hold updated',
+                message: request.requestType === 'payment_reversal'
+                    ? `Invoice ${request.invoiceNumber} now carries a finance reversal record.`
+                    : `Invoice ${request.invoiceNumber} is under controlled finance review.`,
+                type: 'warning',
+                link: '/portal/invoices',
+            });
+        }
+
+        revalidatePath('/admin/financial-matching');
+        revalidatePath('/admin/tasks');
+        revalidatePath('/sourcing/invoices');
+        revalidatePath('/sourcing/exceptions');
+
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to review invoice override:", error);
+        return { success: false, error: error instanceof Error ? error.message : "Failed to review the override request." };
     }
 }

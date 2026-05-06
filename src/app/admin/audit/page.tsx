@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getAuditLogs } from "@/app/actions/activity";
+import { getAuditLogs, getAuditStoragePosture } from "@/app/actions/activity";
 import {
     Card,
     CardContent,
@@ -78,12 +78,16 @@ export default async function AuditDashboard() {
         );
     }
 
-    const logs = await getAuditLogs();
+    const [logs, storagePosture] = await Promise.all([
+        getAuditLogs(),
+        getAuditStoragePosture(),
+    ]);
     const latestEventAt = logs[0]?.createdAt ? new Date(logs[0].createdAt) : null;
     const normalizedLogs: AuditLogRecord[] = logs.map((log) => ({
         ...log,
         createdAt: log.createdAt ?? new Date(0),
     }));
+    const immutableEnforced = Boolean(storagePosture?.immutableEnforced);
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
@@ -97,9 +101,14 @@ export default async function AuditDashboard() {
                         Immutable record of all system-wide actions for compliance and forensics.
                     </p>
                 </div>
-                <Badge variant="outline" className="h-10 px-4 gap-2 border-amber-200 bg-amber-50 text-amber-700">
+                <Badge
+                    variant="outline"
+                    className={immutableEnforced
+                        ? "h-10 px-4 gap-2 border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "h-10 px-4 gap-2 border-amber-200 bg-amber-50 text-amber-700"}
+                >
                     <ShieldCheck className="h-4 w-4" />
-                    Delete Route Disabled
+                    {immutableEnforced ? "WORM Enforced" : "Storage Hardening Pending"}
                 </Badge>
             </div>
 
@@ -144,11 +153,14 @@ export default async function AuditDashboard() {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardDescription className="text-xs font-bold uppercase tracking-wider">Tamper Surface</CardDescription>
-                        <CardTitle className="text-2xl">None</CardTitle>
+                        <CardTitle className="text-2xl">{immutableEnforced ? "Locked" : "App-only"}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <ShieldCheck className="h-3 w-3" /> The app exposes read and export routes only for audit logs.
+                            <ShieldCheck className="h-3 w-3" />
+                            {immutableEnforced
+                                ? "Update, delete, and truncate are blocked at the database layer for audit logs."
+                                : "The app is read and export only, but the database hard lock is not yet verified."}
                         </div>
                     </CardContent>
                 </Card>
