@@ -78,6 +78,8 @@ export type OperationalSignals = {
         detail: string;
         total: number;
         blockedOrders: number;
+        receiptQuarantine: number;
+        financeHolds: number;
         critical: number;
     };
 };
@@ -494,6 +496,8 @@ export async function getOperationalSignals(): Promise<OperationalSignals | null
                     : "Release blocks, quarantined receipts, and finance holds are currently clear.",
                 total: queue.total,
                 blockedOrders: queue.blockedOrders,
+                receiptQuarantine: queue.receiptQuarantine,
+                financeHolds: queue.financeHolds,
                 critical: queue.critical,
             },
         };

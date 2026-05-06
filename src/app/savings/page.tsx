@@ -24,6 +24,13 @@ export default function SavingsPage() {
     }, []);
 
     const fmt = (val: number) => formatCurrencyByCode(val, 'INR');
+    const fmtCompact = (val: number) => {
+        if (Math.abs(val) >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
+        if (Math.abs(val) >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+        if (Math.abs(val) >= 1000) return `₹${(val / 1000).toFixed(0)}K`;
+        return `₹${val.toFixed(0)}`;
+    };
+    const shortSupplierLabel = (value: string) => value.length > 16 ? `${value.slice(0, 16)}…` : value;
 
     const exportCSV = () => {
         if (!data) return;
@@ -120,16 +127,33 @@ export default function SavingsPage() {
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={data.savingsBySupplier?.slice(0, 10) || []} margin={{ top: 5, right: 20, bottom: 60, left: 0 }}>
+                            <BarChart data={data.savingsBySupplier?.slice(0, 10) || []} margin={{ top: 34, right: 20, bottom: 72, left: 18 }} barGap={8}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                                <XAxis dataKey="supplierName" angle={-35} textAnchor="end" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCurrencyByCode(v, 'INR')} />
+                                <XAxis
+                                    dataKey="supplierName"
+                                    angle={-28}
+                                    height={68}
+                                    interval={0}
+                                    textAnchor="end"
+                                    tickMargin={12}
+                                    tick={{ fontSize: 12, fontWeight: 600 }}
+                                    tickFormatter={shortSupplierLabel}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <YAxis
+                                    width={84}
+                                    tick={{ fontSize: 12, fontWeight: 600 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={(v) => fmtCompact(Number(v))}
+                                />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} name="Savings" />
+                                <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 13, fontWeight: 600, paddingBottom: 8 }} />
                                 {data.savingsBySupplier?.[0]?.spend !== undefined && (
-                                    <Bar dataKey="spend" fill="#3b82f6" fillOpacity={0.3} radius={[4, 4, 0, 0]} name="Spend" />
+                                    <Bar dataKey="spend" fill="#cbd5e1" radius={[4, 4, 0, 0]} name="Spend" />
                                 )}
+                                <Bar dataKey="savings" fill="#10b981" radius={[4, 4, 0, 0]} name="Savings" />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -155,10 +179,10 @@ export default function SavingsPage() {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCurrencyByCode(v, 'INR')} />
+                                <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 600 }} tickMargin={10} axisLine={false} tickLine={false} />
+                                <YAxis width={84} tick={{ fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtCompact(Number(v))} />
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 13, fontWeight: 600, paddingBottom: 8 }} />
                                 <Area type="monotone" dataKey="savings" stroke="#10b981" fill="url(#savingsGrad)" strokeWidth={2.5} name="Savings" dot={{ r: 3, fill: '#10b981' }} />
                                 {data.savingsTrend?.[0]?.spend !== undefined && (
                                     <Area type="monotone" dataKey="spend" stroke="#3b82f6" fill="url(#spendGrad)" strokeWidth={1.5} strokeDasharray="5 5" name="Spend" />
@@ -183,7 +207,7 @@ export default function SavingsPage() {
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
+                                <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: 13, fontWeight: 600, paddingTop: 8 }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>

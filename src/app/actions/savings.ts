@@ -3,7 +3,6 @@
 import { db } from "@/db";
 import { procurementOrders, suppliers } from "@/db/schema";
 import { auth } from "@/auth";
-import { desc, gt, isNotNull, sql } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
 export async function getSavingsData() {
@@ -28,21 +27,37 @@ export async function getSavingsData() {
         const ordersWithSavings = orders.filter(o => parseFloat(o.savingsAmount || '0') > 0).length;
 
         // Savings by supplier
-        const supplierMap = new Map<string, { supplierName: string; savings: number }>();
+        const supplierMap = new Map<string, { supplierName: string; savings: number; spend: number }>();
         for (const o of orders) {
             const name = o.supplierName || 'Unknown';
             const s = parseFloat(o.savingsAmount || '0');
-            supplierMap.set(name, { supplierName: name, savings: (supplierMap.get(name)?.savings || 0) + s });
+            const spend = parseFloat(o.totalAmount || '0');
+            const existing = supplierMap.get(name) || { supplierName: name, savings: 0, spend: 0 };
+            supplierMap.set(name, {
+                supplierName: name,
+                savings: existing.savings + s,
+                spend: existing.spend + spend,
+            });
         }
         const savingsBySupplier = Array.from(supplierMap.values()).sort((a, b) => b.savings - a.savings);
 
         // Savings trend by month
-        const monthMap = new Map<string, number>();
+        const monthMap = new Map<string, { month: string; savings: number; spend: number; sortKey: number }>();
         for (const o of orders) {
-            const month = new Date(o.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-            monthMap.set(month, (monthMap.get(month) || 0) + parseFloat(o.savingsAmount || '0'));
+            const createdAt = new Date(o.createdAt || Date.now());
+            const month = createdAt.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            const sortKey = Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth(), 1);
+            const existing = monthMap.get(month) || { month, savings: 0, spend: 0, sortKey };
+            monthMap.set(month, {
+                month,
+                savings: existing.savings + parseFloat(o.savingsAmount || '0'),
+                spend: existing.spend + parseFloat(o.totalAmount || '0'),
+                sortKey,
+            });
         }
-        const savingsTrend = Array.from(monthMap.entries()).map(([month, savings]) => ({ month, savings }));
+        const savingsTrend = Array.from(monthMap.values())
+            .sort((a, b) => a.sortKey - b.sortKey)
+            .map(({ month, savings, spend }) => ({ month, savings, spend }));
 
         // Savings by type
         const typeMap = new Map<string, number>();

@@ -348,7 +348,7 @@ export default async function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex min-h-[220px] flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <Landmark className="h-4 w-4 text-emerald-600" />
                 Multi-currency spend
@@ -356,8 +356,17 @@ export default async function Home() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Original invoice currency stays intact while user-local FX views and reporting-book rates stay in sync.
               </p>
+              <p className="mt-3 text-sm font-semibold text-slate-900">
+                {operationalSignals?.fxRates.title || "Finance settings review required"}
+              </p>
+              <div className="mt-auto border-t border-slate-200 pt-3">
+                <Link href="/admin/settings" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
+                  Open finance console
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex min-h-[220px] flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <ShieldCheck className="h-4 w-4 text-blue-600" />
                 Regional compliance
@@ -365,8 +374,17 @@ export default async function Home() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Policy packs, region tags, evidence coverage, and approval controls stay attached to supplier and contract records.
               </p>
+              <p className="mt-3 text-sm font-semibold text-slate-900">
+                {stats.supplierCount} supplier records can carry compliance scope and evidence.
+              </p>
+              <div className="mt-auto border-t border-slate-200 pt-3">
+                <Link href="/admin/compliance" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
+                  Open compliance routes
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex min-h-[220px] flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <CreditCard className="h-4 w-4 text-sky-600" />
                 Deterministic matching
@@ -374,8 +392,17 @@ export default async function Home() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Payment release stays tied to PO, receipt, QC, and invoice math before any downstream approval.
               </p>
+              <p className="mt-3 text-sm font-semibold text-slate-900">
+                {operationalSignals?.exceptions.financeHolds || 0} finance hold{operationalSignals?.exceptions.financeHolds === 1 ? "" : "s"} currently need review.
+              </p>
+              <div className="mt-auto border-t border-slate-200 pt-3">
+                <Link href="/admin/financial-matching" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
+                  Open matching queue
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex min-h-[220px] flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <Database className="h-4 w-4 text-amber-600" />
                 Guarded imports
@@ -383,8 +410,17 @@ export default async function Home() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Admin-only dry runs, schema validation, referential checks, and post-import resync protect the operating dataset.
               </p>
+              <p className="mt-3 text-sm font-semibold text-slate-900">
+                Use dry-run first, then commit only the rows that clear validation.
+              </p>
+              <div className="mt-auto border-t border-slate-200 pt-3">
+                <Link href="/admin/import" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
+                  Open controlled import
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex min-h-[220px] flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <ShieldAlert className="h-4 w-4 text-red-600" />
                 Operational truth
@@ -401,7 +437,7 @@ export default async function Home() {
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {operationalSignals?.aiAssist.detail || "AI dependency posture is not available yet."}
               </p>
-              <div className="mt-3 border-t border-slate-200 pt-3">
+              <div className="mt-auto border-t border-slate-200 pt-3">
                 <Link href="/sourcing/exceptions" className="inline-flex items-center text-sm font-semibold text-slate-900 hover:text-primary">
                   {operationalSignals?.exceptions.title || "Open exception route"}
                   <ArrowUpRight className="ml-1 h-4 w-4" />
