@@ -37,10 +37,10 @@ function getLinkClasses(link: NavigationLink, isActive: boolean) {
     );
 }
 
-export function MobileNavigation({ role }: { role: NavigationRole }) {
+export function MobileNavigation({ user }: { user: NavigationRole }) {
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
-    const sections = getNavigationSections(role);
+    const sections = getNavigationSections(user);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>

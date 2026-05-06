@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { escalateInvoiceToHumanReview, rerunInvoiceMatch, updateInvoiceStatus } from "@/app/actions/invoices";
 import { toast } from "sonner";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { Loader2, Lock, ShieldAlert } from "lucide-react";
 import { getThreeWayMatchReasonLabel } from "@/lib/utils/three-way-match";
+import { useSession } from "next-auth/react";
+import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules } from "@/lib/rbac";
 
 export function InvoiceActions({
     invoiceId,
@@ -17,6 +19,11 @@ export function InvoiceActions({
     onChanged?: () => Promise<void> | void;
 }) {
     const [isLoading, setIsLoading] = useState(false);
+    const { data } = useSession();
+    const currentUser = data?.user;
+    const canRunRules = canRunInvoiceRules(currentUser);
+    const canEscalate = canEscalateInvoiceReview(currentUser);
+    const canMarkPaid = canMarkInvoicePaid(currentUser);
 
     const handleAction = async (newStatus: 'pending' | 'disputed' | 'paid') => {
         setIsLoading(true);
@@ -91,19 +98,29 @@ export function InvoiceActions({
         }
     };
 
-    if (status === 'paid') return null;
+    if (status === 'paid') {
+        return (
+            <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                <Lock className="h-3 w-3" />
+                Archived
+            </div>
+        );
+    }
 
     return (
         <div className="flex justify-end gap-2 flex-wrap">
-            <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-[10px] font-bold uppercase tracking-tighter border-blue-200 text-blue-700 hover:bg-blue-50"
-                onClick={handleRerun}
-                disabled={isLoading}
-            >
-                {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Run Rules"}
-            </Button>
+            {canRunRules ? (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-[10px] font-bold uppercase tracking-tighter border-blue-200 text-blue-700 hover:bg-blue-50"
+                    onClick={handleRerun}
+                    disabled={isLoading}
+                >
+                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Run Rules"}
+                </Button>
+            ) : null}
+            {canEscalate ? (
                 <Button
                     variant="outline"
                     size="sm"
@@ -112,8 +129,9 @@ export function InvoiceActions({
                     disabled={isLoading}
                 >
                     {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldAlert className="mr-1 h-3 w-3" />}
-                Escalate
-            </Button>
+                    Escalate
+                </Button>
+            ) : null}
             {status === 'pending' && (
                 <Button
                     variant="outline"
@@ -127,36 +145,28 @@ export function InvoiceActions({
             )}
             {status === 'matched' && (
                 <>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[10px] font-bold uppercase tracking-tighter border-amber-200 text-amber-700 hover:bg-amber-50"
-                    onClick={() => handleAction('pending')}
-                    disabled={isLoading}
-                >
-                    Undo to Review
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[10px] font-bold uppercase tracking-tighter border-green-200 text-green-700 hover:bg-green-50"
-                    onClick={() => handleAction('paid')}
-                    disabled={isLoading}
-                >
-                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Paid"}
-                </Button>
+                    <div className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                        <Lock className="h-3 w-3" />
+                        Compliance Locked
+                    </div>
+                    {canMarkPaid ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-[10px] font-bold uppercase tracking-tighter border-green-200 text-green-700 hover:bg-green-50"
+                            onClick={() => handleAction('paid')}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Paid"}
+                        </Button>
+                    ) : null}
                 </>
             )}
             {status === 'disputed' && (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[10px] font-bold uppercase tracking-tighter border-amber-200 text-amber-700 hover:bg-amber-50"
-                    onClick={() => handleAction('pending')}
-                    disabled={isLoading}
-                >
-                    Undo to Review
-                </Button>
+                <div className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                    <ShieldAlert className="h-3 w-3" />
+                    Dispute Hold
+                </div>
             )}
         </div>
     );

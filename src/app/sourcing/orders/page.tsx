@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,13 +9,17 @@ import Link from "next/link";
 import { OrderActions } from "@/components/sourcing/order-actions";
 import { OrderCharts } from "@/components/sourcing/order-charts";
 import { formatPmaId } from "@/lib/utils/format-id";
+import { auth } from "@/auth";
+import { canManageSourcing } from "@/lib/rbac";
 
 export const dynamic = 'force-dynamic'
 
 export default async function OrdersPage() {
+    const session = await auth();
     const ordersList = await getOrders();
     const suppliers = await getSuppliers();
     const parts = await getParts();
+    const canCreateOrder = canManageSourcing(session?.user);
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8">
@@ -26,7 +29,7 @@ export default async function OrdersPage() {
                     <p className="text-muted-foreground mt-1">Manage purchase orders and RFQs.</p>
                 </div>
 
-                <CreateOrderDialog suppliers={suppliers} parts={parts} />
+                {canCreateOrder ? <CreateOrderDialog suppliers={suppliers} parts={parts} /> : null}
             </div>
 
             {/* Order Charts */}

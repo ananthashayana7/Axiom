@@ -16,6 +16,9 @@ import {
     ShieldCheck
 } from "lucide-react";
 import { AuditLogView } from "@/components/admin/audit-log-view";
+import { canAccessAuditTrail } from "@/lib/rbac";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = 'force-dynamic';
 
@@ -50,11 +53,29 @@ function formatRelativeTime(date: Date | null | undefined) {
 
 export default async function AuditDashboard() {
     const session = await auth();
-    const userRole = (session?.user as { role?: string | null } | undefined)?.role;
-    const isAllowed = userRole === 'admin';
+    const isAllowed = canAccessAuditTrail(session?.user);
 
     if (!isAllowed) {
-        return <div className="p-8">Access Denied. You do not have permission to view the audit trail.</div>;
+        return (
+            <div className="flex min-h-full items-center justify-center p-8">
+                <Card className="w-full max-w-xl border-amber-200">
+                    <CardHeader>
+                        <CardTitle className="text-2xl font-black tracking-tight">Access Denied</CardTitle>
+                        <CardDescription>
+                            The audit trail is limited to finance and super-admin access profiles. If you need an export or investigation snapshot, contact your platform administrator.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-3">
+                        <Link href="/">
+                            <Button>Return to workspace</Button>
+                        </Link>
+                        <Link href="/support">
+                            <Button variant="outline">Contact administrator</Button>
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
     }
 
     const logs = await getAuditLogs();

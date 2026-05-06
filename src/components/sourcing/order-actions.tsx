@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { updateOrderStatus, deleteOrder } from "@/app/actions/orders"
 import { toast } from "sonner"
-import { MoreHorizontal, Trash, CheckCircle, XCircle, Send, FileText, ExternalLink, Truck, Receipt } from "lucide-react"
+import { MoreHorizontal, Trash, XCircle, Send, FileText, ExternalLink, Truck, Receipt } from "lucide-react"
 import Link from "next/link"
 import {
     DropdownMenu,
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RecordReceiptDialog } from "./record-receipt-dialog"
 import { AddInvoiceDialog } from "./add-invoice-dialog"
+import { useSession } from "next-auth/react"
+import { canManageSourcing } from "@/lib/rbac"
 
 export function OrderActions({
     orderId,
@@ -29,8 +31,10 @@ export function OrderActions({
     totalAmount: number
 }) {
     const [loading, setLoading] = useState(false)
+    const { data } = useSession()
+    const canOperateOrder = canManageSourcing(data?.user)
 
-    const handleUpdate = async (newStatus: any) => {
+    const handleUpdate = async (newStatus: 'pending_approval' | 'sent' | 'cancelled') => {
         setLoading(true)
         const res = await updateOrderStatus(orderId, newStatus)
         if (res.success) {
@@ -72,57 +76,63 @@ export function OrderActions({
                     </DropdownMenuItem>
                 </Link>
 
-                {status === 'draft' && (
+                {canOperateOrder && status === 'draft' && (
                     <DropdownMenuItem onClick={() => handleUpdate('pending_approval')} className="cursor-pointer py-3 px-4">
                         <Send className="h-4 w-4 mr-3 text-sky-500" />
                         <span className="font-semibold text-sm">Submit for Approval</span>
                     </DropdownMenuItem>
                 )}
 
-                {status === 'approved' && (
+                {canOperateOrder && status === 'approved' && (
                     <DropdownMenuItem onClick={() => handleUpdate('sent')} className="cursor-pointer py-3 px-4">
                         <Send className="h-4 w-4 mr-3 text-emerald-500" />
                         <span className="font-semibold text-sm">Send to Supplier</span>
                     </DropdownMenuItem>
                 )}
 
-                {status !== 'fulfilled' && status !== 'cancelled' && (
+                {canOperateOrder && status !== 'fulfilled' && status !== 'cancelled' && (
                     <DropdownMenuItem onClick={() => handleUpdate('cancelled')} className="cursor-pointer py-3 px-4">
                         <XCircle className="h-4 w-4 mr-3 text-amber-500" />
                         <span className="font-semibold text-sm">Cancel Order</span>
                     </DropdownMenuItem>
                 )}
 
-                <DropdownMenuSeparator />
+                {canOperateOrder ? <DropdownMenuSeparator /> : null}
 
-                <RecordReceiptDialog
-                    orderId={orderId}
-                    trigger={
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer py-3 px-4">
-                            <Truck className="h-4 w-4 mr-3 text-indigo-500" />
-                            <span className="font-semibold text-sm">Record Receipt</span>
-                        </DropdownMenuItem>
-                    }
-                />
+                {canOperateOrder ? (
+                    <RecordReceiptDialog
+                        orderId={orderId}
+                        trigger={
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer py-3 px-4">
+                                <Truck className="h-4 w-4 mr-3 text-indigo-500" />
+                                <span className="font-semibold text-sm">Record Receipt</span>
+                            </DropdownMenuItem>
+                        }
+                    />
+                ) : null}
 
-                <AddInvoiceDialog
-                    orderId={orderId}
-                    supplierId={supplierId}
-                    poAmount={totalAmount}
-                    trigger={
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer py-3 px-4">
-                            <Receipt className="h-4 w-4 mr-3 text-purple-500" />
-                            <span className="font-semibold text-sm">Add Invoice</span>
-                        </DropdownMenuItem>
-                    }
-                />
+                {canOperateOrder ? (
+                    <AddInvoiceDialog
+                        orderId={orderId}
+                        supplierId={supplierId}
+                        poAmount={totalAmount}
+                        trigger={
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer py-3 px-4">
+                                <Receipt className="h-4 w-4 mr-3 text-purple-500" />
+                                <span className="font-semibold text-sm">Add Invoice</span>
+                            </DropdownMenuItem>
+                        }
+                    />
+                ) : null}
 
-                <DropdownMenuSeparator />
+                {canOperateOrder ? <DropdownMenuSeparator /> : null}
 
-                <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-700 focus:bg-red-50 py-3 px-4 cursor-pointer">
-                    <Trash className="h-4 w-4 mr-3" />
-                    <span className="font-semibold text-sm">Delete Order</span>
-                </DropdownMenuItem>
+                {canOperateOrder ? (
+                    <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-700 focus:bg-red-50 py-3 px-4 cursor-pointer">
+                        <Trash className="h-4 w-4 mr-3" />
+                        <span className="font-semibold text-sm">Delete Order</span>
+                    </DropdownMenuItem>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

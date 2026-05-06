@@ -3,10 +3,9 @@ import { authConfig } from "./auth.config"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
-import { z } from "zod"
 import { db } from "@/db"
 import { users } from "@/db/schema"
-import { ilike, or, eq } from "drizzle-orm"
+import { ilike } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
 import { TotpService } from "@/lib/totp";
@@ -96,6 +95,10 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             name: user.name,
                             email: user.email,
                             role: user.role,
+                            accessProfile: user.accessProfile,
+                            department: user.department,
+                            countryScope: user.countryScope,
+                            regionScope: user.regionScope,
                             supplierId: user.supplierId,
                         }
                     } else {
@@ -151,6 +154,10 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 user.id = existingUser.id;
                 user.name = existingUser.name;
                 user.role = existingUser.role;
+                user.accessProfile = existingUser.accessProfile;
+                user.department = existingUser.department;
+                user.countryScope = existingUser.countryScope;
+                user.regionScope = existingUser.regionScope;
                 user.supplierId = existingUser.supplierId;
             }
             return true;

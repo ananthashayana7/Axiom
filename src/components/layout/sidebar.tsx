@@ -32,9 +32,14 @@ import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 import { NavLink } from "@/components/layout/nav-link";
+import { canAccessAIFleet, canAccessAdminPath } from "@/lib/rbac";
 
 type SessionUser = {
     role?: string | null;
+    accessProfile?: string | null;
+    department?: string | null;
+    countryScope?: string | null;
+    regionScope?: string | null;
 };
 
 const adminPriorityLinks = [
@@ -71,9 +76,10 @@ const sectionDividerCls = "h-px flex-1 bg-sidebar-foreground/18";
 
 export async function Sidebar({ className }: { className?: string }) {
     const session = await auth();
-    const role = (session?.user as SessionUser | undefined)?.role;
-    const visiblePriorityLinks = role === "admin" ? adminPriorityLinks : [];
-    const visibleOperationalLinks = role === "admin" ? adminOperationalLinks : [];
+    const user = session?.user as SessionUser | undefined;
+    const role = user?.role;
+    const visiblePriorityLinks = role === "admin" ? adminPriorityLinks.filter((link) => canAccessAdminPath(user, link.href)) : [];
+    const visibleOperationalLinks = role === "admin" ? adminOperationalLinks.filter((link) => canAccessAdminPath(user, link.href)) : [];
     const workspaceLabel = role === "admin" ? "Admin Console" : role === "supplier" ? "Supplier Portal" : "Internal Workspace";
     const workspaceDescription = role === "admin"
         ? "Platform controls, approvals, intelligence, and operating oversight"
@@ -132,7 +138,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             Axiom Copilot
                         </NavLink>
                     )}
-                    {role === "admin" && (
+                    {role === "admin" && canAccessAIFleet(user) && (
                         <Link href="/admin/agents">
                             <span className="flex items-center rounded-md border border-emerald-400/25 bg-emerald-500/14 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 transition-all hover:bg-emerald-500/20">
                                 <Layers className="mr-2 h-4 w-4 text-emerald-200" />
@@ -156,6 +162,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             <NavLink href="/sourcing/requisitions" className={navCls}><ClipboardList className="mr-2 h-4 w-4" />Requisitions</NavLink>
                             <NavLink href="/sourcing/orders" className={navCls}><ShoppingCart className="mr-2 h-4 w-4" />Orders</NavLink>
                             <NavLink href="/sourcing/goods-receipts" className={navCls}><Truck className="mr-2 h-4 w-4" />Goods Receipts</NavLink>
+                            <NavLink href="/sourcing/exceptions" className={navCls}><ShieldAlert className="mr-2 h-4 w-4" />Exception Management</NavLink>
                             <NavLink href="/sourcing/contracts" className={navCls}><Scale className="mr-2 h-4 w-4" />Contracts</NavLink>
                         </div>
                     </div>
@@ -214,24 +221,28 @@ export async function Sidebar({ className }: { className?: string }) {
                     </div>
                 </div>
 
-                {role === "admin" && (
+                {role === "admin" && (visiblePriorityLinks.length > 0 || visibleOperationalLinks.length > 0) && (
                     <div className="mt-4 px-3">
-                        <div className="mb-1.5 flex items-center gap-2 px-1">
-                            <span className={sectionDividerCls} />
-                            <span className={sectionLabelCls}>Intelligence</span>
-                            <span className={sectionDividerCls} />
-                        </div>
-                        <div className="space-y-0.5">
-                            {visiblePriorityLinks.map((link) => {
-                                const Icon = link.icon;
-                                return (
-                                    <NavLink key={link.href} href={link.href} className={navCls}>
-                                        <Icon className="mr-2 h-4 w-4" />
-                                        {link.label}
-                                    </NavLink>
-                                );
-                            })}
-                        </div>
+                        {visiblePriorityLinks.length > 0 && (
+                            <>
+                                <div className="mb-1.5 flex items-center gap-2 px-1">
+                                    <span className={sectionDividerCls} />
+                                    <span className={sectionLabelCls}>Intelligence</span>
+                                    <span className={sectionDividerCls} />
+                                </div>
+                                <div className="space-y-0.5">
+                                    {visiblePriorityLinks.map((link) => {
+                                        const Icon = link.icon;
+                                        return (
+                                            <NavLink key={link.href} href={link.href} className={navCls}>
+                                                <Icon className="mr-2 h-4 w-4" />
+                                                {link.label}
+                                            </NavLink>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
                         {visibleOperationalLinks.length > 0 && (
                             <div className="mt-3">
                                 <div className="mb-1.5 flex items-center gap-2 px-1">

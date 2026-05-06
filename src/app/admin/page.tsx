@@ -1,7 +1,8 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { getDefaultAdminLandingPath } from "@/lib/rbac";
 
-// Redirect admins landing on /admin to the main analytics dashboard.
-// This page exists so the post-login redirect to /admin does not 404.
-export default function AdminIndexPage() {
-    redirect('/admin/analytics');
+export default async function AdminIndexPage() {
+    const session = await auth();
+    redirect(getDefaultAdminLandingPath(session?.user));
 }

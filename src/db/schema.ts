@@ -53,13 +53,18 @@ export const users = pgTable('users', {
     isTwoFactorEnabled: boolean('is_two_factor_enabled').default(false),
     password: text('password').notNull(),
     role: userRoleEnum('role').default('user'),
+    accessProfile: text('access_profile').notNull().default('internal_user'),
     department: text('department'), // Added for department mapping
+    countryScope: text('country_scope'),
+    regionScope: text('region_scope'),
     supplierId: uuid('supplier_id').references(() => suppliers.id),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     // emailIdx: uniqueIndex('email_idx').on(table.email),
     // roleIdx: index('role_idx').on(table.role),
     employeeIdIdx: uniqueIndex('employee_id_idx').on(table.employeeId),
+    accessProfileIdx: index('user_access_profile_idx').on(table.accessProfile),
+    countryScopeIdx: index('user_country_scope_idx').on(table.countryScope),
 }));
 
 export const suppliers = pgTable('suppliers', {

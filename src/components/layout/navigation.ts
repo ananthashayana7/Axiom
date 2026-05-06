@@ -24,8 +24,9 @@ import {
     UserCog,
     Users,
 } from "lucide-react";
+import { canAccessAIFleet, canAccessAdminPath, type SessionAccessUser } from "@/lib/rbac";
 
-export type NavigationRole = string | null | undefined;
+export type NavigationRole = SessionAccessUser | null | undefined;
 
 export type NavigationLink = {
     href: string;
@@ -40,7 +41,28 @@ export type NavigationSection = {
     links: NavigationLink[];
 };
 
-export function getNavigationSections(role: NavigationRole): NavigationSection[] {
+const adminControlLinks: NavigationLink[] = [
+    { label: 'Fraud Alerts', icon: ShieldAlert, href: '/admin/fraud-alerts' },
+    { label: 'Telemetry', icon: History, href: '/admin/telemetry' },
+    { label: 'Financial Matching', icon: CreditCard, href: '/admin/financial-matching' },
+    { label: 'Spend Intelligence', icon: BarChart3, href: '/admin/analytics' },
+    { label: 'Risk Intelligence', icon: ShieldAlert, href: '/admin/risk' },
+];
+
+const adminOperationLinks: NavigationLink[] = [
+    { label: 'Task Inbox', icon: Inbox, href: '/admin/tasks' },
+    { label: 'Compliance', icon: ShieldCheck, href: '/admin/compliance' },
+    { label: 'User Management', icon: UserCog, href: '/admin/users' },
+    { label: 'Support Tickets', icon: LifeBuoy, href: '/admin/support' },
+    { label: 'Audit Trail', icon: History, href: '/admin/audit' },
+    { label: 'Import Data', icon: FileUp, href: '/admin/import' },
+    { label: 'Admin Settings', icon: Settings, href: '/admin/settings' },
+    { label: 'Scenario Modeling', icon: BarChart3, href: '/admin/scenarios' },
+    { label: 'Supplier Ecosystem', icon: Users, href: '/admin/ecosystem' },
+];
+
+export function getNavigationSections(user: NavigationRole): NavigationSection[] {
+    const role = user?.role;
     const workspaceLabel =
         role === 'admin'
             ? 'Admin Console'
@@ -55,7 +77,7 @@ export function getNavigationSections(role: NavigationRole): NavigationSection[]
                 { label: workspaceLabel, icon: LayoutDashboard, href: role === 'supplier' ? '/portal' : '/' },
                 ...(role !== 'supplier' ? [{ label: 'Suppliers', icon: Users, href: '/suppliers' }] : []),
                 ...(role !== 'supplier' ? [{ label: 'Axiom Copilot', icon: Sparkles, href: '/copilot', emphasis: 'copilot' as const }] : []),
-                ...(role === 'admin' ? [{ label: 'AI Agents', icon: Sparkles, href: '/admin/agents', emphasis: 'agents' as const }] : []),
+                ...(role === 'admin' && canAccessAIFleet(user) ? [{ label: 'AI Agents', icon: Sparkles, href: '/admin/agents', emphasis: 'agents' as const }] : []),
             ],
         },
         ...(role !== 'supplier'
@@ -100,28 +122,12 @@ export function getNavigationSections(role: NavigationRole): NavigationSection[]
                 {
                     id: 'admin-control',
                     title: 'Admin Control',
-                    links: [
-                        { label: 'Fraud Alerts', icon: ShieldAlert, href: '/admin/fraud-alerts' },
-                        { label: 'Telemetry', icon: History, href: '/admin/telemetry' },
-                        { label: 'Financial Matching', icon: CreditCard, href: '/admin/financial-matching' },
-                        { label: 'Spend Intelligence', icon: BarChart3, href: '/admin/analytics' },
-                        { label: 'Risk Intelligence', icon: ShieldAlert, href: '/admin/risk' },
-                    ],
+                    links: adminControlLinks.filter((link) => canAccessAdminPath(user, link.href)),
                 },
                 {
                     id: 'admin-operations',
                     title: 'Operations',
-                    links: [
-                        { label: 'Task Inbox', icon: Inbox, href: '/admin/tasks' },
-                        { label: 'Compliance', icon: ShieldCheck, href: '/admin/compliance' },
-                        { label: 'User Management', icon: UserCog, href: '/admin/users' },
-                        { label: 'Support Tickets', icon: LifeBuoy, href: '/admin/support' },
-                        { label: 'Audit Trail', icon: History, href: '/admin/audit' },
-                        { label: 'Import Data', icon: FileUp, href: '/admin/import' },
-                        { label: 'Admin Settings', icon: Settings, href: '/admin/settings' },
-                        { label: 'Scenario Modeling', icon: BarChart3, href: '/admin/scenarios' },
-                        { label: 'Supplier Ecosystem', icon: Users, href: '/admin/ecosystem' },
-                    ],
+                    links: adminOperationLinks.filter((link) => canAccessAdminPath(user, link.href)),
                 },
             ]
             : []),

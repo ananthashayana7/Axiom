@@ -8,6 +8,7 @@ import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import { getAiModel } from "@/lib/ai-provider";
+import { canManageSuppliers, isRegionalOperator, isWithinRegionalScope } from "@/lib/rbac";
 
 const GENERIC_EMAIL_DOMAINS = new Set([
     "gmail.com",
@@ -229,7 +230,7 @@ Rules:
 
 export async function calculateABCAnalysis() {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         return await TelemetryService.time("SupplierManagement", "ABCAnalysis", async () => {
@@ -297,7 +298,14 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
     try {
         const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt);
-        return allSuppliers;
+        if (!isRegionalOperator(session.user)) {
+            return allSuppliers;
+        }
+
+        return allSuppliers.filter((supplier) => isWithinRegionalScope(session.user, {
+            country: supplier.countryCode,
+            region: supplier.city,
+        }));
     } catch (error) {
         console.error("Failed to fetch suppliers:", error);
         return [];
@@ -315,6 +323,12 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+        if (supplier && isRegionalOperator(session.user) && !isWithinRegionalScope(session.user, {
+            country: supplier.countryCode,
+            region: supplier.city,
+        })) {
+            return null;
+        }
         return supplier || null;
     } catch (error) {
         console.error("Failed to fetch supplier:", error);
@@ -333,6 +347,12 @@ export async function getSupplierQuickView(id: string) {
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1);
         if (!supplier) return null;
+        if (isRegionalOperator(session.user) && !isWithinRegionalScope(session.user, {
+            country: supplier.countryCode,
+            region: supplier.city,
+        })) {
+            return null;
+        }
 
         const [orderStats] = await db.select({
             activeOrders: sql<number>`count(*) filter (where ${procurementOrders.status} in ('approved', 'sent'))::int`.mapWith(Number),
@@ -404,6 +424,18 @@ export async function getSupplierOrders(supplierId: string) {
     // Supplier users can only view their own orders
     if (session.user.role === 'supplier' && session.user.supplierId !== supplierId) return [];
     try {
+        const [supplier] = await db.select({
+            countryCode: suppliers.countryCode,
+            city: suppliers.city,
+        }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+
+        if (supplier && isRegionalOperator(session.user) && !isWithinRegionalScope(session.user, {
+            country: supplier.countryCode,
+            region: supplier.city,
+        })) {
+            return [];
+        }
+
         const orders = await db.select().from(procurementOrders).where(eq(procurementOrders.supplierId, supplierId));
         return orders;
     } catch (error) {
@@ -441,7 +473,7 @@ interface UpdateSupplierData {
 
 export async function updateSupplier(id: string, data: Partial<UpdateSupplierData>) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         const normalizedCountryCode = data.countryCode?.toUpperCase().trim();
@@ -514,7 +546,7 @@ export async function updateSupplier(id: string, data: Partial<UpdateSupplierDat
 
 export async function addSupplier(formData: FormData) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         const name = formData.get("name") as string;
@@ -585,7 +617,7 @@ export async function addSupplier(formData: FormData) {
 
 export async function enrichSupplierFromPublicProfile(supplierId: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') {
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) {
         return { success: false, error: "Unauthorized" };
     }
 
@@ -654,6 +686,18 @@ export async function getSupplierPerformanceMetrics(supplierId: string) {
     if (!session) return null;
     if (session.user.role === 'supplier' && session.user.supplierId !== supplierId) return null;
     try {
+        const [supplierScope] = await db.select({
+            countryCode: suppliers.countryCode,
+            city: suppliers.city,
+        }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+
+        if (supplierScope && isRegionalOperator(session.user) && !isWithinRegionalScope(session.user, {
+            country: supplierScope.countryCode,
+            region: supplierScope.city,
+        })) {
+            return null;
+        }
+
         const [supplierInfo] = await db
             .select({
                 performanceScore: suppliers.performanceScore,
@@ -691,7 +735,7 @@ export async function getSupplierPerformanceMetrics(supplierId: string) {
  */
 export async function calculateSupplierESG(supplierId: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return null;
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return null;
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
         if (!supplier) return null;
@@ -721,7 +765,7 @@ export async function recordPerformanceLog(data: {
     notes?: string;
 }) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -756,7 +800,7 @@ export async function recordPerformanceLog(data: {
 
 export async function deleteSupplier(id: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSuppliers(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         // 1. Check for blocking dependencies

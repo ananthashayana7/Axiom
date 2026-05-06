@@ -8,6 +8,14 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { sendEmail, generateWelcomeEmail } from "@/lib/services/email";
 import { logActivity } from "./activity";
+import {
+    canManageUsers,
+    getAllowedAccessProfilesForRole,
+    isAccessProfileCompatible,
+    profileRequiresRegionalScope,
+    resolveAccessProfile,
+    type AccessProfile,
+} from "@/lib/rbac";
 
 type UserRole = 'admin' | 'user' | 'supplier';
 
@@ -18,6 +26,40 @@ async function requireAdmin() {
     }
 
     return session;
+}
+
+function normalizeOptionalValue(value: string | null | undefined) {
+    const normalized = (value || "").trim();
+    return normalized === "" ? null : normalized;
+}
+
+function deriveRequestedAccessProfile(role: UserRole, requestedAccessProfile: string | null | undefined) {
+    if (isAccessProfileCompatible(role, requestedAccessProfile)) {
+        return requestedAccessProfile as AccessProfile;
+    }
+
+    return getAllowedAccessProfilesForRole(role)[0];
+}
+
+function validateAccessProfileAssignment(
+    role: UserRole,
+    accessProfile: AccessProfile,
+    countryScope: string | null,
+    regionScope: string | null,
+) {
+    if (!isAccessProfileCompatible(role, accessProfile)) {
+        return { success: false as const, error: `Access profile ${accessProfile} is not valid for ${role} accounts.` };
+    }
+
+    if (profileRequiresRegionalScope(accessProfile) && !countryScope && !regionScope) {
+        return { success: false as const, error: "Regional operators need a country scope, a region scope, or both." };
+    }
+
+    if (accessProfile === "supplier_portal" && role !== "supplier") {
+        return { success: false as const, error: "Supplier portal access is only valid for supplier accounts." };
+    }
+
+    return { success: true as const };
 }
 
 async function validateSupplierAssignment(role: UserRole, supplierId: string | null) {
@@ -57,6 +99,9 @@ export async function getUsers() {
                 employeeId: users.employeeId,
                 department: users.department,
                 role: users.role,
+                accessProfile: users.accessProfile,
+                countryScope: users.countryScope,
+                regionScope: users.regionScope,
                 supplierId: users.supplierId,
                 supplierName: suppliers.name,
                 createdAt: users.createdAt,
@@ -88,7 +133,7 @@ export async function getDepartmentLeads() {
 
 export async function createUser(formData: FormData) {
     const session = await requireAdmin();
-    if (!session) {
+    if (!session || !canManageUsers(session.user)) {
         return { success: false, error: "Unauthorized" };
     }
 
@@ -100,10 +145,18 @@ export async function createUser(formData: FormData) {
         const password = formData.get("password") as string;
         const role = ((formData.get("role") as UserRole) || "user");
         const supplierIdRaw = (formData.get("supplierId") as string) || "";
+        const requestedAccessProfile = (formData.get("accessProfile") as string) || null;
+        const countryScope = normalizeOptionalValue(formData.get("countryScope") as string);
+        const regionScope = normalizeOptionalValue(formData.get("regionScope") as string);
 
         const employeeId = employeeIdRaw.trim() === "" ? null : employeeIdRaw.trim();
         const supplierId = supplierIdRaw.trim() === "" ? null : supplierIdRaw.trim();
         const department = departmentRaw.trim() === "" ? null : departmentRaw.trim();
+        const accessProfile = deriveRequestedAccessProfile(role, requestedAccessProfile);
+        const accessProfileValidation = validateAccessProfileAssignment(role, accessProfile, countryScope, regionScope);
+        if (!accessProfileValidation.success) {
+            return { success: false, error: accessProfileValidation.error };
+        }
         const supplierValidation = await validateSupplierAssignment(role, supplierId);
         if (!supplierValidation.success) {
             return { success: false, error: supplierValidation.error };
@@ -118,6 +171,9 @@ export async function createUser(formData: FormData) {
             department,
             password: hashedPassword,
             role,
+            accessProfile,
+            countryScope,
+            regionScope,
             supplierId: supplierValidation.supplierId,
         }).returning();
 
@@ -125,7 +181,7 @@ export async function createUser(formData: FormData) {
             'CREATE',
             'user',
             newUser.id,
-            `Created new ${role} account: ${name} (${email})${supplierValidation.supplierName ? ` linked to ${supplierValidation.supplierName}` : ''}`
+            `Created new ${role} account with ${resolveAccessProfile(newUser)} access: ${name} (${email})${supplierValidation.supplierName ? ` linked to ${supplierValidation.supplierName}` : ''}`
         );
 
         const welcome = generateWelcomeEmail(name, email || employeeId || 'N/A', password);
@@ -150,7 +206,7 @@ export async function updateUser(id: string, formData: FormData) {
     const session = await auth();
     const currentUser = session?.user;
 
-    if (currentUser?.role !== 'admin' && currentUser?.id !== id) {
+    if (!currentUser || !canManageUsers(currentUser)) {
         return { success: false, error: "Unauthorized" };
     }
 
@@ -162,6 +218,9 @@ export async function updateUser(id: string, formData: FormData) {
         const password = (formData.get("password") as string) || "";
         const requestedRole = formData.get("role") as UserRole | null;
         const supplierIdRaw = (formData.get("supplierId") as string) || "";
+        const requestedAccessProfile = (formData.get("accessProfile") as string) || null;
+        const countryScope = normalizeOptionalValue(formData.get("countryScope") as string);
+        const regionScope = normalizeOptionalValue(formData.get("regionScope") as string);
 
         const employeeId = employeeIdRaw.trim() === "" ? null : employeeIdRaw.trim();
         const department = departmentRaw.trim() === "" ? null : departmentRaw.trim();
@@ -174,6 +233,9 @@ export async function updateUser(id: string, formData: FormData) {
             department?: string | null;
             password?: string;
             role?: UserRole;
+            accessProfile?: AccessProfile;
+            countryScope?: string | null;
+            regionScope?: string | null;
             supplierId?: string | null;
         };
 
@@ -184,13 +246,22 @@ export async function updateUser(id: string, formData: FormData) {
             department,
         };
 
-        if (currentUser?.role === 'admin' && requestedRole) {
+        if (requestedRole) {
+            const accessProfile = deriveRequestedAccessProfile(requestedRole, requestedAccessProfile);
+            const accessProfileValidation = validateAccessProfileAssignment(requestedRole, accessProfile, countryScope, regionScope);
+            if (!accessProfileValidation.success) {
+                return { success: false, error: accessProfileValidation.error };
+            }
+
             const supplierValidation = await validateSupplierAssignment(requestedRole, supplierId);
             if (!supplierValidation.success) {
                 return { success: false, error: supplierValidation.error };
             }
 
             updateData.role = requestedRole;
+            updateData.accessProfile = accessProfile;
+            updateData.countryScope = countryScope;
+            updateData.regionScope = regionScope;
             updateData.supplierId = supplierValidation.supplierId;
         }
 
@@ -216,7 +287,7 @@ export async function deleteUser(id: string) {
     const session = await requireAdmin();
     const currentUser = session?.user;
 
-    if (!session || currentUser?.role !== 'admin') {
+    if (!session || !currentUser || !canManageUsers(currentUser)) {
         return { success: false, error: "Unauthorized" };
     }
 

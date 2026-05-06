@@ -16,6 +16,7 @@ import {
     Scale,
     ArrowUpRight,
     ShieldAlert,
+    Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -433,6 +434,9 @@ export default function FinancialMatchingPage() {
                                                     ) : null}
                                                     {invoice.status === 'matched' ? (
                                                         <>
+                                                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                                                                <Lock className="mr-1 h-3 w-3" /> Locked
+                                                            </span>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -476,7 +480,9 @@ export default function FinancialMatchingPage() {
                                                         </>
                                                     ) : null}
                                                     {invoice.status === 'paid' ? (
-                                                        <span className="text-[10px] text-muted-foreground italic">Closed</span>
+                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                                                            <Lock className="mr-1 h-3 w-3" /> Archived
+                                                        </span>
                                                     ) : null}
                                                 </div>
                                             </td>

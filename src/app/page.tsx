@@ -20,6 +20,7 @@ import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { OperationalFreshnessStrip } from "@/components/dashboard/operational-freshness-strip";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { RequisitionDialog } from "@/app/sourcing/requisitions/requisition-dialog";
+import { canAccessAIFleet, canAccessRiskIntelligence, canAccessScenarioModeling, canManageSourcing, canManageSuppliers } from "@/lib/rbac";
 
 type SessionUser = {
   id?: string;
@@ -31,6 +32,11 @@ export default async function Home() {
   const currentUser = session?.user as SessionUser | undefined;
   const userRole = currentUser?.role;
   const isAdmin = userRole === 'admin';
+  const canLaunchOrders = canManageSourcing(currentUser);
+  const canOpenRiskRoutes = canAccessRiskIntelligence(currentUser);
+  const canOpenScenarioRoutes = canAccessScenarioModeling(currentUser);
+  const canOpenAIFleet = canAccessAIFleet(currentUser);
+  const canEditSuppliers = canManageSuppliers(currentUser);
 
   const [
     stats,
@@ -97,7 +103,11 @@ export default async function Home() {
         </div>
         <div className="flex items-center space-x-3">
           <AutoRefresh />
-          {isAdmin ? <CreateOrderDialog suppliers={suppliers} parts={parts} /> : <RequisitionDialog />}
+          {isAdmin
+            ? canLaunchOrders
+              ? <CreateOrderDialog suppliers={suppliers} parts={parts} />
+              : null
+            : <RequisitionDialog />}
         </div>
       </div>
 
@@ -209,7 +219,7 @@ export default async function Home() {
                   View Suppliers
                 </Button>
               </Link>
-              {isAdmin && (
+              {canEditSuppliers && (
                 <Link href="/suppliers?action=new">
                   <Button size="sm" className="h-7 text-[10px] font-bold uppercase bg-emerald-500 hover:bg-emerald-600 text-white">
                     Add
@@ -273,7 +283,7 @@ export default async function Home() {
         </Card>
       </div>
 
-      {isAdmin && topRiskSupplier && (
+      {isAdmin && canOpenRiskRoutes && topRiskSupplier && (
         <Card className="overflow-hidden border-red-200 bg-[radial-gradient(circle_at_top_left,rgba(248,113,113,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.16),transparent_36%),linear-gradient(135deg,#fff7f7_0%,#ffffff_52%,#fff1f2_100%)] shadow-xl">
           <CardContent className="p-6 lg:p-8">
             <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr] lg:items-center">
@@ -295,8 +305,8 @@ export default async function Home() {
                 </div>
               </div>
 
-              <div className="grid gap-3">
-                <Link href="/admin/risk">
+                <div className="grid gap-3">
+                  <Link href="/admin/risk">
                   <Button className="w-full justify-between rounded-2xl bg-slate-900 px-5 py-6 text-left text-sm font-bold text-white hover:bg-slate-800">
                     Open Risk Intelligence
                     <ArrowUpRight className="h-4 w-4" />
@@ -309,18 +319,22 @@ export default async function Home() {
                       <ShieldAlert className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href="/admin/scenarios">
-                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
-                      Scenario Lab
-                      <TrendingUp className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                  <Link href="/admin/agents">
-                    <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
-                      AI Fleet
-                      <Sparkles className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                  {canOpenScenarioRoutes ? (
+                    <Link href="/admin/scenarios">
+                      <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                        Scenario Lab
+                        <TrendingUp className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : null}
+                  {canOpenAIFleet ? (
+                    <Link href="/admin/agents">
+                      <Button variant="outline" className="w-full justify-between rounded-2xl px-4 py-5 text-left font-semibold">
+                        AI Fleet
+                        <Sparkles className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -411,7 +425,7 @@ export default async function Home() {
         />
       )}
 
-      {isAdmin && (
+      {isAdmin && canOpenAIFleet && (
         <Card className="overflow-hidden border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#ecfeff_100%)] shadow-xl">
           <CardContent className="p-6 lg:p-8">
             <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-center">

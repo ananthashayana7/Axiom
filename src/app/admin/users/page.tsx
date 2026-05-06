@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getUsers } from "@/app/actions/users";
 import { getSuppliers } from "@/app/actions/suppliers";
 import UsersClient from "./users-client";
+import { canManageUsers } from "@/lib/rbac";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,8 @@ export default async function AdminUsersPage() {
     }
 
     const userRole = session.user.role;
-    if (userRole !== 'admin') {
-        redirect("/");
+    if (!canManageUsers(session.user)) {
+        redirect("/access-denied");
     }
 
     const [users, suppliers] = await Promise.all([

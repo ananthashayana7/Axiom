@@ -4,8 +4,9 @@ import { db } from "@/db";
 import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, ilike, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, inArray, or } from "drizzle-orm";
 import { createNotification } from "./notifications";
+import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules, isRegionalOperator } from "@/lib/rbac";
 import {
     coerceInvoiceNumber,
     coerceMoney,
@@ -133,12 +134,30 @@ export async function getInvoices(filters?: {
     try {
         const userRole = session.user.role;
         const userSupplierId = session.user.supplierId;
+        const scopedCountry = session.user.countryScope?.trim();
+        const scopedRegion = session.user.regionScope?.trim();
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const conditions: any[] = [];
 
         if (userRole === 'supplier') {
             conditions.push(eq(invoices.supplierId, userSupplierId));
+        }
+        if (isRegionalOperator(session.user)) {
+            if (!scopedCountry && !scopedRegion) {
+                return [];
+            }
+
+            if (scopedCountry) {
+                conditions.push(or(
+                    eq(suppliers.countryCode, scopedCountry.toUpperCase()),
+                    ilike(invoices.country, `%${scopedCountry}%`),
+                ));
+            }
+
+            if (scopedRegion) {
+                conditions.push(ilike(invoices.region, `%${scopedRegion}%`));
+            }
         }
         if (filters?.status && filters.status !== 'all') {
             const allowedStatuses = ['pending', 'matched', 'disputed', 'paid'];
@@ -481,6 +500,14 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
+    const canContinue = status === 'paid'
+        ? canMarkInvoicePaid(session.user)
+        : canRunInvoiceRules(session.user);
+
+    if (!canContinue) {
+        return { success: false, error: "Unauthorized" };
+    }
+
     try {
         const [invoice] = await db.select({
             id: invoices.id,
@@ -495,6 +522,8 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             return { success: false, error: "Invoice not found" };
         }
 
+        const currentStatus = (invoice.status || 'pending') as 'pending' | 'matched' | 'disputed' | 'paid';
+
         const logBlockedRelease = async (details: string) => {
             await db.insert(auditLogs).values({
                 userId: session.user.id,
@@ -505,8 +534,34 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             });
         };
 
+        if (status === 'matched') {
+            return { success: false, error: "Use deterministic matching to move an invoice into matched state." };
+        }
+
+        if (currentStatus === 'paid') {
+            await logBlockedRelease(`Status update blocked for invoice ${invoice.invoiceNumber} because paid records are archived and cannot be changed in place.`);
+            return { success: false, error: "Paid invoices are archived. Use a reversal workflow instead of editing the original record." };
+        }
+
+        const allowedTransitions: Record<'pending' | 'matched' | 'disputed' | 'paid', Array<'pending' | 'matched' | 'disputed' | 'paid'>> = {
+            pending: ['disputed'],
+            matched: ['paid'],
+            disputed: [],
+            paid: [],
+        };
+
+        if (!allowedTransitions[currentStatus].includes(status)) {
+            await logBlockedRelease(`Status update blocked for invoice ${invoice.invoiceNumber} because ${currentStatus} invoices cannot transition to ${status} through the manual status route.`);
+            return {
+                success: false,
+                error: currentStatus === 'matched'
+                    ? "Matched invoices are compliance-locked. Escalate the invoice to place it on manual hold instead of moving it back to review."
+                    : "This invoice state is locked for manual status changes.",
+            };
+        }
+
         if (status === 'paid') {
-            if (invoice.status !== 'matched') {
+            if (currentStatus !== 'matched') {
                 await logBlockedRelease(`Paid-status update blocked for invoice ${invoice.invoiceNumber} because the invoice is not in matched status.`);
                 return { success: false, error: "Only matched invoices can be marked as paid." };
             }
@@ -541,9 +596,7 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
         }
 
         const updateData: { status: 'pending' | 'matched' | 'disputed' | 'paid'; matchedAt?: Date | null } = { status };
-        if (status === 'matched') {
-            updateData.matchedAt = new Date();
-        } else {
+        if (status === 'disputed' || status === 'pending') {
             updateData.matchedAt = null;
         }
 
@@ -579,7 +632,7 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
 
 export async function escalateInvoiceToHumanReview(invoiceId: string) {
     const session = await auth();
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin' || !canEscalateInvoiceReview(session.user)) {
         return { success: false, error: "Unauthorized" };
     }
 
@@ -668,7 +721,7 @@ export async function escalateInvoiceToHumanReview(invoiceId: string) {
 
 export async function rerunInvoiceMatch(invoiceId: string) {
     const session = await auth();
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.user.role !== 'admin' || !canRunInvoiceRules(session.user)) {
         return { success: false, error: "Unauthorized" };
     }
 

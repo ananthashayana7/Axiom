@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { contracts, fraudAlerts, parts, procurementOrders, rfqs, suppliers } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getAllCountryCodes, getGeoLocale } from "@/lib/utils/geo-currency";
+import { isRegionalOperator, isWithinRegionalScope } from "@/lib/rbac";
 
 export type SearchResult = {
     id: string;
@@ -149,8 +150,10 @@ export async function globalSearch(query: string, regionHint?: string): Promise<
 
     const role = session.user.role;
     const trimmedQuery = query.trim();
+    const isScopedRegionalUser = isRegionalOperator(session.user);
 
     if (!trimmedQuery || trimmedQuery.length < 2) return [];
+    if (isScopedRegionalUser && !session.user.countryScope?.trim() && !session.user.regionScope?.trim()) return [];
 
     const supplierIntent = parseSupplierIntent(trimmedQuery);
     const partIntent = parsePartIntent(trimmedQuery);
@@ -171,6 +174,7 @@ export async function globalSearch(query: string, regionHint?: string): Promise<
         if (role !== 'supplier') {
             const supplierRows = await db.select().from(suppliers).orderBy(desc(suppliers.createdAt)).limit(120);
             const matchedSuppliers = supplierRows
+                .filter((supplier) => !isScopedRegionalUser || isWithinRegionalScope(session.user, { country: supplier.countryCode }))
                 .map((supplier) => ({
                     supplier,
                     score: scoreSupplierMatch(supplier, supplierIntent, trimmedQuery, regionHint),
@@ -229,8 +233,18 @@ export async function globalSearch(query: string, regionHint?: string): Promise<
                 });
             });
 
-        const orderRows = await db.select().from(procurementOrders).orderBy(desc(procurementOrders.createdAt)).limit(60);
+        const orderRows = await db.select({
+            id: procurementOrders.id,
+            status: procurementOrders.status,
+            carrier: procurementOrders.carrier,
+            trackingNumber: procurementOrders.trackingNumber,
+            supplierCountry: suppliers.countryCode,
+        }).from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .orderBy(desc(procurementOrders.createdAt))
+            .limit(60);
         orderRows
+            .filter((order) => !isScopedRegionalUser || isWithinRegionalScope(session.user, { country: order.supplierCountry }))
             .filter((order) => normalize([order.id, order.status, order.carrier, order.trackingNumber].filter(Boolean).join(' ')).includes(normalizedQuery))
             .slice(0, 4)
             .forEach((order) => {
@@ -250,6 +264,7 @@ export async function globalSearch(query: string, regionHint?: string): Promise<
                 status: contracts.status,
                 type: contracts.type,
                 supplierName: suppliers.name,
+                supplierCountry: suppliers.countryCode,
             })
                 .from(contracts)
                 .leftJoin(suppliers, eq(contracts.supplierId, suppliers.id))
@@ -257,6 +272,7 @@ export async function globalSearch(query: string, regionHint?: string): Promise<
                 .limit(60);
 
             contractRows
+                .filter((contract) => !isScopedRegionalUser || isWithinRegionalScope(session.user, { country: contract.supplierCountry }))
                 .filter((contract) => normalize([
                     contract.title,
                     contract.status,

@@ -9,6 +9,7 @@ import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import { calculateThreeWayMatchStatus } from "@/lib/utils/three-way-match";
 import { getSupplierCreationBlockReason, getSupplierReleaseBlockReason } from "@/lib/sourcing-guardrails";
+import { canApproveOrders, canManageSourcing, isRegionalOperator } from "@/lib/rbac";
 
 const orderItemTotals = db.select({
     orderId: orderItems.orderId,
@@ -81,6 +82,15 @@ export async function getOrders() {
 
     const role = session.user.role;
     const supplierId = session.user.supplierId;
+    const scopedCountry = session.user.countryScope?.trim().toUpperCase();
+
+    const whereCondition = role === 'supplier'
+        ? eq(procurementOrders.supplierId, supplierId)
+        : isRegionalOperator(session.user)
+            ? scopedCountry
+                ? eq(suppliers.countryCode, scopedCountry)
+                : sql`1 = 0`
+            : undefined;
 
     try {
         const allOrdersRaw = await db
@@ -95,7 +105,7 @@ export async function getOrders() {
             .from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
-            .where(role === 'supplier' ? eq(procurementOrders.supplierId, supplierId) : undefined);
+            .where(whereCondition);
 
         return allOrdersRaw.map(order => ({
             ...order,
@@ -121,7 +131,7 @@ interface CreateOrderInput {
 
 export async function createOrder(data: CreateOrderInput) { // Use simpler type for direct call
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSourcing(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         const { supplierId, totalAmount, items } = data;
@@ -239,9 +249,13 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
                 }
             }
 
+            if (role !== 'supplier' && !canManageSourcing(session.user)) {
+                return { success: false, error: "Unauthorized" };
+            }
+
             // Admin/User checks for specific status transitions
             if (status === 'approved' || status === 'rejected') {
-                if (role !== 'admin') {
+                if (role !== 'admin' || !canApproveOrders(session.user)) {
                     return { success: false, error: "Only admins can approve/reject orders" };
                 }
             }
@@ -278,7 +292,7 @@ export async function updateOrderStatus(orderId: string, status: 'draft' | 'pend
 
 export async function convertRFQToOrder(rfqId: string, supplierId: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSourcing(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -601,7 +615,7 @@ export async function updateOrderLogistics(orderId: string, data: {
     estimatedArrival: string
 }) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role === 'supplier' || !canManageSourcing(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         await db.update(procurementOrders)
@@ -787,7 +801,7 @@ export async function getOrderFinanceDetails(orderId: string) {
 
 export async function deleteOrder(id: string) {
     const session = await auth();
-    if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
+    if (!session || session.user.role !== 'admin' || !canManageSourcing(session.user)) return { success: false, error: "Unauthorized" };
 
     try {
         // BUG-003: Fetch order for audit log before cascade-deleting

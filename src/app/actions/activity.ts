@@ -5,6 +5,7 @@ import { auditLogs, comments, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { canAccessAuditTrail } from "@/lib/rbac";
 
 function canAccessEntity(user: { role?: string | null; supplierId?: string | null } | undefined, entityType: string, entityId: string) {
     if (!user) return false;
@@ -39,7 +40,7 @@ export async function logActivity(action: string, entityType: string, entityId: 
 
 export async function getAuditLogs(entityType?: string, entityId?: string) {
     const session = await auth();
-    if (!session || session.user.role !== 'admin') return [];
+    if (!session || !canAccessAuditTrail(session.user)) return [];
 
     try {
         const query = db.select({

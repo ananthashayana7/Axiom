@@ -9,15 +9,21 @@ import { signOut } from "@/auth";
 import { cn } from "@/lib/utils";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { CurrencyDisplayToggle } from "@/components/layout/currency-display-toggle";
+import { getAccessProfileLabel, resolveAccessProfile } from "@/lib/rbac";
 
 type SessionUser = {
     role?: string | null;
+    accessProfile?: string | null;
+    department?: string | null;
+    countryScope?: string | null;
+    regionScope?: string | null;
 };
 
 export async function Header() {
     const session = await auth();
     const userName = session?.user?.name || "User";
     const role = (session?.user as SessionUser | undefined)?.role;
+    const accessProfile = resolveAccessProfile(session?.user as SessionUser | undefined);
     const workspaceTitle =
         role === 'admin'
             ? "Admin Console"
@@ -42,7 +48,7 @@ export async function Header() {
     return (
         <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-3 shadow-sm shadow-black/[0.03] backdrop-blur-md transition-all sm:px-4 lg:px-6">
             <div className="flex min-w-0 items-center gap-3 lg:gap-6">
-                <MobileNavigation role={role} />
+                <MobileNavigation user={session?.user as SessionUser | undefined} />
                 <div className="flex flex-col leading-none">
                     <h2 className="text-[13px] font-bold text-foreground tracking-tight">{workspaceTitle}</h2>
                     <span className="hidden text-[10px] font-medium text-muted-foreground/55 md:block">{workspaceSubtitle}</span>
@@ -76,7 +82,7 @@ export async function Header() {
                                 "hidden sm:inline text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
                                 roleBadgeClass
                             )}>
-                                {role}
+                                {role === "admin" ? getAccessProfileLabel(accessProfile) : role}
                             </span>
                         )}
                     </Link>

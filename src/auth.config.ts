@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from 'next-auth';
+import { canAccessAdminPath } from "@/lib/rbac";
 
 export const authConfig = {
     trustHost: true,
@@ -61,7 +62,12 @@ export const authConfig = {
             }
 
             if (isOnAdminPage) {
-                if (userRole === 'admin') return true;
+                if (userRole === 'admin') {
+                    if (canAccessAdminPath(auth.user, nextUrl.pathname)) {
+                        return true;
+                    }
+                    return Response.redirect(new URL('/access-denied', nextUrl));
+                }
                 return Response.redirect(new URL('/', nextUrl));
             }
 
@@ -71,6 +77,10 @@ export const authConfig = {
             if (user) {
                 token.id = user.id;
                 token.role = user.role;
+                token.accessProfile = user.accessProfile;
+                token.department = user.department;
+                token.countryScope = user.countryScope;
+                token.regionScope = user.regionScope;
                 token.supplierId = user.supplierId;
             }
 
@@ -83,6 +93,10 @@ export const authConfig = {
             if (session.user) {
                 session.user.id = token.id as string;
                 session.user.role = token.role as string;
+                session.user.accessProfile = token.accessProfile as string | undefined;
+                session.user.department = token.department as string | undefined;
+                session.user.countryScope = token.countryScope as string | undefined;
+                session.user.regionScope = token.regionScope as string | undefined;
                 session.user.supplierId = token.supplierId as string | undefined;
             }
             return session;
