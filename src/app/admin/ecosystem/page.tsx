@@ -493,8 +493,8 @@ export default function SupplierEcosystemPage() {
                 </Card>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
+            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+                <Card className="min-w-0">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <ShieldAlert className="h-5 w-5 text-red-600" />
@@ -532,7 +532,7 @@ export default function SupplierEcosystemPage() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="min-w-0">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Globe2 className="h-5 w-5 text-primary" />
@@ -542,10 +542,10 @@ export default function SupplierEcosystemPage() {
                             Live distribution of supplier clusters and current hotspot exposure.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-6 lg:grid-cols-2">
-                        <div className="h-[260px]">
+                    <CardContent className="grid min-w-0 gap-6 lg:grid-cols-2">
+                        <div className="h-[260px] min-w-0">
                             <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Cluster density</p>
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                                 <BarChart data={clusterChartData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
@@ -555,9 +555,9 @@ export default function SupplierEcosystemPage() {
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
-                        <div className="h-[260px]">
+                        <div className="h-[260px] min-w-0">
                             <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Hotspot exposure</p>
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                                 <BarChart data={hotspotExposureData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />

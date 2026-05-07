@@ -8,6 +8,7 @@ import { logActivity } from "./activity";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
 import { getAiModel } from "@/lib/ai-provider";
+import { withPgAdvisoryLock } from "@/lib/db-locks";
 import { canManageSuppliers, isRegionalOperator, isWithinRegionalScope } from "@/lib/rbac";
 
 const GENERIC_EMAIL_DOMAINS = new Set([
@@ -234,17 +235,7 @@ export async function calculateABCAnalysis() {
 
     try {
         return await TelemetryService.time("SupplierManagement", "ABCAnalysis", async () => {
-            // BUG-009: Advisory lock prevents concurrent duplicate runs.
-            // If another process already holds the lock, bail immediately.
-            const ABC_LOCK_KEY = 98765; // stable integer key for this job type
-            const [lockRow] = await db.execute<{ acquired: boolean }>(
-                sql`SELECT pg_try_advisory_lock(${ABC_LOCK_KEY}) AS acquired`
-            );
-            if (!lockRow?.acquired) {
-                return { success: false, error: 'ABC analysis is already running. Please wait for it to complete.' };
-            }
-
-            try {
+            const lockResult = await withPgAdvisoryLock("supplier-abc-analysis", async () => {
                 const allSuppliers = await db.select().from(suppliers);
                 const allOrders = await db.select().from(procurementOrders);
 
@@ -280,10 +271,13 @@ export async function calculateABCAnalysis() {
                     revalidatePath("/suppliers");
                     return { success: true };
                 });
-            } finally {
-                // Always release the advisory lock, even if the analysis throws
-                await db.execute(sql`SELECT pg_advisory_unlock(${ABC_LOCK_KEY})`);
+            });
+
+            if (!lockResult.acquired) {
+                return { success: false, error: 'ABC analysis is already running. Please wait for it to complete.' };
             }
+
+            return lockResult.value;
         });
     } catch (error) {
         await TelemetryService.trackError("SupplierManagement", "abc_analysis_failed", error);

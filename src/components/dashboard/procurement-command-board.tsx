@@ -180,17 +180,17 @@ export function ProcurementCommandBoard({
                         Live spend, category concentration, and sourcing geography from the current operating dataset.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-                        <Card className="border-slate-200 shadow-none">
+                <CardContent className="min-w-0 space-y-6">
+                    <div className="grid min-w-0 gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
+                        <Card className="min-w-0 border-slate-200 shadow-none">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base font-black">Spend volume</CardTitle>
                                 <CardDescription>Monthly posted order value across the live operating dataset.</CardDescription>
                             </CardHeader>
-                            <CardContent className="pt-2">
+                            <CardContent className="min-w-0 pt-2">
                                 {monthlyData.length > 0 ? (
-                                    <div className="h-[300px]">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                    <div className="h-[300px] min-w-0">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                                             <BarChart data={monthlyData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.18} />
                                                 <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
@@ -218,16 +218,16 @@ export function ProcurementCommandBoard({
                             </CardContent>
                         </Card>
 
-                        <Card className="border-slate-200 shadow-none">
+                        <Card className="min-w-0 border-slate-200 shadow-none">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base font-black">Category volume</CardTitle>
                                 <CardDescription>Current portfolio concentration across spend categories.</CardDescription>
                             </CardHeader>
-                            <CardContent className="pt-2">
+                            <CardContent className="min-w-0 pt-2">
                                 {topCategories.length > 0 ? (
                                     <>
-                                        <div className="h-[220px]">
-                                            <ResponsiveContainer width="100%" height="100%">
+                                        <div className="h-[220px] min-w-0">
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                                                 <PieChart>
                                                     <Pie
                                                         data={topCategories}
@@ -265,7 +265,7 @@ export function ProcurementCommandBoard({
                             </CardContent>
                         </Card>
 
-                        <Card className="border-slate-200 shadow-none">
+                        <Card className="min-w-0 border-slate-200 shadow-none">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base font-black">Country volume</CardTitle>
                                 <CardDescription>Top geographies ranked by sourced order volume.</CardDescription>

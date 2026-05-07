@@ -204,8 +204,8 @@ export function InsightInfographics({
                 />
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr_1fr]">
-                <Card className="overflow-hidden border-primary/10 shadow-sm">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[1.4fr_1fr_1fr]">
+                <Card className="min-w-0 overflow-hidden border-primary/10 shadow-sm">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base font-black uppercase tracking-wide">
                             <TrendingUp className="h-4 w-4 text-primary" />
@@ -213,10 +213,10 @@ export function InsightInfographics({
                         </CardTitle>
                         <CardDescription>Monthly order value trend for quick executive review.</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent className="min-w-0 pt-0">
                         {monthlyData.length > 0 ? (
-                            <div className="h-[280px]">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-[280px] min-w-0">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                                     <BarChart data={monthlyData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
@@ -247,7 +247,7 @@ export function InsightInfographics({
                     </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-slate-200 shadow-sm xl:order-3">
+                <Card className="min-w-0 overflow-hidden border-slate-200 shadow-sm xl:order-3">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base font-black uppercase tracking-wide">
                             <PieChartIcon className="h-4 w-4 text-violet-600" />
@@ -255,11 +255,11 @@ export function InsightInfographics({
                         </CardTitle>
                         <CardDescription>Portfolio concentration and buying balance by category.</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent className="min-w-0 pt-0">
                         {categoryMix.length > 0 ? (
                             <>
-                                <div className="h-[220px]">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-[220px] min-w-0">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                                         <PieChart>
                                             <Pie
                                                 data={categoryMix}

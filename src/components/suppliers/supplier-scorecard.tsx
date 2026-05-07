@@ -5,8 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
-    LineChart,
-    Line,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -16,8 +14,6 @@ import {
     Area
 } from 'recharts';
 import {
-    TrendingUp,
-    TrendingDown,
     CheckCircle2,
     AlertCircle,
     Clock,
@@ -31,6 +27,7 @@ interface DocumentSnapshot {
     deliveryRate: string;
     qualityScore: string;
     collaborationScore: number;
+    notes?: string | null;
 }
 
 interface ScorecardProps {
@@ -127,9 +124,9 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                         </Badge>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="h-[300px] w-full mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
+                <CardContent className="min-w-0">
+                    <div className="mt-4 h-[300px] min-w-0 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                             <AreaChart data={chartData}>
                                 <defs>
                                     <linearGradient id="colorDelivery" x1="0" y1="0" x2="0" y2="1">
@@ -188,7 +185,7 @@ export function SupplierScorecard({ metrics }: ScorecardProps) {
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        {metrics.performanceLogs.map((log: any, i: number) => (
+                        {metrics.performanceLogs.map((log, i: number) => (
                             <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-muted hover:bg-muted/30 transition-colors">
                                 <div className="flex items-center gap-4">
                                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
