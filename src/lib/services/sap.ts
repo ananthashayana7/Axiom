@@ -17,6 +17,7 @@ export function mapSapRecordToAxiom(entityType: SapEntityType, record: Record<st
             name: get('Name1', 'SupplierName', 'name'),
             contact_email: get('EmailAddress', 'ContactEmail', 'email'),
             status: get('Status', 'status') || 'active',
+            categories: get('SupplierCategory', 'Category', 'CommodityGroup', 'categories'),
             country_code: get('Country', 'CountryCode', 'country_code'),
             city: get('City', 'city'),
             risk_score: get('RiskScore', 'risk_score') || '0',

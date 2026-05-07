@@ -83,22 +83,31 @@ function getRiskTone(score: number) {
 export default function SupplierEcosystemPage() {
     const [ecosystem, setEcosystem] = useState<EcosystemData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    const fetchData = async () => {
+        setLoading(true);
+        setErrorMessage(null);
+        try {
+            const result = await buildSupplierEcosystem();
+            if (result.success) {
+                setEcosystem(result.data ?? null);
+                return;
+            }
+
+            setEcosystem(null);
+            setErrorMessage(result.error || "Failed to map supplier ecosystem");
+            toast.error(result.error || "Failed to map supplier ecosystem");
+        } catch {
+            setEcosystem(null);
+            setErrorMessage("Failed to map supplier ecosystem");
+            toast.error("Failed to map supplier ecosystem");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const result = await buildSupplierEcosystem();
-                if (result.success) {
-                    setEcosystem(result.data ?? null);
-                } else {
-                    toast.error(result.error || "Failed to map supplier ecosystem");
-                }
-            } catch {
-                toast.error("Failed to map supplier ecosystem");
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchData();
     }, []);
 
@@ -201,17 +210,66 @@ export default function SupplierEcosystemPage() {
         );
     }
 
+    if (!ecosystem && errorMessage) {
+        return (
+            <div className="flex min-h-full flex-col bg-background p-4 lg:p-8">
+                <Card className="border-dashed">
+                    <CardHeader>
+                        <CardTitle>Supplier ecosystem could not be rebuilt</CardTitle>
+                        <CardDescription>
+                            {errorMessage}. Axiom rebuilds this page from the current supplier, order, contract, and part data, so a retry will pick up fresh records immediately.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-3">
+                        <Button variant="outline" onClick={fetchData}>Retry Mapping</Button>
+                        <Link href="/suppliers">
+                            <Button variant="outline">Open Suppliers</Button>
+                        </Link>
+                        <Link href="/admin/import">
+                            <Button>Load Supplier Data</Button>
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    if (ecosystem && ecosystem.nodes.length === 0) {
+        return (
+            <div className="flex min-h-full flex-col bg-background p-4 lg:p-8">
+                <Card className="border-dashed">
+                    <CardHeader>
+                        <CardTitle>Awaiting live supplier network data</CardTitle>
+                        <CardDescription>
+                            No active suppliers are currently mapped into the ecosystem view. As soon as supplier, order, or contract data is added, this page reorganizes itself from the new live records on the next rebuild.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-3">
+                        <Button variant="outline" onClick={fetchData}>Rebuild Network</Button>
+                        <Link href="/suppliers">
+                            <Button variant="outline">Open Suppliers</Button>
+                        </Link>
+                        <Link href="/admin/import">
+                            <Button>Load Supplier Data</Button>
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     if (!ecosystem) {
         return (
             <div className="flex min-h-full flex-col bg-background p-4 lg:p-8">
                 <Card className="border-dashed">
                     <CardHeader>
-                        <CardTitle>Supplier ecosystem is not ready yet</CardTitle>
+                        <CardTitle>Supplier ecosystem is waiting for live inputs</CardTitle>
                         <CardDescription>
-                            Axiom could not build the current supplier network map from live data in this session.
+                            This route reorganizes itself from the current supplier, order, contract, and part data. Rebuild the network after new data is added if you want the latest partner map immediately.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-3">
+                        <Button variant="outline" onClick={fetchData}>Rebuild Network</Button>
                         <Link href="/suppliers">
                             <Button variant="outline">Open Suppliers</Button>
                         </Link>
@@ -243,6 +301,9 @@ export default function SupplierEcosystemPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="gap-2" onClick={fetchData} disabled={loading}>
+                        <Sparkles className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Rebuild Network
+                    </Button>
                     <Button variant="outline" className="gap-2" onClick={handleDownloadPerformanceReport}>
                         <Download className="h-4 w-4" /> Generate Performance Report
                     </Button>

@@ -24,6 +24,12 @@ type DryRunResult = {
     preview: Record<string, string>[];
 };
 
+type ImportExecutionOptions = {
+    fileName?: string;
+    sourceSystemId?: string;
+    fieldMapping?: Record<string, string>;
+};
+
 const MAX_IMPORT_ROWS = 5000;
 const MAX_IMPORT_CHARACTERS = 2_000_000;
 const MAX_CELL_LENGTH = 512;
@@ -175,6 +181,16 @@ function validateNonNegative(field: string, value: number | null, rowIndex: numb
     }
 }
 
+function parseCategoryList(value: string | undefined) {
+    if (!value) return [] as string[];
+    return Array.from(new Set(
+        value
+            .split(/[;,|]/)
+            .map((item) => item.trim())
+            .filter(Boolean),
+    ));
+}
+
 function validateImportEnvelope(csvText: string, headers: string[], rows: Record<string, string>[], columnCounts: number[]) {
     const issues: ImportIssue[] = [];
 
@@ -254,6 +270,7 @@ function validateSupplierRow(row: Record<string, string>, rowIndex: number, issu
     const performanceScore = parseNumber(row.performance_score || '0') ?? 0;
     const esgScore = parseNumber(row.esg_score || '0') ?? 0;
     const financialScore = parseNumber(row.financial_score || '0') ?? 0;
+    const categories = parseCategoryList(row.categories || row.category || row.supplier_category);
 
     if (!name) issues.push({ row: rowIndex, message: 'Missing supplier name.' });
     if (!contactEmail) issues.push({ row: rowIndex, message: 'Missing contact email.' });
@@ -274,6 +291,7 @@ function validateSupplierRow(row: Record<string, string>, rowIndex: number, issu
         status,
         city: row.city || null,
         countryCode: row.country_code || row.country || null,
+        categories,
         riskScore,
         performanceScore,
         esgScore,
@@ -413,7 +431,7 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
     };
 }
 
-export async function executeSapImport(csvText: string, entityType: EntityType) {
+export async function executeSapImport(csvText: string, entityType: EntityType, options?: ImportExecutionOptions) {
     await requireAdmin();
 
     const { headers, rows, columnCounts } = parseCsv(csvText);
@@ -465,13 +483,14 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
                 .limit(1);
 
             if (existing) {
-                const supplierStatus = (['active', 'inactive', 'under_review'] as const).includes(normalized.status as any) ? normalized.status : 'active';
+                const supplierStatus = (['active', 'inactive', 'blacklisted'] as const).includes(normalized.status as any) ? normalized.status : 'active';
                 await db.update(suppliers)
                     .set({
                         name: normalized.name,
                         status: supplierStatus,
                         city: normalized.city,
                         countryCode: normalized.countryCode,
+                        categories: normalized.categories,
                         riskScore: normalized.riskScore,
                         performanceScore: normalized.performanceScore,
                         esgScore: normalized.esgScore,
@@ -480,13 +499,14 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
                     .where(eq(suppliers.id, existing.id));
                 updated++;
             } else {
-                const supplierStatus = (['active', 'inactive', 'under_review'] as const).includes(normalized.status as any) ? normalized.status : 'active';
+                const supplierStatus = (['active', 'inactive', 'blacklisted'] as const).includes(normalized.status as any) ? normalized.status : 'active';
                 await db.insert(suppliers).values({
                     name: normalized.name,
                     contactEmail: normalized.contactEmail,
                     status: supplierStatus,
                     city: normalized.city,
                     countryCode: normalized.countryCode,
+                    categories: normalized.categories,
                     riskScore: normalized.riskScore,
                     performanceScore: normalized.performanceScore,
                     esgScore: normalized.esgScore,
@@ -601,12 +621,32 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
     revalidatePath('/sourcing/invoices');
     revalidatePath('/transactions');
     revalidatePath('/admin/import');
+    revalidatePath('/admin/ecosystem');
+    revalidatePath('/admin/scenarios');
 
     // Refresh core intelligence after import so dashboards and alerts stay in sync.
     try {
         await triggerAgentBundle('post-import');
     } catch (error) {
         console.warn('Post-import agent bundle failed:', error);
+    }
+
+    try {
+        await recordImportJob({
+            entityType,
+            fileName: options?.fileName || `manual-${entityType}-import.csv`,
+            totalRows: rows.length,
+            successRows: inserted + updated,
+            errorRows: skipped,
+            validationReport: issues.map((issue) => ({
+                row: issue.row,
+                issue: issue.message,
+            })),
+            fieldMapping: options?.fieldMapping,
+            sourceSystemId: options?.sourceSystemId,
+        });
+    } catch (error) {
+        console.warn('Import job recording failed:', error);
     }
 
     return {

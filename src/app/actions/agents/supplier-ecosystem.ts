@@ -10,7 +10,7 @@ import { auth } from "@/auth";
 import {
     suppliers, procurementOrders, parts, orderItems, contracts
 } from "@/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, inArray } from "drizzle-orm";
 import { TelemetryService } from "@/lib/telemetry";
 import type { AgentResult } from "@/lib/ai/agent-types";
 
@@ -49,6 +49,11 @@ interface SupplierEcosystem {
     riskHotspots: RiskPropagation[];
     overallHealthScore: number;
     recommendations: string[];
+}
+
+function toNumeric(value: string | number | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
 }
 
 /**
@@ -128,70 +133,105 @@ export async function buildSupplierEcosystem(): Promise<AgentResult<SupplierEcos
 }
 
 async function buildSupplierNodes(): Promise<SupplierNode[]> {
-    // Get supplier base data with order stats
     const supplierData = await db
         .select({
             id: suppliers.id,
             name: suppliers.name,
             riskScore: suppliers.riskScore,
-            category: suppliers.category,
-            deliveryReliability: suppliers.deliveryReliability,
-            qualityRating: suppliers.qualityScore
+            categories: suppliers.categories,
+            performanceScore: suppliers.performanceScore,
+            onTimeDeliveryRate: suppliers.onTimeDeliveryRate,
+            defectRate: suppliers.defectRate,
         })
         .from(suppliers)
         .where(eq(suppliers.status, 'active'));
 
-    const nodes: SupplierNode[] = [];
+    if (supplierData.length === 0) {
+        return [];
+    }
 
-    for (const supplier of supplierData) {
-        // Get order volume and value
-        const orderStats = await db
+    const supplierIds = supplierData.map((supplier) => supplier.id);
+    const [orderStats, partCategoryRows, contractRows] = await Promise.all([
+        db
             .select({
+                supplierId: procurementOrders.supplierId,
                 orderCount: sql<number>`COUNT(*)::int`,
-                totalValue: sql<number>`COALESCE(SUM(${procurementOrders.totalAmount}::numeric), 0)`
+                totalValue: sql<number>`COALESCE(SUM(${procurementOrders.totalAmount}::numeric), 0)`,
             })
             .from(procurementOrders)
-            .where(eq(procurementOrders.supplierId, supplier.id))
-            .limit(1);
-
-        // Get part categories
-        const partCats = await db
-            .select({ category: parts.category })
+            .where(inArray(procurementOrders.supplierId, supplierIds))
+            .groupBy(procurementOrders.supplierId),
+        db
+            .select({
+                supplierId: procurementOrders.supplierId,
+                category: parts.category,
+            })
             .from(orderItems)
             .innerJoin(parts, eq(orderItems.partId, parts.id))
             .innerJoin(procurementOrders, eq(orderItems.orderId, procurementOrders.id))
-            .where(eq(procurementOrders.supplierId, supplier.id))
-            .groupBy(parts.category);
-
-        // Check contract status
-        const contractData = await db
-            .select({ validTo: contracts.validTo, status: contracts.status })
+            .where(inArray(procurementOrders.supplierId, supplierIds))
+            .groupBy(procurementOrders.supplierId, parts.category),
+        db
+            .select({
+                supplierId: contracts.supplierId,
+                validTo: contracts.validTo,
+                status: contracts.status,
+            })
             .from(contracts)
-            .where(eq(contracts.supplierId, supplier.id))
-            .orderBy(desc(contracts.validTo))
-            .limit(1);
+            .where(inArray(contracts.supplierId, supplierIds))
+            .orderBy(desc(contracts.validTo)),
+    ]);
+
+    const orderStatsMap = new Map(orderStats.map((row) => [row.supplierId, row]));
+    const partCategoryMap = new Map<string, string[]>();
+    for (const row of partCategoryRows) {
+        if (!row.category) continue;
+        const categories = partCategoryMap.get(row.supplierId) ?? [];
+        if (!categories.includes(row.category)) {
+            categories.push(row.category);
+        }
+        partCategoryMap.set(row.supplierId, categories);
+    }
+
+    const latestContractMap = new Map<string, { validTo: Date | null; status: string | null }>();
+    for (const row of contractRows) {
+        if (!latestContractMap.has(row.supplierId)) {
+            latestContractMap.set(row.supplierId, row);
+        }
+    }
+
+    const nodes: SupplierNode[] = [];
+
+    for (const supplier of supplierData) {
+        const supplierCategories = (supplier.categories ?? []).filter(Boolean);
+        const partCats = partCategoryMap.get(supplier.id) ?? [];
+        const orderStat = orderStatsMap.get(supplier.id);
+        const contractData = latestContractMap.get(supplier.id);
 
         let contractStatus: 'active' | 'expiring' | 'none' = 'none';
-        if (contractData.length > 0 && contractData[0].status === 'active') {
-            const daysToExpiry = contractData[0].validTo
-                ? Math.ceil((new Date(contractData[0].validTo).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        if (contractData?.status === 'active') {
+            const daysToExpiry = contractData.validTo
+                ? Math.ceil((new Date(contractData.validTo).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 : 999;
             contractStatus = daysToExpiry < 60 ? 'expiring' : 'active';
         }
 
-        // Calculate performance score
-        const performanceScore = Math.round(
-            ((supplier.deliveryReliability || 70) + (supplier.qualityRating || 70)) / 2
-        );
+        const storedPerformance = supplier.performanceScore ?? 0;
+        const onTimeDelivery = toNumeric(supplier.onTimeDeliveryRate);
+        const qualityScore = Math.max(0, 100 - toNumeric(supplier.defectRate));
+        const derivedPerformance = Math.round((onTimeDelivery + qualityScore) / 2);
+        const performanceScore = storedPerformance > 0
+            ? storedPerformance
+            : (derivedPerformance > 0 ? derivedPerformance : 70);
 
         nodes.push({
             id: supplier.id,
             name: supplier.name,
             riskScore: supplier.riskScore || 50,
-            category: supplier.category || 'General',
-            orderVolume: orderStats[0]?.orderCount || 0,
-            orderValue: Number(orderStats[0]?.totalValue || 0),
-            partCategories: partCats.map(p => p.category || 'Uncategorized'),
+            category: supplierCategories[0] || partCats[0] || 'General',
+            orderVolume: orderStat?.orderCount || 0,
+            orderValue: Number(orderStat?.totalValue || 0),
+            partCategories: [...new Set([...supplierCategories, ...partCats])],
             contractStatus,
             performanceScore
         });
@@ -202,7 +242,6 @@ async function buildSupplierNodes(): Promise<SupplierNode[]> {
 
 async function buildRelationships(nodes: SupplierNode[]): Promise<SupplierRelationship[]> {
     const relationships: SupplierRelationship[] = [];
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
     // Find suppliers sharing categories (potential competitors/alternatives)
     for (let i = 0; i < nodes.length; i++) {
@@ -251,7 +290,7 @@ async function buildRelationships(nodes: SupplierNode[]): Promise<SupplierRelati
 
 function identifyClusters(
     nodes: SupplierNode[],
-    relationships: SupplierRelationship[]
+    _relationships: SupplierRelationship[]
 ): { name: string; supplierIds: string[] }[] {
     const clusters: { name: string; supplierIds: string[] }[] = [];
     const categoryGroups = new Map<string, string[]>();
@@ -384,7 +423,7 @@ function generateRecommendations(
 
     // Concentration risk
     const topSpend = nodes.reduce((sum, n) => sum + n.orderValue, 0);
-    const topSupplier = nodes.sort((a, b) => b.orderValue - a.orderValue)[0];
+    const topSupplier = [...nodes].sort((a, b) => b.orderValue - a.orderValue)[0];
     if (topSupplier && topSupplier.orderValue > topSpend * 0.4) {
         recommendations.push(`📊 ${topSupplier.name} represents >${Math.round(topSupplier.orderValue / topSpend * 100)}% of spend - consider diversification`);
     }

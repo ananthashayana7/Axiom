@@ -4,6 +4,9 @@ import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { fetchSapEntityData, mapSapRecordToAxiom, mappedRowsToCsv, testSapConnection, type SapEntityType } from '@/lib/services/sap';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { enforceMutationFirewall, readJsonBody } from '@/lib/api-security';
+import { db } from '@/db';
+import { importJobs } from '@/db/schema';
+import { desc, sql } from 'drizzle-orm';
 
 type SyncMode = 'dry-run' | 'commit';
 
@@ -30,18 +33,41 @@ function ensureAdmin(session: unknown) {
     return !!maybeUser && maybeUser.role === 'admin';
 }
 
+function getSessionUserId(session: unknown) {
+    if (!session || typeof session !== 'object') return undefined;
+    const maybeUser = (session as { user?: { id?: string | null } }).user;
+    return maybeUser?.id ?? undefined;
+}
+
 export async function GET(req: Request) {
     const session = await auth();
     if (!ensureAdmin(session)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const limited = await enforceRateLimit(req, 'read', (session as any).user?.id);
+    const limited = await enforceRateLimit(req, 'read', getSessionUserId(session));
     if (limited) return limited;
 
     const baseUrl = process.env.SAP_BASE_URL;
     const hasAuth = Boolean(process.env.SAP_API_TOKEN || (process.env.SAP_USERNAME && process.env.SAP_PASSWORD));
     const configured = Boolean(baseUrl && hasAuth);
+    const recentSyncs = await db.select({
+        id: importJobs.id,
+        entityType: importJobs.entityType,
+        status: importJobs.status,
+        fileName: importJobs.fileName,
+        totalRows: importJobs.totalRows,
+        successRows: importJobs.successRows,
+        errorRows: importJobs.errorRows,
+        sourceSystemId: importJobs.sourceSystemId,
+        completedAt: importJobs.completedAt,
+        createdAt: importJobs.createdAt,
+    })
+        .from(importJobs)
+        .where(sql`${importJobs.sourceSystemId} like 'sap:%'`)
+        .orderBy(desc(importJobs.createdAt))
+        .limit(8);
+    const lastSuccessfulSync = recentSyncs.find((job) => job.status === 'completed' && (job.errorRows ?? 0) === 0);
 
     return NextResponse.json({
         configured,
@@ -49,6 +75,8 @@ export async function GET(req: Request) {
         authConfigured: hasAuth,
         authMethod: process.env.SAP_API_TOKEN ? 'bearer_token' : (process.env.SAP_USERNAME ? 'basic_auth' : 'none'),
         supportedEntities: ['suppliers', 'parts', 'invoices'],
+        recentSyncs,
+        lastSuccessfulSyncAt: lastSuccessfulSync?.completedAt ?? lastSuccessfulSync?.createdAt ?? null,
         endpoints: {
             sync: 'POST /api/sap { action: "sync", entityType, mode, source, ... }',
             testConnection: 'POST /api/sap { action: "test-connection" }',
@@ -69,7 +97,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const limited = await enforceRateLimit(req, 'write', (session as any).user?.id);
+    const limited = await enforceRateLimit(req, 'write', getSessionUserId(session));
     if (limited) return limited;
 
     try {
@@ -95,6 +123,7 @@ export async function POST(req: Request) {
         const entityType = (body.entityType || 'suppliers') as SapEntityType;
         const mode = (body.mode || 'dry-run') as SyncMode;
         const source = (body.source || 'sample') as 'sample' | 'sap';
+        const requestedEntitySet = body.entitySet as string | undefined;
 
         if (!['suppliers', 'parts', 'invoices'].includes(entityType)) {
             return NextResponse.json({ error: 'Invalid entityType' }, { status: 400 });
@@ -106,7 +135,7 @@ export async function POST(req: Request) {
         let csvText = body.csvText as string | undefined;
 
         if (source === 'sap') {
-            const entitySet = body.entitySet as string;
+            const entitySet = requestedEntitySet as string;
             if (!entitySet) {
                 return NextResponse.json({ error: 'entitySet is required when source=sap' }, { status: 400 });
             }
@@ -130,7 +159,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ source, mode, entityType, ...result });
         }
 
-        const result = await executeSapImport(csvText, entityType);
+        const schema = getSapSchema(entityType);
+        const fieldMapping = Object.fromEntries(schema.fields.map((field) => [field.axiomField, field.sapFields[0] || field.axiomField]));
+        const result = await executeSapImport(csvText, entityType, {
+            fileName: `${source === 'sap' ? requestedEntitySet || entityType : entityType}-${mode}.csv`,
+            sourceSystemId: source === 'sap' ? `sap:${requestedEntitySet}` : undefined,
+            fieldMapping,
+        });
         return NextResponse.json({ source, mode, entityType, ...result });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'SAP sync failed';
@@ -150,6 +185,7 @@ function getSapSchema(entityType: SapEntityType) {
             { axiomField: 'name', sapFields: ['Name1', 'SupplierName', 'name'], required: true },
             { axiomField: 'contact_email', sapFields: ['EmailAddress', 'ContactEmail', 'email'], required: true },
             { axiomField: 'status', sapFields: ['Status', 'status'], required: false },
+            { axiomField: 'categories', sapFields: ['SupplierCategory', 'Category', 'CommodityGroup', 'categories'], required: false },
             { axiomField: 'country_code', sapFields: ['Country', 'CountryCode', 'country_code'], required: false },
             { axiomField: 'city', sapFields: ['City', 'city'], required: false },
             { axiomField: 'risk_score', sapFields: ['RiskScore', 'risk_score'], required: false },

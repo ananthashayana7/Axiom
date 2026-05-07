@@ -1,17 +1,36 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, Database, CheckCircle2, AlertTriangle, Upload, ShieldCheck, Link2, Radar } from 'lucide-react';
+import { FileUp, Database, CheckCircle2, AlertTriangle, Upload, ShieldCheck, Link2, Radar, RefreshCcw, PlugZap } from 'lucide-react';
 import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { toast } from 'sonner';
 
 type EntityType = 'suppliers' | 'parts' | 'invoices';
+
+type SapConnectorStatus = {
+    configured: boolean;
+    baseUrlConfigured: boolean;
+    authConfigured: boolean;
+    authMethod: string;
+    lastSuccessfulSyncAt: string | null;
+    recentSyncs: Array<{
+        id: string;
+        entityType: string;
+        status: string;
+        totalRows: number | null;
+        successRows: number | null;
+        errorRows: number | null;
+        sourceSystemId: string | null;
+        completedAt: string | null;
+        createdAt: string | null;
+    }>;
+};
 
 export default function AdminImportPage() {
     const [entityType, setEntityType] = useState<EntityType>('suppliers');
@@ -19,6 +38,28 @@ export default function AdminImportPage() {
     const [dryRunResult, setDryRunResult] = useState<any>(null);
     const [isDryRunning, setIsDryRunning] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [connectorStatus, setConnectorStatus] = useState<SapConnectorStatus | null>(null);
+    const [isConnectorLoading, setIsConnectorLoading] = useState(true);
+
+    const loadSapConnectorStatus = async () => {
+        setIsConnectorLoading(true);
+        try {
+            const response = await fetch('/api/sap', { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error('Failed to load SAP connector status');
+            }
+            const payload = await response.json() as SapConnectorStatus;
+            setConnectorStatus(payload);
+        } catch {
+            toast.error('Could not load SAP connector status');
+        } finally {
+            setIsConnectorLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadSapConnectorStatus();
+    }, []);
 
     const onFileChange = async (file: File | null) => {
         if (!file) return;
@@ -65,6 +106,7 @@ export default function AdminImportPage() {
                 });
                 const refreshedDryRun = await dryRunSapImport(csvText, entityType);
                 setDryRunResult(refreshedDryRun);
+                await loadSapConnectorStatus();
             } else {
                 toast.error(result.message || 'Import failed');
             }
@@ -75,7 +117,7 @@ export default function AdminImportPage() {
     };
 
     const templateByEntity: Record<EntityType, string> = {
-        suppliers: 'name,contact_email,status,country_code,city,risk_score,performance_score,esg_score,financial_score',
+        suppliers: 'name,contact_email,status,categories,country_code,city,risk_score,performance_score,esg_score,financial_score',
         parts: 'sku,name,category,price,stock_level,reorder_point,min_stock_level,market_trend',
         invoices: 'invoice_number,order_id,supplier_id,amount,status,currency,region,country,continent',
     };
@@ -123,6 +165,81 @@ export default function AdminImportPage() {
                     </p>
                 </div>
             </div>
+
+            <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <PlugZap className="h-5 w-5 text-primary" /> SAP Connector Status
+                        </CardTitle>
+                        <CardDescription>
+                            Axiom can test SAP connectivity, map OData fields, dry-run imports, and track committed syncs with job history.
+                        </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={loadSapConnectorStatus} disabled={isConnectorLoading}>
+                        <RefreshCcw className={`h-4 w-4 ${isConnectorLoading ? 'animate-spin' : ''}`} />
+                        Refresh Status
+                    </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="rounded-2xl border bg-background p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Configuration</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">
+                                {connectorStatus?.configured ? 'Ready' : 'Missing environment settings'}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border bg-background p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Auth Method</p>
+                            <p className="mt-2 text-sm font-semibold capitalize text-foreground">
+                                {connectorStatus?.authMethod?.replace(/_/g, ' ') || 'Unknown'}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border bg-background p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Last Successful Sync</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">
+                                {connectorStatus?.lastSuccessfulSyncAt
+                                    ? new Date(connectorStatus.lastSuccessfulSyncAt).toLocaleString('en-IN')
+                                    : 'No successful SAP sync yet'}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border bg-background p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Recent SAP Jobs</p>
+                            <p className="mt-2 text-sm font-semibold text-foreground">
+                                {connectorStatus?.recentSyncs?.length || 0} tracked runs
+                            </p>
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border bg-muted/20 p-4">
+                        {connectorStatus?.recentSyncs?.length ? (
+                            <div className="space-y-3">
+                                {connectorStatus.recentSyncs.slice(0, 4).map((job) => (
+                                    <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background px-3 py-3 text-sm">
+                                        <div>
+                                            <p className="font-semibold text-foreground">
+                                                {job.entityType} sync
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {job.sourceSystemId || 'manual'} • {job.successRows || 0}/{job.totalRows || 0} rows applied
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <Badge variant="outline">{job.status}</Badge>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                {job.completedAt ? new Date(job.completedAt).toLocaleString('en-IN') : 'In progress'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                No SAP sync jobs are tracked yet. Once you commit a SAP-backed import, Axiom records the run here with row counts and completion status.
+                            </p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
