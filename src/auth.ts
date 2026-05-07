@@ -4,8 +4,8 @@ import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
 import { db } from "@/db"
-import { users } from "@/db/schema"
-import { ilike } from "drizzle-orm"
+import { suppliers, users } from "@/db/schema"
+import { eq, ilike } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
 import { TotpService } from "@/lib/totp";
@@ -20,6 +20,21 @@ async function findUser(identifier: string) {
         console.error("Database error in findUser:", err);
         return null;
     }
+}
+
+async function supplierPortalAccessAllowed(supplierId: string | null | undefined) {
+    if (!supplierId) {
+        return false;
+    }
+
+    const [supplier] = await db.select({
+        status: suppliers.status,
+        lifecycleStatus: suppliers.lifecycleStatus,
+    }).from(suppliers)
+        .where(eq(suppliers.id, supplierId))
+        .limit(1);
+
+    return supplier?.status === 'active' && supplier?.lifecycleStatus === 'active';
 }
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
@@ -55,6 +70,19 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                     const passwordsMatch = await bcrypt.compare(password, user.password);
 
                     if (passwordsMatch) {
+                        if (user.role === 'supplier') {
+                            const portalAccessAllowed = await supplierPortalAccessAllowed(user.supplierId);
+                            if (!portalAccessAllowed) {
+                                console.warn(`[AUTH] SUPPLIER_PORTAL_LOCKED | user: ${user.email}`);
+                                await TelemetryService.trackEvent("Security", "login_failed_supplier_portal_locked", {
+                                    userId: user.id,
+                                    email: user.email,
+                                    supplierId: user.supplierId,
+                                });
+                                return null;
+                            }
+                        }
+
                         // Check for 2FA
                         if (user.isTwoFactorEnabled && user.twoFactorSecret) {
                             // 2FA is fully enabled — require a valid code
@@ -148,6 +176,14 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                     // Deny sign-in for OAuth users not pre-registered in Axiom
                     console.warn(`[AUTH] OAuth user ${user.email} not found in Axiom DB`);
                     return false;
+                }
+
+                if (existingUser.role === 'supplier') {
+                    const portalAccessAllowed = await supplierPortalAccessAllowed(existingUser.supplierId);
+                    if (!portalAccessAllowed) {
+                        console.warn(`[AUTH] OAuth supplier ${user.email} is linked to a locked portal account`);
+                        return false;
+                    }
                 }
 
                 // Map the Axiom user data onto the session

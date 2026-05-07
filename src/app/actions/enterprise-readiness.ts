@@ -1,5 +1,7 @@
 'use server';
 
+import { randomBytes } from "node:crypto";
+
 import { auth } from "@/auth";
 import { db } from "@/db";
 import {
@@ -18,7 +20,8 @@ import {
     webhooks,
     workflowTasks,
 } from "@/db/schema";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import {
     averageScore,
@@ -32,6 +35,9 @@ import {
     type SupplierEnterpriseSnapshot,
     type SupplierReadinessInput,
 } from "@/lib/enterprise-readiness";
+import { canManageSuppliers } from "@/lib/rbac";
+import { generateSupplierPortalWelcomeEmail, sendEmail } from "@/lib/services/email";
+import { logActivity } from "./activity";
 
 type UserSession = {
     id?: string | null;
@@ -53,6 +59,17 @@ type SupplierSubmissionContext = {
     certifications?: string[];
 };
 
+export type SupplierPortalAccessSummary = {
+    supplierId: string;
+    contactEmail: string;
+    state: 'not_issued' | 'ready_to_issue' | 'issued' | 'locked';
+    statusLabel: string;
+    detail: string;
+    portalUserId: string | null;
+    portalUserEmail: string | null;
+    provisionedAt: Date | null;
+};
+
 const OPEN_TASK_STATUSES = ['open', 'in_progress', 'blocked', 'escalated'] as const;
 const ACTIVE_ACTION_PLAN_STATUSES = ['draft', 'active', 'in_progress'] as const;
 const PACK_TITLE_PREFIX = {
@@ -69,6 +86,48 @@ const PACK_TITLE_PREFIX = {
 
 function isAdmin(user: UserSession | null | undefined) {
     return user?.role === 'admin';
+}
+
+function generateTemporaryPassword() {
+    const raw = randomBytes(9).toString('base64url');
+    return `Axiom!${raw.slice(0, 10)}`;
+}
+
+function describePortalAccessState(input: {
+    hasPortalUser: boolean;
+    supplierStatus: string | null;
+    lifecycleStatus: string | null;
+    canApprove: boolean;
+}) {
+    if (input.hasPortalUser && input.supplierStatus === 'active' && input.lifecycleStatus === 'active') {
+        return {
+            state: 'issued' as const,
+            statusLabel: 'Portal access issued',
+            detail: 'Supplier credentials are linked and the portal can be used after login and 2FA setup.',
+        };
+    }
+
+    if (input.hasPortalUser) {
+        return {
+            state: 'locked' as const,
+            statusLabel: 'Portal account linked but locked',
+            detail: 'A supplier login exists, but the supplier record is not active yet so portal access remains blocked.',
+        };
+    }
+
+    if (input.lifecycleStatus === 'onboarding' && input.canApprove) {
+        return {
+            state: 'ready_to_issue' as const,
+            statusLabel: 'Ready to issue',
+            detail: 'Approval can now create supplier credentials and activate the portal.',
+        };
+    }
+
+    return {
+        state: 'not_issued' as const,
+        statusLabel: 'Portal access not issued',
+        detail: 'Complete onboarding controls first, then issue supplier credentials during approval.',
+    };
 }
 
 function safeParseExchangeRates(raw: string | null | undefined): boolean {
@@ -875,6 +934,252 @@ export async function getEnterpriseReadinessDashboard(): Promise<EnterpriseDashb
             recentDeliveries: recentDeliveries.length,
         },
         priorityActions,
+    };
+}
+
+export async function getSupplierPortalAccessStatus(supplierId: string): Promise<SupplierPortalAccessSummary | null> {
+    const user = await requireUser();
+    if (user.role === 'supplier' && user.supplierId !== supplierId) return null;
+
+    const [supplier] = await db.select({
+        id: suppliers.id,
+        contactEmail: suppliers.contactEmail,
+        status: suppliers.status,
+        lifecycleStatus: suppliers.lifecycleStatus,
+    }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+
+    if (!supplier) return null;
+
+    const [portalUser] = await db.select({
+        id: users.id,
+        email: users.email,
+        createdAt: users.createdAt,
+    }).from(users)
+        .where(and(
+            eq(users.role, 'supplier'),
+            eq(users.supplierId, supplierId),
+        ))
+        .orderBy(desc(users.createdAt))
+        .limit(1);
+
+    const readiness = user.role === 'admin'
+        ? await getSupplierEnterpriseReadiness(supplierId)
+        : null;
+
+    const portalState = describePortalAccessState({
+        hasPortalUser: Boolean(portalUser),
+        supplierStatus: supplier.status,
+        lifecycleStatus: supplier.lifecycleStatus,
+        canApprove: readiness?.readiness.canApprove ?? false,
+    });
+
+    return {
+        supplierId,
+        contactEmail: supplier.contactEmail,
+        state: portalState.state,
+        statusLabel: portalState.statusLabel,
+        detail: portalState.detail,
+        portalUserId: portalUser?.id ?? null,
+        portalUserEmail: portalUser?.email ?? null,
+        provisionedAt: portalUser?.createdAt ?? null,
+    };
+}
+
+export async function approveSupplierOnboarding(supplierId: string) {
+    const user = await requireUser();
+    if (!isAdmin(user) || !canManageSuppliers(user)) {
+        return { success: false as const, error: 'Admin supplier-management access is required.' };
+    }
+
+    const [supplier] = await db.select({
+        id: suppliers.id,
+        name: suppliers.name,
+        contactEmail: suppliers.contactEmail,
+        status: suppliers.status,
+        lifecycleStatus: suppliers.lifecycleStatus,
+    }).from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+
+    if (!supplier) {
+        return { success: false as const, error: 'Supplier not found.' };
+    }
+
+    if (!supplier.contactEmail?.trim()) {
+        return { success: false as const, error: 'Supplier approval requires a contact email for portal access.' };
+    }
+
+    if (supplier.lifecycleStatus === 'terminated') {
+        return { success: false as const, error: 'Terminated suppliers cannot be re-approved through onboarding.' };
+    }
+
+    const readiness = await getSupplierEnterpriseReadiness(supplierId);
+    if (!readiness) {
+        return { success: false as const, error: 'Readiness snapshot is unavailable for this supplier.' };
+    }
+
+    if (!readiness.readiness.canApprove) {
+        return {
+            success: false as const,
+            error: readiness.readiness.blockers[0] || `Supplier readiness is ${readiness.readiness.score}% and is still below the approval threshold.`,
+        };
+    }
+
+    const [linkedPortalUser, emailCollision] = await Promise.all([
+        db.select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+        }).from(users)
+            .where(and(
+                eq(users.role, 'supplier'),
+                eq(users.supplierId, supplierId),
+            ))
+            .orderBy(desc(users.createdAt))
+            .limit(1),
+        db.select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+            supplierId: users.supplierId,
+        }).from(users)
+            .where(eq(users.email, supplier.contactEmail.trim()))
+            .limit(1),
+    ]);
+
+    const existingPortalUser = linkedPortalUser[0] ?? null;
+    const existingEmailUser = emailCollision[0] ?? null;
+    const reusablePortalUser = existingPortalUser
+        ?? (existingEmailUser && existingEmailUser.role === 'supplier' && (!existingEmailUser.supplierId || existingEmailUser.supplierId === supplierId)
+            ? existingEmailUser
+            : null);
+
+    if (existingEmailUser && existingEmailUser.id !== reusablePortalUser?.id) {
+        if (existingEmailUser.role !== 'supplier' || (existingEmailUser.supplierId && existingEmailUser.supplierId !== supplierId)) {
+            return {
+                success: false as const,
+                error: `The email ${supplier.contactEmail.trim()} is already linked to another Axiom account. Resolve that conflict before issuing supplier portal access.`,
+            };
+        }
+    }
+
+    const portalPassword = generateTemporaryPassword();
+    const hashedPortalPassword = await bcrypt.hash(portalPassword, 10);
+    const now = new Date();
+
+    const [portalUser] = reusablePortalUser
+        ? await db.update(users)
+            .set({
+                name: supplier.name,
+                email: supplier.contactEmail.trim(),
+                password: hashedPortalPassword,
+                role: 'supplier',
+                accessProfile: 'supplier_portal',
+                supplierId,
+                department: null,
+                countryScope: null,
+                regionScope: null,
+                twoFactorSecret: null,
+                isTwoFactorEnabled: false,
+            })
+            .where(eq(users.id, reusablePortalUser.id))
+            .returning({ id: users.id, email: users.email })
+        : await db.insert(users).values({
+            name: supplier.name,
+            email: supplier.contactEmail.trim(),
+            password: hashedPortalPassword,
+            role: 'supplier',
+            accessProfile: 'supplier_portal',
+            supplierId,
+        }).returning({ id: users.id, email: users.email });
+
+    await db.transaction(async (tx) => {
+        await tx.update(suppliers)
+            .set({
+                status: 'active',
+                lifecycleStatus: 'active',
+            })
+            .where(eq(suppliers.id, supplierId));
+
+        await tx.update(supplierRequests)
+            .set({
+                status: 'verified',
+                verifiedById: user.id as string,
+                verifiedAt: now,
+                updatedAt: now,
+            })
+            .where(and(
+                eq(supplierRequests.supplierId, supplierId),
+                ne(supplierRequests.status, 'verified'),
+                ne(supplierRequests.status, 'rejected'),
+            ));
+
+        await tx.update(supplierActionPlans)
+            .set({
+                status: 'completed',
+                completedAt: now,
+                updatedAt: now,
+            })
+            .where(and(
+                eq(supplierActionPlans.supplierId, supplierId),
+                eq(supplierActionPlans.planType, 'onboarding'),
+                inArray(supplierActionPlans.status, ['draft', 'active', 'in_progress']),
+            ));
+
+        await tx.update(workflowTasks)
+            .set({
+                status: 'completed',
+                completedAt: now,
+                completionEvidence: `Supplier approved and portal credentials issued by ${user.name || user.email || 'Axiom admin'}.`,
+                updatedAt: now,
+            })
+            .where(and(
+                eq(workflowTasks.entityType, 'supplier'),
+                eq(workflowTasks.entityId, supplierId),
+                inArray(workflowTasks.status, [...OPEN_TASK_STATUSES]),
+            ));
+    });
+
+    await db.insert(notifications).values({
+        userId: portalUser.id,
+        title: 'Portal access approved',
+        message: `${supplier.name} is now active in Axiom. Sign in to the supplier portal and complete 2FA setup.`,
+        type: 'success',
+        link: '/portal',
+    });
+
+    const welcome = generateSupplierPortalWelcomeEmail(supplier.name, portalUser.email, portalPassword);
+    const emailResult = await sendEmail({
+        to: portalUser.email,
+        subject: welcome.subject,
+        body: welcome.body,
+    });
+
+    await logActivity(
+        'APPROVE',
+        'supplier',
+        supplierId,
+        `Supplier approved and portal access issued to ${portalUser.email}${emailResult.success ? '' : ' (SMTP delivery pending/manual handoff required)'}.`,
+    );
+    await logActivity(
+        reusablePortalUser ? 'UPDATE' : 'CREATE',
+        'user',
+        portalUser.id,
+        `Supplier portal credentials ${reusablePortalUser ? 'reissued' : 'created'} for ${supplier.name} (${portalUser.email}).`,
+    );
+
+    revalidatePath(`/suppliers/${supplierId}`);
+    revalidatePath('/suppliers');
+    revalidatePath('/admin/users');
+    revalidatePath('/admin/tasks');
+    revalidatePath('/admin/compliance');
+    revalidatePath('/portal');
+
+    return {
+        success: true as const,
+        portalUserId: portalUser.id,
+        portalUserEmail: portalUser.email,
+        reusedPortalUser: Boolean(reusablePortalUser),
+        emailSent: emailResult.success,
+        temporaryPassword: emailResult.success ? null : portalPassword,
     };
 }
 

@@ -100,3 +100,27 @@ The Axiom Team
 pma.axiom.support@gmail.com`.trim()
     };
 }
+
+export function generateSupplierPortalWelcomeEmail(name: string, email: string, tempPassword: string) {
+    return {
+        subject: `Axiom supplier portal access approved for ${name}`,
+        body: `Hello ${name},
+
+Your supplier onboarding has been approved in Axiom, and your portal access is now ready.
+
+Portal login:
+Email: ${email}
+Temporary Password: ${tempPassword}
+
+What to do next:
+- Sign in to the Axiom supplier portal
+- Complete 2FA setup on first login
+- Review open requests, documents, and active orders in your portal workspace
+
+This credential is intended for immediate activation. Please sign in and change your password after setup.
+
+Best regards,
+The Axiom Team
+pma.axiom.support@gmail.com`.trim(),
+    };
+}

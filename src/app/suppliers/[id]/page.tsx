@@ -16,7 +16,7 @@ import { SupplierScorecard } from "@/components/suppliers/supplier-scorecard";
 import { RecordPerformanceModal } from "@/components/suppliers/record-performance-modal";
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
-import { getSupplierEnterpriseReadiness } from "@/app/actions/enterprise-readiness";
+import { getSupplierEnterpriseReadiness, getSupplierPortalAccessStatus } from "@/app/actions/enterprise-readiness";
 import { SupplierEnterpriseReadiness } from "@/components/suppliers/supplier-enterprise-readiness";
 import { EnrichSupplierButton } from "@/components/suppliers/enrich-supplier-button";
 import { MessageSupplierButton } from "@/components/suppliers/message-supplier-button";
@@ -57,7 +57,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
 
-    const [supplier, orders, docs, initialComments, supplierThreadComments, timelineEntries, performanceData, readinessSnapshot] = await Promise.all([
+    const [supplier, orders, docs, initialComments, supplierThreadComments, timelineEntries, performanceData, readinessSnapshot, portalAccess] = await Promise.all([
         getSupplierById(id),
         getSupplierOrders(id),
         getDocuments('supplier', id),
@@ -66,6 +66,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
         getTimelineEvents('supplier', id),
         getSupplierPerformanceMetrics(id),
         getSupplierEnterpriseReadiness(id),
+        getSupplierPortalAccessStatus(id),
     ]);
 
     if (!supplier) {
@@ -137,6 +138,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                             blockers: readinessSnapshot.readiness.blockers,
                             score: readinessSnapshot.readiness.score,
                         } : undefined}
+                        portalAccess={portalAccess}
                     />
                 </Card>
             </div>

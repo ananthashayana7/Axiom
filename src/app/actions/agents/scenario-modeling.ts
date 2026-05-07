@@ -5,13 +5,16 @@
 
 'use server'
 
+import { createHash } from "node:crypto";
+
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { invoices, platformSettings, procurementOrders, suppliers } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { agentRecommendations, auditLogs, invoices, notifications, platformSettings, procurementOrders, suppliers, users, workflowTasks } from "@/db/schema";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { AgentResult } from "@/lib/ai/agent-types";
 import { convertCurrencyAmount, parseFinanceSettings, type FinanceSettings } from "@/lib/finance";
+import { canAccessScenarioModeling } from "@/lib/rbac";
 import { FX_RATE_STALE_HOURS, SUPPLIER_RELEASE_RISK_THRESHOLD } from "@/lib/sourcing-guardrails";
 import { TelemetryService } from "@/lib/telemetry";
 
@@ -82,6 +85,15 @@ interface ScenarioResult {
     parameterEcho: Record<string, number | string>;
     generatedAt: string;
 }
+
+type ScenarioExecutionPacket = {
+    recommendationId: string;
+    taskId: string;
+    ownerId: string;
+    ownerName: string;
+    dueDate: string;
+    reused: boolean;
+};
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
@@ -170,6 +182,98 @@ function calculateConfidence(
     }
 
     return clamp(Math.round(confidence), 45, 92);
+}
+
+function buildScenarioFingerprint(scenario: ScenarioInput) {
+    return createHash('sha1')
+        .update(JSON.stringify({
+            scenarioType: scenario.scenarioType,
+            title: scenario.title || '',
+            description: scenario.description || '',
+            parameters: scenario.parameters,
+        }))
+        .digest('hex')
+        .slice(0, 12);
+}
+
+function mapOverallImpactToRecommendationImpact(overallImpact: OverallImpact): 'low' | 'medium' | 'high' | 'critical' {
+    switch (overallImpact) {
+        case 'highly_negative':
+            return 'critical';
+        case 'negative':
+        case 'highly_positive':
+            return 'high';
+        case 'positive':
+            return 'medium';
+        default:
+            return 'low';
+    }
+}
+
+function buildScenarioExecutionSummary(result: ScenarioResult) {
+    const topOutcomes = result.outcomes
+        .slice(0, 3)
+        .map((outcome) => `${outcome.metric}: ${outcome.projectedValue}`)
+        .join(' | ');
+
+    return `${result.description} Projected focus: ${topOutcomes}.`;
+}
+
+function buildScenarioExecutionExplanation(result: ScenarioResult) {
+    return [
+        `Overall impact: ${result.overallImpact.replace(/_/g, ' ')} at ${result.confidenceScore}% confidence.`,
+        `FX posture: ${result.basis.fxFreshness} ${result.basis.bookRatePeriod} book rates for ${result.basis.reportingCurrency}.`,
+        ...result.assumptions.slice(0, 2),
+        ...result.riskFactors.slice(0, 2),
+    ].join(' ');
+}
+
+async function resolveScenarioExecutionOwner(
+    scenarioType: ScenarioType,
+    requesterId: string,
+) {
+    const preferredProfiles = scenarioType === 'currency_fluctuation'
+        ? ['finance_auditor', 'super_admin']
+        : ['sourcing_manager', 'super_admin'];
+
+    for (const profile of preferredProfiles) {
+        const [owner] = await db.select({
+            id: users.id,
+            name: users.name,
+            accessProfile: users.accessProfile,
+        }).from(users)
+            .where(and(
+                eq(users.role, 'admin'),
+                eq(users.accessProfile, profile),
+            ))
+            .limit(1);
+
+        if (owner) {
+            return owner;
+        }
+    }
+
+    const [requester] = await db.select({
+        id: users.id,
+        name: users.name,
+        accessProfile: users.accessProfile,
+    }).from(users)
+        .where(eq(users.id, requesterId))
+        .limit(1);
+
+    if (requester) {
+        return requester;
+    }
+
+    const [fallbackAdmin] = await db.select({
+        id: users.id,
+        name: users.name,
+        accessProfile: users.accessProfile,
+    }).from(users)
+        .where(eq(users.role, 'admin'))
+        .limit(1);
+
+    return fallbackAdmin ?? null;
 }
 
 async function getBaselineData(): Promise<ScenarioBasis> {
@@ -753,6 +857,180 @@ export async function runScenarioAnalysis(
         return {
             success: false,
             error: error instanceof Error ? error.message : "Scenario modeling failed",
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "scenario-modeling",
+            timestamp: new Date(),
+        };
+    }
+}
+
+export async function stageScenarioExecutionPlan(
+    scenario: ScenarioInput,
+): Promise<AgentResult<ScenarioExecutionPacket>> {
+    const startTime = Date.now();
+    const session = await auth();
+
+    if (!session?.user || session.user.role !== 'admin' || !canAccessScenarioModeling(session.user)) {
+        return {
+            success: false,
+            error: "Unauthorized",
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "scenario-modeling",
+            timestamp: new Date(),
+        };
+    }
+
+    try {
+        const basis = await getBaselineData();
+        const result = buildDeterministicScenario(scenario, basis);
+        const fingerprint = buildScenarioFingerprint(scenario);
+        const recommendationType = `scenario_apply:${scenario.scenarioType}:${fingerprint}`;
+
+        const [existingRecommendation] = await db.select({
+            id: agentRecommendations.id,
+            ownerId: agentRecommendations.ownerId,
+            dueDate: agentRecommendations.dueDate,
+        }).from(agentRecommendations)
+            .where(and(
+                eq(agentRecommendations.agentName, 'scenario-modeling'),
+                eq(agentRecommendations.recommendationType, recommendationType),
+                inArray(agentRecommendations.status, ['pending', 'approved']),
+            ))
+            .orderBy(desc(agentRecommendations.createdAt))
+            .limit(1);
+
+        if (existingRecommendation) {
+            const [existingTask] = await db.select({
+                id: workflowTasks.id,
+            }).from(workflowTasks)
+                .where(and(
+                    eq(workflowTasks.entityType, 'agent_recommendation'),
+                    eq(workflowTasks.entityId, existingRecommendation.id),
+                    inArray(workflowTasks.status, ['open', 'in_progress', 'blocked', 'escalated']),
+                ))
+                .orderBy(desc(workflowTasks.createdAt))
+                .limit(1);
+
+            const [owner] = await db.select({
+                id: users.id,
+                name: users.name,
+            }).from(users)
+                .where(eq(users.id, existingRecommendation.ownerId || session.user.id))
+                .limit(1);
+
+            return {
+                success: true,
+                data: {
+                    recommendationId: existingRecommendation.id,
+                    taskId: existingTask?.id || existingRecommendation.id,
+                    ownerId: owner?.id || (session.user.id as string),
+                    ownerName: owner?.name || session.user.name || 'Assigned owner',
+                    dueDate: (existingRecommendation.dueDate || new Date()).toISOString(),
+                    reused: true,
+                },
+                confidence: result.confidenceScore,
+                executionTimeMs: Date.now() - startTime,
+                agentName: "scenario-modeling",
+                timestamp: new Date(),
+                reasoning: `Reused the existing governed apply packet for ${scenario.scenarioType}.`,
+            };
+        }
+
+        const owner = await resolveScenarioExecutionOwner(scenario.scenarioType, session.user.id as string);
+        if (!owner) {
+            throw new Error("No admin owner is available to receive the scenario execution plan.");
+        }
+
+        const impact = mapOverallImpactToRecommendationImpact(result.overallImpact);
+        const dueDate = new Date(Date.now() + (scenario.scenarioType === 'currency_fluctuation' ? 2 : 3) * 24 * 60 * 60 * 1000);
+        const executionPayload = JSON.stringify({
+            scenario,
+            result,
+            stagedFrom: 'scenario_modeling',
+            createdBy: session.user.id,
+        });
+
+        const [recommendation] = await db.insert(agentRecommendations).values({
+            agentName: 'scenario-modeling',
+            recommendationType,
+            title: `Apply plan: ${result.title}`,
+            description: buildScenarioExecutionSummary(result),
+            impact,
+            confidence: result.confidenceScore,
+            businessImpact: result.recommendations.slice(0, 2).join(' '),
+            explanation: buildScenarioExecutionExplanation(result),
+            executionPayload,
+            entityType: 'agent_recommendation',
+            ownerId: owner.id,
+            dueDate,
+            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            status: 'pending',
+        }).returning({
+            id: agentRecommendations.id,
+            title: agentRecommendations.title,
+        });
+
+        const [task] = await db.insert(workflowTasks).values({
+            title: `Review apply plan: ${result.title}`,
+            description: `A governed execution packet was created from Scenario Modeling. Review the assumptions, approve only the operationally safe actions, and convert accepted moves into sourcing or finance work.`,
+            entityType: 'agent_recommendation',
+            entityId: recommendation.id,
+            priority: impact === 'critical' ? 'critical' : impact === 'high' ? 'high' : 'medium',
+            assigneeId: owner.id,
+            createdById: session.user.id as string,
+            dueDate,
+            nextAction: 'Review the scenario packet, validate the assumptions, and route approved actions into live sourcing or finance execution.',
+        }).returning({
+            id: workflowTasks.id,
+        });
+
+        if (owner.id !== session.user.id) {
+            await db.insert(notifications).values({
+                userId: owner.id,
+                title: 'Scenario apply plan queued',
+                message: `${result.title} now needs governed review before any live procurement action is taken.`,
+                type: impact === 'critical' ? 'warning' : 'info',
+                link: '/admin/tasks',
+            });
+        }
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id as string,
+            action: 'QUEUE',
+            entityType: 'agent_recommendation',
+            entityId: recommendation.id,
+            details: `Governed scenario apply plan queued for ${result.title}.`,
+        });
+
+        await TelemetryService.trackEvent("ScenarioModeling", "execution_plan_staged", {
+            scenarioType: scenario.scenarioType,
+            impact,
+            ownerId: owner.id,
+        });
+
+        return {
+            success: true,
+            data: {
+                recommendationId: recommendation.id,
+                taskId: task.id,
+                ownerId: owner.id,
+                ownerName: owner.name || 'Assigned owner',
+                dueDate: dueDate.toISOString(),
+                reused: false,
+            },
+            confidence: result.confidenceScore,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "scenario-modeling",
+            timestamp: new Date(),
+            reasoning: `Staged a governed apply packet for ${scenario.scenarioType} using the live scenario basis and routed it into Task Inbox.`,
+        };
+    } catch (error) {
+        console.error("Scenario Execution Staging Error:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Scenario execution plan could not be staged",
             confidence: 0,
             executionTimeMs: Date.now() - startTime,
             agentName: "scenario-modeling",

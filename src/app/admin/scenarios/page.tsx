@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { runScenarioAnalysis } from "@/app/actions/agents/scenario-modeling";
+import { runScenarioAnalysis, stageScenarioExecutionPlan } from "@/app/actions/agents/scenario-modeling";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,6 +88,21 @@ type ScenarioInput = {
     title?: string;
     description: string;
     parameters: Record<string, number | string>;
+};
+
+type ScenarioExecutionPacket = {
+    recommendationId: string;
+    taskId: string;
+    ownerId: string;
+    ownerName: string;
+    dueDate: string;
+    reused: boolean;
+};
+
+type ScenarioRun = {
+    input: ScenarioInput;
+    result: ScenarioResult;
+    executionPacket?: ScenarioExecutionPacket | null;
 };
 
 type ScenarioFormState = {
@@ -305,8 +320,9 @@ function buildScenarioInput(form: ScenarioFormState): ScenarioInput {
 }
 
 export default function ScenarioModelingPage() {
-    const [scenarios, setScenarios] = useState<ScenarioResult[]>([]);
+    const [scenarios, setScenarios] = useState<ScenarioRun[]>([]);
     const [isRunning, setIsRunning] = useState(false);
+    const [stagingScenarioId, setStagingScenarioId] = useState<string | null>(null);
     const [form, setForm] = useState<ScenarioFormState>(DEFAULT_FORM);
 
     const activeMeta = useMemo(() => SCENARIO_META[form.scenarioType], [form.scenarioType]);
@@ -325,7 +341,11 @@ export default function ScenarioModelingPage() {
                 return;
             }
 
-            setScenarios((previous) => [result.data as ScenarioResult, ...previous].slice(0, 4));
+            setScenarios((previous) => [{
+                input,
+                result: result.data as ScenarioResult,
+                executionPacket: null,
+            }, ...previous].slice(0, 4));
             toast.success("Scenario modeled", {
                 description: `${result.data.title} was rebuilt from live workspace baselines.`,
             });
@@ -347,6 +367,35 @@ export default function ScenarioModelingPage() {
 
     const resetForm = () => {
         setForm(DEFAULT_FORM);
+    };
+
+    const queueExecutionPlan = async (run: ScenarioRun) => {
+        setStagingScenarioId(run.result.scenarioId);
+        try {
+            const staged = await stageScenarioExecutionPlan(run.input);
+            if (!staged.success || !staged.data) {
+                toast.error("Failed to queue apply plan", {
+                    description: staged.error || "Axiom could not create the governed execution packet.",
+                });
+                return;
+            }
+
+            setScenarios((previous) => previous.map((entry) =>
+                entry.result.scenarioId === run.result.scenarioId
+                    ? { ...entry, executionPacket: staged.data }
+                    : entry
+            ));
+
+            toast.success(staged.data.reused ? "Apply plan already staged" : "Governed apply plan queued", {
+                description: `${staged.data.ownerName} now owns the execution packet in Task Inbox.`,
+            });
+        } catch {
+            toast.error("Failed to queue apply plan", {
+                description: "The governed execution packet could not be created.",
+            });
+        } finally {
+            setStagingScenarioId(null);
+        }
     };
 
     return (
@@ -620,7 +669,11 @@ export default function ScenarioModelingPage() {
                         </Card>
                     ) : null}
 
-                    {scenarios.map((scenario, index) => (
+                    {scenarios.map((scenarioRun, index) => {
+                        const scenario = scenarioRun.result;
+                        const isStaging = stagingScenarioId === scenario.scenarioId;
+
+                        return (
                         <Card key={scenario.scenarioId} className={index === 0 ? "border-primary/40 shadow-sm" : "opacity-90"}>
                             <CardHeader>
                                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -635,19 +688,71 @@ export default function ScenarioModelingPage() {
                                             <Badge variant="outline" className="border-stone-200 bg-white text-stone-700">
                                                 {formatDate(scenario.generatedAt)}
                                             </Badge>
+                                            {scenarioRun.executionPacket ? (
+                                                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                                                    Apply plan queued
+                                                </Badge>
+                                            ) : null}
                                         </div>
                                         <CardTitle className="mt-3 text-2xl">{scenario.title}</CardTitle>
                                         <CardDescription className="mt-2 text-sm leading-6">
                                             {scenario.description}
                                         </CardDescription>
                                     </div>
-                                    <div className="rounded-2xl border bg-background px-4 py-3 text-right">
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Confidence</p>
-                                        <p className="mt-1 text-3xl font-black text-foreground">{scenario.confidenceScore}%</p>
+                                    <div className="flex flex-col gap-3 xl:items-end">
+                                        <div className="rounded-2xl border bg-background px-4 py-3 text-right">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Confidence</p>
+                                            <p className="mt-1 text-3xl font-black text-foreground">{scenario.confidenceScore}%</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant={scenarioRun.executionPacket ? "outline" : "default"}
+                                            size="sm"
+                                            className="min-w-[220px]"
+                                            onClick={() => queueExecutionPlan(scenarioRun)}
+                                            disabled={isStaging}
+                                        >
+                                            {isStaging ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Queuing apply plan...
+                                                </>
+                                            ) : scenarioRun.executionPacket ? (
+                                                "Apply Plan Queued"
+                                            ) : (
+                                                "Queue Governed Apply Plan"
+                                            )}
+                                        </Button>
                                     </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
+                                {scenarioRun.executionPacket ? (
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4">
+                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                            <div>
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700">Governed apply route</p>
+                                                <p className="mt-2 text-sm font-semibold text-foreground">
+                                                    {scenarioRun.executionPacket.ownerName} owns the execution packet.
+                                                </p>
+                                                <p className="mt-1 text-sm text-muted-foreground">
+                                                    The scenario has been converted into a tracked recommendation and a Task Inbox review item instead of mutating live sourcing blindly.
+                                                </p>
+                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                    Due {formatDate(scenarioRun.executionPacket.dueDate)} | Recommendation {scenarioRun.executionPacket.recommendationId.slice(0, 8)} | Task {scenarioRun.executionPacket.taskId.slice(0, 8)}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <a href="/admin/tasks">
+                                                    <Button type="button" size="sm" variant="outline">
+                                                        Open Task Inbox
+                                                    </Button>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
                                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     <BasisCard
                                         icon={<Clock3 className="h-4 w-4 text-blue-600" />}
@@ -792,7 +897,7 @@ export default function ScenarioModelingPage() {
                                 </div>
                             </CardContent>
                         </Card>
-                    ))}
+                    )})}
                 </div>
             </div>
         </div>
