@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useTransition } from "react";
-import { getSupplierDocuments, uploadSupplierDocument } from "@/app/actions/portal";
+import { deleteSupplierDocument, getSupplierDocuments, uploadSupplierDocument } from "@/app/actions/portal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,6 @@ import {
     Download,
     Trash2,
     Calendar,
-    ChevronRight,
     Search,
     Plus,
     Loader2,
@@ -37,12 +36,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { openOrDownloadFile } from "@/lib/client/download";
+
+type SupplierDocumentRecord = Awaited<ReturnType<typeof getSupplierDocuments>>[number];
 
 export default function SupplierDocuments() {
-    const [docs, setDocs] = useState<any[]>([]);
+    const [docs, setDocs] = useState<SupplierDocumentRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [search, setSearch] = useState("");
 
     const loadDocs = async () => {
         const data = await getSupplierDocuments();
@@ -72,6 +75,22 @@ export default function SupplierDocuments() {
             }
         });
     };
+
+    const handleDelete = (documentId: string) => {
+        startTransition(async () => {
+            const result = await deleteSupplierDocument(documentId);
+            if (result.success) {
+                toast.success("Document removed");
+                loadDocs();
+            } else {
+                toast.error(result.error || "Remove failed");
+            }
+        });
+    };
+
+    const filteredDocs = docs.filter((doc) =>
+        !search.trim() || String(doc.name || "").toLowerCase().includes(search.trim().toLowerCase())
+    );
 
     if (loading) return <div className="p-8">Syncing vault...</div>;
 
@@ -119,12 +138,14 @@ export default function SupplierDocuments() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="file">File (PDF/Image)</Label>
-                                    <div className="flex items-center justify-center border-2 border-dashed rounded-xl p-4 lg:p-8 hover:bg-muted/50 transition-colors cursor-pointer group">
+                                    <label htmlFor="file" className="flex items-center justify-center border-2 border-dashed rounded-xl p-4 lg:p-8 hover:bg-muted/50 transition-colors cursor-pointer group">
                                         <div className="flex flex-col items-center gap-2">
                                             <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                                            <span className="text-sm text-muted-foreground">Click to select files</span>
+                                            <span className="text-sm text-muted-foreground">Click to select a file</span>
+                                            <span className="text-[11px] text-muted-foreground">PDF, image, CSV, TXT, XLS, or XLSX up to 10MB</span>
                                         </div>
-                                    </div>
+                                    </label>
+                                    <Input id="file" name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,.xlsx,.xls" required />
                                 </div>
                             </div>
                             <DialogFooter>
@@ -162,21 +183,26 @@ export default function SupplierDocuments() {
                             </div>
                             <div className="relative w-72">
                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="Filter by name..." className="pl-9 bg-muted/30 border-none shadow-none" />
+                                <Input
+                                    placeholder="Filter by name..."
+                                    className="pl-9 bg-muted/30 border-none shadow-none"
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                />
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
-                            {docs.length === 0 ? (
+                            {filteredDocs.length === 0 ? (
                                 <div className="py-20 text-center flex flex-col items-center gap-4">
                                     <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center">
                                         <FileWarning className="h-8 w-8 text-muted-foreground opacity-20" />
                                     </div>
-                                    <p className="text-muted-foreground">Your vault is currently empty.</p>
+                                    <p className="text-muted-foreground">{docs.length === 0 ? "Your vault is currently empty." : "No documents match the current search."}</p>
                                 </div>
                             ) : (
-                                docs.map((doc) => (
+                                filteredDocs.map((doc) => (
                                     <div key={doc.id} className="flex items-center justify-between p-4 rounded-xl border border-muted-foreground/10 hover:border-primary/20 hover:bg-muted/30 transition-all group">
                                         <div className="flex items-center gap-4">
                                             <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -196,10 +222,27 @@ export default function SupplierDocuments() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-primary">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-muted-foreground hover:text-primary"
+                                                onClick={() => {
+                                                    if (doc.url) {
+                                                        openOrDownloadFile(doc.url, doc.name);
+                                                    } else {
+                                                        toast.error("Document file is unavailable");
+                                                    }
+                                                }}
+                                            >
                                                 <Download className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-red-500">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-muted-foreground hover:text-red-500"
+                                                onClick={() => handleDelete(doc.id)}
+                                                disabled={isPending}
+                                            >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>

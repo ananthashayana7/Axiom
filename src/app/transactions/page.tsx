@@ -14,6 +14,7 @@ import { getInvoices } from "@/app/actions/invoices";
 import { getGoodsReceipts } from "@/app/actions/goods-receipts";
 import { getContracts } from "@/app/actions/contracts";
 import { formatCurrencyByCode } from "@/lib/utils/currency";
+import { downloadCsvFile } from "@/lib/client/download";
 
 type TxType = 'all' | 'orders' | 'goods_receipts' | 'invoices' | 'quantity_contracts';
 type TxRow = {
@@ -78,12 +79,7 @@ export default function TransactionsPage() {
     const exportCSV = () => {
         const headers = ['Type', 'Reference', 'Status', 'Amount', 'Date'];
         const csvRows = filtered.map(r => [r._type, r._ref || 'N/A', r._status || 'N/A', r._amount ? fmt(parseFloat(r._amount), r._currency) : 'N/A', r._date ? new Date(r._date).toLocaleDateString() : 'N/A']);
-        const csv = [headers, ...csvRows].map(row => row.map((v) => `"${v}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `axiom_transactions_${new Date().toISOString().split('T')[0]}.csv`; a.click();
-        URL.revokeObjectURL(url);
+        downloadCsvFile(`axiom_transactions_${new Date().toISOString().split('T')[0]}.csv`, [headers, ...csvRows]);
         toast.success("Transactions exported");
     };
 

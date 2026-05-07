@@ -20,6 +20,7 @@ import { InvoiceActions } from "./invoice-actions";
 import { UploadInvoiceDialog } from "./upload-invoice-dialog";
 import { toast } from "sonner";
 import { getSuppliers } from "@/app/actions/suppliers";
+import { downloadCsvFile } from "@/lib/client/download";
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, LineChart, Line,
@@ -117,14 +118,7 @@ export default function InvoicesPage() {
             inv.currency || 'INR', inv.country || inv.supplierCountry || 'N/A',
             inv.region || 'N/A', inv.continent || 'N/A', (inv.orderId || '').slice(0, 8),
         ]);
-        const csv = [headers, ...rows].map(row => row.map((v) => `"${v}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `axiom_invoices_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadCsvFile(`axiom_invoices_${new Date().toISOString().split('T')[0]}.csv`, [headers, ...rows]);
         toast.success("Invoices exported to CSV");
     };
 

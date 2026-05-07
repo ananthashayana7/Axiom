@@ -52,7 +52,7 @@ function buildRfqItemFingerprint(items: { partId: string; quantity: number }[]) 
         .join("|");
 }
 
-async function acquireWriteLock(executor: { execute: (query: any) => any }, key: string) {
+async function acquireWriteLock(executor: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }, key: string) {
     await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
 }
 
@@ -70,18 +70,6 @@ function formatDeadline(deadline: Date | null | undefined) {
         month: "short",
         year: "numeric",
     });
-}
-
-function parseStructuredQuoteAnalysis(value: string | null | undefined) {
-    if (!value) {
-        return null;
-    }
-
-    try {
-        return JSON.parse(value) as Partial<QuoteAnalysis>;
-    } catch {
-        return null;
-    }
 }
 
 async function notifySupplierForRfq(params: {
@@ -876,13 +864,16 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
     }
 }
 
-export async function processQuotationFile(rfqSupplierId: string, fileData: string, fileName: string) {
+export async function processQuotationFile(rfqSupplierId: string, fileData: string, fileName: string, documentUrl?: string) {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
     try {
         const [rs] = await db.select().from(rfqSuppliers).where(eq(rfqSuppliers.id, rfqSupplierId));
         if (!rs) return { success: false, error: "Record not found" };
+        if (session.user.role === 'supplier' && session.user.supplierId !== rs.supplierId) {
+            return { success: false, error: "Unauthorized" };
+        }
 
         const result = await parseOffer(fileData, fileName);
         if (!result.success) return { success: false, error: result.error };
@@ -908,6 +899,16 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
                 status: 'quoted'
             })
             .where(eq(rfqSuppliers.id, rfqSupplierId));
+
+        if (documentUrl) {
+            await db.insert(documents).values({
+                supplierId: rs.supplierId,
+                rfqId: rs.rfqId,
+                name: fileName,
+                type: 'quote',
+                url: documentUrl,
+            });
+        }
 
         await db.update(sourcingEvents)
             .set({

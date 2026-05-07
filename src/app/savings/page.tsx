@@ -12,6 +12,7 @@ import { TrendingDown, DollarSign, Target, Award, Download, PiggyBank, ArrowDown
 import { getSavingsData } from "@/app/actions/savings";
 import { toast } from "sonner";
 import { formatCurrencyByCode } from "@/lib/utils/currency";
+import { downloadCsvFile } from "@/lib/client/download";
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -34,19 +35,21 @@ export default function SavingsPage() {
 
     const exportCSV = () => {
         if (!data) return;
-        const rows = [
+        downloadCsvFile(`axiom_savings_${new Date().toISOString().split('T')[0]}.csv`, [
             ['Metric', 'Value'],
             ['Total Negotiated Savings', data.totalNegotiatedSavings],
             ['Total Actual Spend', data.totalActualSpend],
             ['Savings Rate (%)', data.savingsRate],
             ['Orders with Savings', data.ordersWithSavings],
-        ];
-        const csv = rows.map(r => r.map((v) => `"${v}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `axiom_savings_${new Date().toISOString().split('T')[0]}.csv`; a.click();
-        URL.revokeObjectURL(url);
+            [],
+            ['Savings by Supplier'],
+            ['Supplier', 'Spend', 'Savings'],
+            ...(data.savingsBySupplier || []).map((row: any) => [row.supplierName, row.spend, row.savings]),
+            [],
+            ['Savings Trend'],
+            ['Month', 'Spend', 'Savings'],
+            ...(data.savingsTrend || []).map((row: any) => [row.month, row.spend, row.savings]),
+        ]);
         toast.success("Savings report exported");
     };
 

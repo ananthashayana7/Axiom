@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { contracts, suppliers } from "@/db/schema";
+import { contracts, documents, suppliers } from "@/db/schema";
 import { eq, desc, and, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -68,6 +68,8 @@ interface CreateContractData {
     priceLockExpiry?: Date;
     autoRenewalAlert?: string; // 'true' or 'false'
     aiExtractedData?: string;
+    documentUrl?: string;
+    documentName?: string;
 }
 
 export async function createContract(data: CreateContractData) {
@@ -87,11 +89,22 @@ export async function createContract(data: CreateContractData) {
             incoterms: data.incoterms,
             slaKpis: data.slaKpis,
             status: 'draft',
+            documentUrl: data.documentUrl || null,
             liabilityCap: data.liabilityCap ? data.liabilityCap.toString() : null,
             priceLockExpiry: data.priceLockExpiry,
             autoRenewalAlert: data.autoRenewalAlert || 'true',
             aiExtractedData: data.aiExtractedData
         }).returning();
+
+        if (data.documentUrl) {
+            await db.insert(documents).values({
+                supplierId: data.supplierId,
+                contractId: newContract.id,
+                name: data.documentName || `${data.title}.pdf`,
+                type: 'contract',
+                url: data.documentUrl,
+            });
+        }
 
         await logActivity('CREATE', 'contract', newContract.id, `New contract created: ${data.title}`);
 

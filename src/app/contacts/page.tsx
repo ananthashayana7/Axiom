@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -11,16 +11,32 @@ import { toast } from "sonner";
 import { Users, Phone, Globe, Plus, Search, Download, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getContacts, createContact, updateContactStatus } from "@/app/actions/contacts";
+import { downloadCsvFile } from "@/lib/client/download";
+
+type ContactRecord = Awaited<ReturnType<typeof getContacts>>[number];
+type ContactFormState = {
+    name: string;
+    email: string;
+    phone: string;
+    company: string;
+    jobTitle: string;
+    region: string;
+    country: string;
+    continent: string;
+    currency: string;
+    notes: string;
+    status: 'active';
+};
 
 export default function ContactsPage() {
-    const [contacts, setContacts] = useState<any[]>([]);
+    const [contacts, setContacts] = useState<ContactRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterContinent, setFilterContinent] = useState('all');
     const [showAddForm, setShowAddForm] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [form, setForm] = useState({
+    const [form, setForm] = useState<ContactFormState>({
         name: '', email: '', phone: '', company: '', jobTitle: '',
         region: '', country: '', continent: 'Europe', currency: 'EUR', notes: '', status: 'active' as const,
     });
@@ -65,12 +81,7 @@ export default function ContactsPage() {
     const exportCSV = () => {
         const headers = ['Name', 'Email', 'Phone', 'Company', 'Job Title', 'Country', 'Region', 'Continent', 'Currency', 'Status'];
         const rows = filtered.map(c => [c.name, c.email, c.phone || '', c.company || '', c.jobTitle || '', c.country || '', c.region || '', c.continent || '', c.currency || '', c.status]);
-        const csv = [headers, ...rows].map(r => r.map((v) => `"${v}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `axiom_contacts_${new Date().toISOString().split('T')[0]}.csv`; a.click();
-        URL.revokeObjectURL(url);
+        downloadCsvFile(`axiom_contacts_${new Date().toISOString().split('T')[0]}.csv`, [headers, ...rows]);
         toast.success("Contacts exported");
     };
 
@@ -79,6 +90,16 @@ export default function ContactsPage() {
         inactive: 'bg-stone-100 text-stone-600 border-stone-200',
         on_hold: 'bg-amber-100 text-amber-700 border-amber-200',
     };
+
+    const formFields: Array<{ key: keyof ContactFormState; label: string; required?: boolean; type?: string }> = [
+        { key: 'name', label: 'Full Name', required: true },
+        { key: 'email', label: 'Email Address', required: true, type: 'email' },
+        { key: 'phone', label: 'Phone Number' },
+        { key: 'company', label: 'Company / Supplier' },
+        { key: 'jobTitle', label: 'Job Title' },
+        { key: 'country', label: 'Country' },
+        { key: 'region', label: 'Region / Zone' },
+    ];
 
     return (
         <div className="flex min-h-full flex-col bg-muted/40 p-4 lg:p-8 space-y-6">
@@ -107,18 +128,10 @@ export default function ContactsPage() {
                     <CardContent>
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                {[
-                                    { key: 'name', label: 'Full Name', required: true },
-                                    { key: 'email', label: 'Email Address', required: true, type: 'email' },
-                                    { key: 'phone', label: 'Phone Number' },
-                                    { key: 'company', label: 'Company / Supplier' },
-                                    { key: 'jobTitle', label: 'Job Title' },
-                                    { key: 'country', label: 'Country' },
-                                    { key: 'region', label: 'Region / Zone' },
-                                ].map(field => (
+                                {formFields.map(field => (
                                     <div key={field.key} className="space-y-1">
                                         <Label className="text-xs font-semibold">{field.label}{field.required && ' *'}</Label>
-                                        <Input type={field.type || 'text'} required={field.required} value={(form as any)[field.key]}
+                                        <Input type={field.type || 'text'} required={field.required} value={form[field.key]}
                                             onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))} className="h-9 text-sm" />
                                     </div>
                                 ))}

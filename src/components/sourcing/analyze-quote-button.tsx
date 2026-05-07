@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition, useRef } from "react";
+import { useTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, CheckCircle2, FileUp } from "lucide-react";
+import { Loader2, CheckCircle2, FileUp } from "lucide-react";
 import { processQuotationFile } from "@/app/actions/rfqs";
 import { toast } from "sonner";
+import { uploadFileToStorage } from "@/lib/client/upload";
 
 interface AnalyzeQuoteButtonProps {
     rfqSupplierId: string;
@@ -31,11 +32,20 @@ export function AnalyzeQuoteButton({ rfqSupplierId, hasAnalysis }: AnalyzeQuoteB
             const base64 = (reader.result as string).split(',')[1];
 
             startTransition(async () => {
-                const result = await processQuotationFile(rfqSupplierId, base64, file.name);
-                if (result.success) {
-                    toast.success("Quotation parsed and analyzed by AI!");
-                } else {
-                    toast.error(result.error || "Quotation analysis failed");
+                try {
+                    const stored = await uploadFileToStorage(file);
+                    const result = await processQuotationFile(rfqSupplierId, base64, file.name, stored.url);
+                    if (result.success) {
+                        toast.success("Quotation parsed and analyzed by AI!");
+                    } else {
+                        toast.error(result.error || "Quotation analysis failed");
+                    }
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Quotation upload failed");
+                } finally {
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                    }
                 }
             });
         };

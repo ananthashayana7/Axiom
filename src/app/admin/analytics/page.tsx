@@ -22,6 +22,7 @@ import {
     ArrowUpRight, ArrowDownRight, Layers, Receipt, X, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
+import { downloadCsvFile } from '@/lib/client/download';
 
 /* ─── Color Palettes ─── */
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#a855f7', '#22c55e', '#eab308'];
@@ -259,38 +260,36 @@ export default function AnalyticsPage() {
     /* ─── CSV Export ─── */
     const exportToCSV = () => {
         if (!data) return;
-        const rows: string[] = ['Axiom Intelligence Hub Export', `Currency: ${currency}`, `Generated: ${new Date().toISOString()}`, ''];
-        rows.push('=== KPIs ===');
-        rows.push(`Total Spend,${fmt(data.kpis.totalSpend, currency)}`);
-        rows.push(`Total Savings,${fmt(data.kpis.totalSavings, currency)}`);
-        rows.push(`Savings Rate,${data.kpis.savingsRate}%`);
-        rows.push(`Order Count,${data.kpis.orderCount}`);
-        rows.push(`Supplier Count,${data.kpis.supplierCount}`);
-        rows.push(`Invoice Count,${data.kpis.invoiceCount}`);
-        rows.push('');
-        rows.push('=== Spend by Category ===');
-        rows.push('Category,Spend');
-        data.spendByCategory.forEach(r => rows.push(`${r.category},${r.spend.toFixed(2)}`));
-        rows.push('');
-        rows.push('=== Spend by Supplier ===');
-        rows.push('Supplier,Spend,Orders,Savings');
-        data.spendBySupplier.forEach(r => rows.push(`${r.name},${r.spend.toFixed(2)},${r.orders},${r.savings.toFixed(2)}`));
-        rows.push('');
-        rows.push('=== Spend Trend ===');
-        rows.push('Month,Spend,Savings,Orders');
-        data.spendTrend.forEach(r => rows.push(`${r.month},${r.spend.toFixed(2)},${r.savings.toFixed(2)},${r.orders}`));
-        rows.push('');
-        rows.push('=== Top Parts ===');
-        rows.push('Part,Category,Spend,Quantity,Avg Price');
-        data.topParts.forEach(r => rows.push(`${r.name},${r.category},${r.totalSpend.toFixed(2)},${r.totalQty},${r.avgUnitPrice.toFixed(2)}`));
-
-        const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `axiom_intelligence_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadCsvFile(`axiom_intelligence_${new Date().toISOString().split('T')[0]}.csv`, [
+            ['Axiom Intelligence Hub Export'],
+            ['Currency', currency],
+            ['Generated', new Date().toISOString()],
+            [],
+            ['KPIs'],
+            ['Metric', 'Value'],
+            ['Total Spend', data.kpis.totalSpend],
+            ['Total Savings', data.kpis.totalSavings],
+            ['Savings Rate', `${data.kpis.savingsRate}%`],
+            ['Order Count', data.kpis.orderCount],
+            ['Supplier Count', data.kpis.supplierCount],
+            ['Invoice Count', data.kpis.invoiceCount],
+            [],
+            ['Spend by Category'],
+            ['Category', 'Spend'],
+            ...data.spendByCategory.map((row) => [row.category, row.spend]),
+            [],
+            ['Spend by Supplier'],
+            ['Supplier', 'Spend', 'Orders', 'Savings'],
+            ...data.spendBySupplier.map((row) => [row.name, row.spend, row.orders, row.savings]),
+            [],
+            ['Spend Trend'],
+            ['Month', 'Spend', 'Savings', 'Orders'],
+            ...data.spendTrend.map((row) => [row.month, row.spend, row.savings, row.orders]),
+            [],
+            ['Top Parts'],
+            ['Part', 'Category', 'Spend', 'Quantity', 'Avg Price'],
+            ...data.topParts.map((row) => [row.name, row.category, row.totalSpend, row.totalQty, row.avgUnitPrice]),
+        ]);
         toast.success('Intelligence report exported');
     };
 

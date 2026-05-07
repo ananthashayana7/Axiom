@@ -74,60 +74,78 @@ function checkRequiredHeaders(headers: string[], entityType: EntityType): Import
     return issues;
 }
 
-function parseCsvLine(line: string): string[] {
-    const values: string[] = [];
-    let current = '';
+function parseCsv(csvText: string) {
+    const parsedRows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = '';
     let inQuotes = false;
 
-    for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        const next = line[i + 1];
+    for (let index = 0; index < csvText.length; index += 1) {
+        const character = csvText[index];
+        const nextCharacter = csvText[index + 1];
 
-        if (ch === '"') {
-            if (inQuotes && next === '"') {
-                current += '"';
-                i++;
+        if (character === '"') {
+            if (inQuotes && nextCharacter === '"') {
+                currentCell += '"';
+                index += 1;
             } else {
                 inQuotes = !inQuotes;
             }
             continue;
         }
 
-        if (ch === ',' && !inQuotes) {
-            values.push(current.trim());
-            current = '';
+        if (character === ',' && !inQuotes) {
+            currentRow.push(currentCell);
+            currentCell = '';
             continue;
         }
 
-        current += ch;
+        if ((character === '\n' || character === '\r') && !inQuotes) {
+            if (character === '\r' && nextCharacter === '\n') {
+                index += 1;
+            }
+
+            currentRow.push(currentCell);
+            currentCell = '';
+
+            if (currentRow.some((value) => value.trim().length > 0)) {
+                parsedRows.push(currentRow);
+            }
+
+            currentRow = [];
+            continue;
+        }
+
+        currentCell += character;
     }
 
-    values.push(current.trim());
-    return values;
-}
-
-function parseCsv(csvText: string) {
-    const lines = csvText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
-    if (lines.length < 2) {
-        return { headers: [], rows: [] as Record<string, string>[] };
+    currentRow.push(currentCell);
+    if (currentRow.some((value) => value.trim().length > 0)) {
+        parsedRows.push(currentRow);
     }
 
-    const headers = parseCsvLine(lines[0]).map(normalizeHeader);
+    if (parsedRows.length < 2) {
+        return { headers: [], rows: [] as Record<string, string>[], columnCounts: [] as number[] };
+    }
 
-    const rows = lines.slice(1).map((line) => {
-        const cols = parseCsvLine(line);
+    const headers = parsedRows[0].map((header, index) =>
+        normalizeHeader(normalizeCell(index === 0 ? header.replace(/^\uFEFF/, '') : header))
+    );
+    const dataRows = parsedRows.slice(1);
+
+    const rows = dataRows.map((columns) => {
         const row: Record<string, string> = {};
-        for (let i = 0; i < headers.length; i++) {
-            row[headers[i]] = normalizeCell(cols[i] ?? '');
+        for (let index = 0; index < headers.length; index += 1) {
+            row[headers[index]] = normalizeCell(columns[index] ?? '');
         }
         return row;
     });
 
-    return { headers, rows };
+    return {
+        headers,
+        rows,
+        columnCounts: dataRows.map((row) => row.length),
+    };
 }
 
 function parseNumber(value: string) {
@@ -157,7 +175,7 @@ function validateNonNegative(field: string, value: number | null, rowIndex: numb
     }
 }
 
-function validateImportEnvelope(csvText: string, headers: string[], rows: Record<string, string>[]) {
+function validateImportEnvelope(csvText: string, headers: string[], rows: Record<string, string>[], columnCounts: number[]) {
     const issues: ImportIssue[] = [];
 
     if (csvText.length > MAX_IMPORT_CHARACTERS) {
@@ -181,6 +199,23 @@ function validateImportEnvelope(csvText: string, headers: string[], rows: Record
             message: `Duplicate column names detected: ${Array.from(new Set(duplicateHeaders)).join(', ')}.`,
         });
     }
+
+    const blankHeaders = headers.filter((header) => !header);
+    if (blankHeaders.length > 0) {
+        issues.push({
+            row: 1,
+            message: 'Blank column names are not allowed in controlled imports.',
+        });
+    }
+
+    columnCounts.forEach((count, index) => {
+        if (headers.length > 0 && count !== headers.length) {
+            issues.push({
+                row: index + 2,
+                message: `Row has ${count} column${count === 1 ? '' : 's'} but the header declares ${headers.length}. Quote commas inside values to keep the row aligned.`,
+            });
+        }
+    });
 
     return issues;
 }
@@ -319,9 +354,9 @@ async function requireAdmin() {
 export async function dryRunSapImport(csvText: string, entityType: EntityType): Promise<DryRunResult> {
     await requireAdmin();
 
-    const { headers, rows } = parseCsv(csvText);
+    const { headers, rows, columnCounts } = parseCsv(csvText);
     const issues: ImportIssue[] = [];
-    const envelopeIssues = validateImportEnvelope(csvText, headers, rows);
+    const envelopeIssues = validateImportEnvelope(csvText, headers, rows, columnCounts);
 
     if (!rows.length) {
         return {
@@ -381,7 +416,7 @@ export async function dryRunSapImport(csvText: string, entityType: EntityType): 
 export async function executeSapImport(csvText: string, entityType: EntityType) {
     await requireAdmin();
 
-    const { headers, rows } = parseCsv(csvText);
+    const { headers, rows, columnCounts } = parseCsv(csvText);
     const issues: ImportIssue[] = [];
     let inserted = 0;
     let updated = 0;
@@ -391,7 +426,7 @@ export async function executeSapImport(csvText: string, entityType: EntityType) 
         return { success: false, message: 'CSV has no data rows.', inserted, updated, skipped };
     }
 
-    const envelopeIssues = validateImportEnvelope(csvText, headers, rows);
+    const envelopeIssues = validateImportEnvelope(csvText, headers, rows, columnCounts);
     if (envelopeIssues.length > 0) {
         return {
             success: false,

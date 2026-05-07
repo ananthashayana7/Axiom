@@ -6,6 +6,7 @@ import { enforceMutationFirewall } from '@/lib/api-security';
 import { normalizeInvoiceExtraction } from '@/lib/invoices/normalization';
 import { extractInvoiceFromPdfBuffer } from '@/lib/invoices/pdf-fallback';
 import { assessInvoiceReviewSignals } from '@/lib/invoices/review';
+import { storeUploadedFile } from '@/lib/file-storage';
 
 export const runtime = 'nodejs';
 
@@ -92,20 +93,21 @@ function buildManualReviewDraft(file: File) {
     });
 }
 
-function manualReviewResponse(file: File, warning: string, source = 'Axiom OCR Manual Review') {
-    return NextResponse.json({
+function buildManualReviewPayload(file: File, warning: string, source = 'Axiom OCR Manual Review') {
+    return {
         success: true,
         data: buildManualReviewDraft(file),
         source,
+        documentUrl: null,
         requiresReview: true,
         warnings: [
             warning,
             'The document is loaded in review mode so you can complete or correct the invoice fields manually.',
         ],
-    });
+    };
 }
 
-async function tryPdfFallback(file: File, buffer: Buffer | null) {
+async function tryPdfFallback(file: File, buffer: Buffer | null, documentUrl?: string | null) {
     if (!buffer) return null;
 
     const fallback = await extractInvoiceFromPdfBuffer(file.name, buffer);
@@ -115,6 +117,7 @@ async function tryPdfFallback(file: File, buffer: Buffer | null) {
         success: true,
         data: fallback.data,
         source: 'Axiom PDF Text Extraction',
+        documentUrl: documentUrl || null,
         requiresReview: true,
         warnings: fallback.warnings,
     });
@@ -123,6 +126,7 @@ async function tryPdfFallback(file: File, buffer: Buffer | null) {
 export async function POST(req: NextRequest) {
     let uploadedFile: File | null = null;
     let uploadedBuffer: Buffer | null = null;
+    let documentUrl: string | null = null;
 
     try {
         const blocked = enforceMutationFirewall(req);
@@ -160,6 +164,8 @@ export async function POST(req: NextRequest) {
         }
 
         uploadedBuffer = Buffer.from(await file.arrayBuffer());
+        const storedDocument = await storeUploadedFile(file);
+        documentUrl = storedDocument.url;
 
         const model = await getAiModel('gemini-2.5-flash', {
             generationConfig: {
@@ -169,13 +175,16 @@ export async function POST(req: NextRequest) {
         });
         if (!model) {
             if (mimeType === 'application/pdf') {
-                const pdfFallbackResponse = await tryPdfFallback(file, uploadedBuffer);
+                const pdfFallbackResponse = await tryPdfFallback(file, uploadedBuffer, documentUrl);
                 if (pdfFallbackResponse) return pdfFallbackResponse;
             }
-            return manualReviewResponse(
-                file,
-                'Automatic extraction is currently unavailable, but you can continue by reviewing the invoice fields manually.'
-            );
+            return NextResponse.json({
+                ...buildManualReviewPayload(
+                    file,
+                    'Automatic extraction is currently unavailable, but you can continue by reviewing the invoice fields manually.'
+                ),
+                documentUrl,
+            });
         }
 
         const base64 = uploadedBuffer.toString('base64');
@@ -221,14 +230,17 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
             parsed = parseModelJson(responseText);
         } catch {
             if (mimeType === 'application/pdf') {
-                const pdfFallbackResponse = await tryPdfFallback(file, uploadedBuffer);
+                const pdfFallbackResponse = await tryPdfFallback(file, uploadedBuffer, documentUrl);
                 if (pdfFallbackResponse) return pdfFallbackResponse;
             }
-            return manualReviewResponse(
-                file,
-                'The invoice was uploaded, but the OCR response was incomplete. Please review the fields before saving.',
-                'Axiom OCR Recovery Mode'
-            );
+            return NextResponse.json({
+                ...buildManualReviewPayload(
+                    file,
+                    'The invoice was uploaded, but the OCR response was incomplete. Please review the fields before saving.',
+                    'Axiom OCR Recovery Mode'
+                ),
+                documentUrl,
+            });
         }
 
         const extracted = normalizeInvoiceExtraction(parsed);
@@ -246,6 +258,7 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
             success: true,
             data: extracted,
             source: 'Axiom OCR Engine (Gemini Multimodal)',
+            documentUrl,
             requiresReview: warnings.length > 0,
             warnings,
         });
@@ -253,14 +266,17 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
         console.error('[OCR] Invoice extraction failed:', error);
         if (uploadedFile) {
             if (inferSupportedMimeType(uploadedFile) === 'application/pdf') {
-                const pdfFallbackResponse = await tryPdfFallback(uploadedFile, uploadedBuffer);
+                const pdfFallbackResponse = await tryPdfFallback(uploadedFile, uploadedBuffer, documentUrl);
                 if (pdfFallbackResponse) return pdfFallbackResponse;
             }
-            return manualReviewResponse(
-                uploadedFile,
-                'The document could not be auto-extracted this time, but manual review mode is ready for the demo.',
-                'Axiom OCR Recovery Mode'
-            );
+            return NextResponse.json({
+                ...buildManualReviewPayload(
+                    uploadedFile,
+                    'The document could not be auto-extracted this time, but manual review mode is ready for the demo.',
+                    'Axiom OCR Recovery Mode'
+                ),
+                documentUrl,
+            });
         }
         return NextResponse.json(
             {

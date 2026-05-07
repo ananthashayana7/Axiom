@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { documents } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 
@@ -14,7 +14,7 @@ export async function getDocuments(entityType: 'supplier' | 'order', entityId: s
 
         const docs = await db.query.documents.findMany({
             where: query,
-            orderBy: (docs: any, { desc }: any) => [desc(docs.createdAt)]
+            orderBy: (document, { desc }) => [desc(document.createdAt)]
         });
         return docs;
     } catch (error) {
@@ -44,6 +44,7 @@ const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 function isAllowedDocumentUrl(url?: string) {
     if (!url) return true;
+    if (url.startsWith('/') && !url.startsWith('//')) return true;
     if (url.startsWith('http://') || url.startsWith('https://')) return true;
     const match = url.match(/^data:([^;]+);base64,/);
     if (!match) return false;

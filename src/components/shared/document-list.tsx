@@ -1,12 +1,14 @@
 'use client'
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, Trash2, Plus, Upload, Eye } from "lucide-react";
 import { addDocument, deleteDocument } from "@/app/actions/documents";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { openOrDownloadFile } from "@/lib/client/download";
+import { uploadFileToStorage } from "@/lib/client/upload";
 
 interface Document {
     id: string;
@@ -26,9 +28,14 @@ interface DocumentListProps {
 const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 export function DocumentList({ supplierId, orderId, documents: initialDocs, isAdmin }: DocumentListProps) {
-    const [isPending, startTransition] = useTransition();
+    const [isBusy, setIsBusy] = useState(false);
     const [pendingType, setPendingType] = useState<Document["type"]>('contract');
+    const [docs, setDocs] = useState<Document[]>(initialDocs);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    useEffect(() => {
+        setDocs(initialDocs);
+    }, [initialDocs]);
 
     const triggerUpload = (type: Document["type"]) => {
         setPendingType(type);
@@ -44,44 +51,51 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = () => {
-            const dataUrl = reader.result;
-            if (typeof dataUrl !== 'string') {
-                toast.error("Failed to read selected file");
-                return;
-            }
+        setIsBusy(true);
 
-            startTransition(async () => {
+        (async () => {
+            try {
+                const stored = await uploadFileToStorage(file);
                 const result = await addDocument({
                     supplierId,
                     orderId,
                     name: file.name,
                     type: pendingType,
-                    url: dataUrl,
+                    url: stored.url,
                 });
 
                 if (result.success) {
+                    if (result.document) {
+                        setDocs((current) => [result.document as Document, ...current]);
+                    }
                     toast.success(`Uploaded '${file.name}'`);
                 } else {
                     toast.error(result.error || "Failed to upload document");
                 }
-            });
-        };
-        reader.onerror = () => toast.error("Failed to read selected file");
-        reader.readAsDataURL(file);
-        event.target.value = '';
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Failed to upload document");
+            } finally {
+                setIsBusy(false);
+                event.target.value = '';
+            }
+        })();
     };
 
     const handleDelete = (docId: string) => {
-        startTransition(async () => {
-            const result = await deleteDocument(docId, supplierId, orderId);
-            if (result.success) {
-                toast.success("Document removed");
-            } else {
-                toast.error("Failed to remove document");
+        setIsBusy(true);
+        (async () => {
+            try {
+                const result = await deleteDocument(docId, supplierId, orderId);
+                if (result.success) {
+                    setDocs((current) => current.filter((doc) => doc.id !== docId));
+                    toast.success("Document removed");
+                } else {
+                    toast.error("Failed to remove document");
+                }
+            } finally {
+                setIsBusy(false);
             }
-        });
+        })();
     };
 
     return (
@@ -103,11 +117,11 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                             accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.xlsx,.xls"
                             onChange={handleFileUpload}
                         />
-                        <Button size="sm" variant="outline" onClick={() => triggerUpload(orderId ? 'invoice' : 'contract')} disabled={isPending}>
+                        <Button size="sm" variant="outline" onClick={() => triggerUpload(orderId ? 'invoice' : 'contract')} disabled={isBusy}>
                             <Upload className="h-3 w-3 mr-1" />
                             Upload {orderId ? 'Invoice' : 'Contract'}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => triggerUpload('other')} disabled={isPending}>
+                        <Button size="sm" variant="outline" onClick={() => triggerUpload('other')} disabled={isBusy}>
                             <Plus className="h-3 w-3 mr-1" />
                             Supporting Doc
                         </Button>
@@ -116,7 +130,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
             </CardHeader>
             <CardContent>
                 <div className="space-y-3">
-                    {initialDocs.map((doc) => (
+                    {docs.map((doc) => (
                         <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors group">
                             <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 rounded-md bg-background flex items-center justify-center border shadow-sm group-hover:bg-primary/5">
@@ -141,7 +155,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                                     className="h-8 w-8 text-muted-foreground hover:text-primary"
                                     onClick={() => {
                                         if (doc.url) {
-                                            window.open(doc.url, '_blank');
+                                            openOrDownloadFile(doc.url, doc.name);
                                         } else {
                                             toast.info("Preview unavailable", {
                                                 description: `The file '${doc.name}' does not have a stored preview URL yet.`,
@@ -157,7 +171,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                                         variant="ghost"
                                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                         onClick={() => handleDelete(doc.id)}
-                                        disabled={isPending}
+                                        disabled={isBusy}
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -165,7 +179,7 @@ export function DocumentList({ supplierId, orderId, documents: initialDocs, isAd
                             </div>
                         </div>
                     ))}
-                    {initialDocs.length === 0 && (
+                    {docs.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed rounded-lg bg-muted/10">
                             <FileText className="h-8 w-8 text-muted-foreground/30 mb-2" />
                             <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>

@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { auditLogs, users } from '@/db/schema';
 import { eq, desc, gte, lte, and } from 'drizzle-orm';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { buildCsv } from '@/lib/csv';
 
 export async function GET(req: Request) {
     try {
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
         const dateFrom = url.searchParams.get('from');
         const dateTo = url.searchParams.get('to');
 
-        const conditions: any[] = [];
+        const conditions: Array<ReturnType<typeof eq>> = [];
         if (dateFrom) conditions.push(gte(auditLogs.createdAt, new Date(dateFrom)));
         if (dateTo) conditions.push(lte(auditLogs.createdAt, new Date(dateTo)));
 
@@ -66,21 +67,21 @@ export async function GET(req: Request) {
 
             return [
                 timestamp,
-                csvEscape(row.userName || 'System'),
-                csvEscape(row.userEmail || ''),
+                row.userName || 'System',
+                row.userEmail || '',
                 row.userRole || '',
                 row.action,
                 row.entityType,
                 row.entityId,
-                csvEscape(row.details),
+                row.details,
                 complianceStatus,
                 `AX-${row.id.split('-')[0].toUpperCase()}`,
                 'Axiom Platform',
                 exportDate,
-            ].join(',');
+            ];
         });
 
-        const csv = [headers.join(','), ...csvRows].join('\n');
+        const csv = buildCsv([headers, ...csvRows]);
 
         const dateStr = now.toISOString().split('T')[0];
         return new NextResponse(csv, {
@@ -95,17 +96,4 @@ export async function GET(req: Request) {
         console.error('[Audit Export] Failed:', error);
         return NextResponse.json({ error: 'Export failed' }, { status: 500 });
     }
-}
-
-function csvEscape(value: string): string {
-    if (!value) return '';
-    // Prevent CSV injection: strip leading formula-triggering characters
-    let sanitized = value;
-    while (/^[=+\-@\t\r]/.test(sanitized)) {
-        sanitized = sanitized.slice(1);
-    }
-    if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
-        return `"${sanitized.replace(/"/g, '""')}"`;
-    }
-    return sanitized;
 }

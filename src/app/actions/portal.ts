@@ -6,6 +6,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
+import { storeUploadedFile } from "@/lib/file-storage";
 
 function parseCommaSeparatedValues(value: FormDataEntryValue | null) {
     return String(value || "")
@@ -140,15 +141,26 @@ export async function uploadSupplierDocument(formData: FormData) {
 
     if (!supplierId) throw new Error("Unauthorized");
 
-    const name = formData.get('name') as string;
+    const name = String(formData.get('name') || '').trim();
     const type = String(formData.get('type') || 'other');
+    const file = formData.get('file');
+
+    if (!name) {
+        return { success: false, error: "Document name is required." };
+    }
+
+    if (!(file instanceof File) || file.size === 0) {
+        return { success: false, error: "Select a document file before uploading." };
+    }
 
     try {
+        const stored = await storeUploadedFile(file);
+
         await db.insert(documents).values({
             supplierId,
             name,
             type,
-            url: undefined,
+            url: stored.url,
         });
 
         await logActivity('UPLOAD', 'document', supplierId, `Supplier uploaded a new ${type} document: ${name}`);
@@ -158,6 +170,40 @@ export async function uploadSupplierDocument(formData: FormData) {
     } catch (error) {
         console.error("Upload error:", error);
         return { success: false, error: "Failed to save document record." };
+    }
+}
+
+export async function deleteSupplierDocument(documentId: string) {
+    const session = await auth();
+    const supplierId = session?.user?.supplierId;
+
+    if (!supplierId) {
+        return { success: false, error: "Unauthorized" };
+    }
+
+    try {
+        const [existing] = await db.select({
+            id: documents.id,
+            supplierId: documents.supplierId,
+            name: documents.name,
+        }).from(documents)
+            .where(and(
+                eq(documents.id, documentId),
+                eq(documents.supplierId, supplierId),
+            ))
+            .limit(1);
+
+        if (!existing) {
+            return { success: false, error: "Document not found." };
+        }
+
+        await db.delete(documents).where(eq(documents.id, documentId));
+        await logActivity('DELETE', 'document', documentId, `Supplier removed document: ${existing.name}`);
+        revalidatePath('/portal/documents');
+        return { success: true };
+    } catch (error) {
+        console.error("Delete document error:", error);
+        return { success: false, error: "Failed to remove document." };
     }
 }
 export async function getSupplierProfile() {

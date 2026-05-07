@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { buildCsv } from '@/lib/csv';
 
 export type SapEntityType = 'suppliers' | 'parts' | 'invoices';
 
@@ -54,20 +55,10 @@ export function mapSapRecordToAxiom(entityType: SapEntityType, record: Record<st
 export function mappedRowsToCsv(rows: Record<string, string>[]) {
     if (!rows.length) return '';
     const headers = Object.keys(rows[0]);
-    const lines = [headers.join(',')];
-    for (const row of rows) {
-        const line = headers
-            .map((header) => {
-                const raw = (row[header] ?? '').toString();
-                const escaped = raw.replace(/"/g, '""');
-                // Prevent CSV formula injection: prefix with single quote if starts with =, +, -, or @
-                const safe = /^[=+\-@]/.test(escaped) ? `'${escaped}` : escaped;
-                return `"${safe}"`;
-            })
-            .join(',');
-        lines.push(line);
-    }
-    return lines.join('\n');
+    return buildCsv([
+        headers,
+        ...rows.map((row) => headers.map((header) => row[header] ?? '')),
+    ]);
 }
 
 /**

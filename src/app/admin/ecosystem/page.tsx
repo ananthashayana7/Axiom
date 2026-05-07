@@ -31,6 +31,7 @@ import { buildSupplierEcosystem } from "@/app/actions/agents/supplier-ecosystem"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { downloadCsvFile } from "@/lib/client/download";
 
 type EcosystemNode = {
     id: string;
@@ -71,14 +72,6 @@ function formatMoney(value: number) {
         currency: 'INR',
         maximumFractionDigits: 0,
     }).format(value || 0);
-}
-
-function csvEscape(value: string | number) {
-    const text = String(value ?? "");
-    if (/[",\n]/.test(text)) {
-        return `"${text.replace(/"/g, '""')}"`;
-    }
-    return text;
 }
 
 function getRiskTone(score: number) {
@@ -170,7 +163,7 @@ export default function SupplierEcosystemPage() {
             return;
         }
 
-        const lines = [
+        downloadCsvFile("axiom-supplier-performance-report.csv", [
             [
                 "Supplier",
                 "Category",
@@ -181,27 +174,19 @@ export default function SupplierEcosystemPage() {
                 "Contract Status",
                 "Backup Covered",
                 "Part Categories",
-            ].join(","),
+            ],
             ...ecosystem.nodes.map((node) => [
-                csvEscape(node.name),
-                csvEscape(node.category || "General"),
-                csvEscape(node.riskScore),
-                csvEscape(node.performanceScore),
-                csvEscape(node.orderVolume),
-                csvEscape(node.orderValue),
-                csvEscape(node.contractStatus),
-                csvEscape(backupCoveredIds.has(node.id) ? "Yes" : "No"),
-                csvEscape((node.partCategories || []).join("; ")),
-            ].join(",")),
-        ];
-
-        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = "axiom-supplier-performance-report.csv";
-        anchor.click();
-        URL.revokeObjectURL(url);
+                node.name,
+                node.category || "General",
+                node.riskScore,
+                node.performanceScore,
+                node.orderVolume,
+                node.orderValue,
+                node.contractStatus,
+                backupCoveredIds.has(node.id) ? "Yes" : "No",
+                (node.partCategories || []).join("; "),
+            ]),
+        ]);
         toast.success("Supplier performance report downloaded");
     };
 

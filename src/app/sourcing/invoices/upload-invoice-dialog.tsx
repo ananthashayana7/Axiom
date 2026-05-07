@@ -30,6 +30,7 @@ interface OCRResponse {
     success: boolean;
     data?: OCRData;
     source?: string;
+    documentUrl?: string | null;
     warnings?: string[];
     requiresReview?: boolean;
     error?: string;
@@ -72,6 +73,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [ocrSource, setOcrSource] = useState<string>('');
     const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
+    const [documentUrl, setDocumentUrl] = useState<string | null>(null);
     const [supplierId, setSupplierId] = useState('');
     const [editableData, setEditableData] = useState<Record<string, string>>({});
     const fileRef = useRef<HTMLInputElement>(null);
@@ -83,6 +85,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
         setSelectedFile(null);
         setOcrSource('');
         setOcrWarnings([]);
+        setDocumentUrl(null);
         setSupplierId('');
         setEditableData({});
     };
@@ -90,10 +93,11 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
     const formatLineNumber = (value: number | null | undefined) =>
         typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '-';
 
-    const prepareReviewState = (data: OCRData, options?: { source?: string; warnings?: string[] }) => {
+    const prepareReviewState = (data: OCRData, options?: { source?: string; warnings?: string[]; documentUrl?: string | null }) => {
         setOcrData(data);
         setOcrSource(options?.source || 'Manual Review');
         setOcrWarnings(options?.warnings || []);
+        setDocumentUrl(options?.documentUrl || null);
         setEditableData({
             invoiceNumber: data.invoiceNumber || '',
             amount: data.amount?.toString() || '',
@@ -121,6 +125,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
         prepareReviewState(EMPTY_OCR_DATA, {
             source: 'Manual Review Workspace',
             warnings: warning ? [warning] : ['Automatic extraction was skipped. Fill the invoice fields below to continue.'],
+            documentUrl: null,
         });
     };
 
@@ -157,6 +162,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
             const data = json.data || EMPTY_OCR_DATA;
             prepareReviewState(data, {
                 source: json.source || 'Axiom OCR',
+                documentUrl: json.documentUrl || null,
                 warnings: json.warnings || [],
             });
 
@@ -207,6 +213,7 @@ export function UploadInvoiceDialog({ open, onOpenChange, onSuccess, suppliers }
                 lineItems: ocrData?.lineItems || undefined,
                 paymentTerms: editableData.paymentTerms || undefined,
                 purchaseOrderRef: editableData.purchaseOrderRef || undefined,
+                documentUrl: documentUrl || undefined,
             });
 
             if (result.success) {

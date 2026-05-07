@@ -25,6 +25,7 @@ import {
 import { createContract } from '@/app/actions/contracts'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { uploadFileToStorage } from '@/lib/client/upload'
 
 import { ContractUpload } from '@/components/contracts/contract-upload'
 
@@ -36,13 +37,12 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [aiData, setAiData] = useState<any>(null)
+    const [sourceFile, setSourceFile] = useState<File | null>(null)
     const router = useRouter()
 
-    const handleDataExtracted = (_data: any) => {
+    const handleDataExtracted = (_data: any, file?: File) => {
         setAiData(JSON.stringify(_data));
-        // Auto-fill logic would ideally utilize form refs or react-hook-form, 
-        // but for native forms, we can rely on defaultValue mapping if we re-render or just let user manually check.
-        // For better UX with native forms, we can set key prop to force re-render with new defaults
+        setSourceFile(file || null);
     };
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -50,6 +50,21 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
         setLoading(true)
 
         const formData = new FormData(event.currentTarget)
+        let documentUrl: string | undefined;
+        let documentName: string | undefined;
+
+        if (sourceFile) {
+            try {
+                const stored = await uploadFileToStorage(sourceFile);
+                documentUrl = stored.url;
+                documentName = sourceFile.name;
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to store contract source file');
+                setLoading(false);
+                return;
+            }
+        }
+
         const data = {
             supplierId: formData.get('supplierId') as string,
             title: formData.get('title') as string,
@@ -64,6 +79,8 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
             priceLockExpiry: formData.get('priceLockExpiry') ? new Date(formData.get('priceLockExpiry') as string) : undefined,
             autoRenewalAlert: formData.get('autoRenewalAlert') as string,
             aiExtractedData: formData.get('aiExtractedData') as string,
+            documentUrl,
+            documentName,
         }
 
         try {
@@ -72,6 +89,7 @@ export function CreateContractDialog({ suppliers }: CreateContractDialogProps) {
                 toast.success('Contract created successfully')
                 setOpen(false)
                 setAiData(null)
+                setSourceFile(null)
                 router.refresh()
             } else {
                 toast.error(result.error || 'Failed to create contract')
