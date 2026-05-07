@@ -21,6 +21,6 @@ export function getRuntimeVersionSnapshot(): RuntimeVersionSnapshot {
         version: buildToken,
         label: buildToken === packageVersion
             ? `v${packageVersion}`
-            : `v${packageVersion} · ${shortBuildToken}`,
+            : `v${packageVersion} - ${shortBuildToken}`,
     };
 }

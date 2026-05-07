@@ -20,7 +20,7 @@ export function VersionShield({ initialVersion, initialLabel }: VersionShieldPro
 
         const checkVersion = async () => {
             try {
-                const response = await fetch("/api/runtime/version", {
+                const response = await fetch("/api/system/version", {
                     cache: "no-store",
                 });
 

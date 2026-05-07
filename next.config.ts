@@ -38,8 +38,13 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  experimental: {
-    cssChunking: false,
+  async rewrites() {
+    return [
+      {
+        source: "/api/runtime/version",
+        destination: "/api/system/version",
+      },
+    ];
   },
   async headers() {
     return [
