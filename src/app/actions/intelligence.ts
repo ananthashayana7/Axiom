@@ -14,7 +14,7 @@ export async function getMarketTrend(partName: string, category: string) {
         const result = await model.generateContent(prompt);
         const jsonMatch = result.response.text().match(/\{[\s\S]*\}/);
         return jsonMatch ? JSON.parse(jsonMatch[0]) : { trend: "up", reason: "General market volatility forecasted.", source: "Axiom Predictive Engine (Standard)" };
-    } catch (e) {
+    } catch (_error) {
         return { trend: "stable", reason: "Market visibility limited." };
     }
 }
@@ -70,13 +70,12 @@ export async function getRecentRFQs() {
             limit: 5
         });
 
-        // Ensure we always have an expiry date or something similar if the UI expects it
         return data.map(rfq => ({
             ...rfq,
-            expiryDate: new Date(rfq.createdAt!.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() // Mock expiry 2 weeks after creation
+            expiryDate: rfq.deadline ? rfq.deadline.toISOString() : null
         }));
-    } catch (e) {
-        console.error("Failed to fetch recent RFQs:", e);
+    } catch (error) {
+        console.error("Failed to fetch recent RFQs:", error);
         return [];
     }
 }

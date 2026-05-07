@@ -8,6 +8,10 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { auditLogs, systemTelemetry } from "@/db/schema";
 import { TelemetryService } from "@/lib/telemetry";
+import {
+    completeAgentExecutionRun,
+    createAgentExecutionRun,
+} from "@/lib/agent-executions";
 import { and, desc, eq } from "drizzle-orm";
 import type {
     AgentResult,
@@ -585,6 +589,18 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
 
     const maxAttempts = Math.max(1, (agentMeta.maxRetries ?? 0) + 1);
     let lastError = 'Internal execution error';
+    const executionId = await createAgentExecutionRun({
+        agentName,
+        userId: session.user.id,
+        triggeredBy: 'manual',
+        inputContext: {
+            dashboardHref: agentMeta.dashboardHref,
+            focusLabel: agentMeta.focusLabel,
+            role,
+            requiresApproval: agentMeta.requiresApproval,
+            dispatchMode: agentMeta.dispatchMode,
+        },
+    });
 
     const enforceTimeout = <T,>(promise: Promise<T>) =>
         Promise.race([
@@ -607,6 +623,13 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
 
             if (result.success) {
                 const summary = await createSuccessSummary(agentName, result, agentMeta.dashboardHref);
+                await completeAgentExecutionRun({
+                    executionId,
+                    status: 'success',
+                    result,
+                    summary,
+                    attempts: attempt,
+                });
                 await safeTrackEvent('AgentDispatch', 'completed', {
                     agentName,
                     attempt,
@@ -644,6 +667,20 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
         }
     }
 
+    const failureSummary = createFailureSummary(
+        'Recovery path prepared',
+        `${agentMeta.displayName} exhausted ${maxAttempts} guarded attempts. Review ${agentMeta.focusLabel.toLowerCase()} from the linked workspace and retry from there.`,
+        agentMeta.dashboardHref,
+    );
+
+    await completeAgentExecutionRun({
+        executionId,
+        status: 'failed',
+        errorMessage: lastError,
+        summary: failureSummary,
+        attempts: maxAttempts,
+    });
+
     return {
         success: false,
         error: lastError,
@@ -653,11 +690,7 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
         confidence: 0,
         attempts: maxAttempts,
         dashboardHref: agentMeta.dashboardHref,
-        summary: createFailureSummary(
-            'Recovery path prepared',
-            `${agentMeta.displayName} exhausted ${maxAttempts} guarded attempts. Review ${agentMeta.focusLabel.toLowerCase()} from the linked workspace and retry from there.`,
-            agentMeta.dashboardHref,
-        ),
+        summary: failureSummary,
     };
 }
 

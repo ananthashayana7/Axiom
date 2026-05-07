@@ -141,7 +141,7 @@ export default function CopilotPage() {
                 toast.error(error instanceof Error ? error.message : "Copilot failed to respond. Please try again.");
                 setMessages((previous) => [
                     ...previous,
-                    { role: 'assistant', content: "Axiom Copilot switched into guided demo mode for this request. Please try again and I will keep working from the current workspace snapshot." }
+                    { role: 'assistant', content: "Axiom Copilot could not complete that request cleanly. Please retry, or ask a narrower question and I will answer from the current workspace snapshot." }
                 ]);
             }
         });

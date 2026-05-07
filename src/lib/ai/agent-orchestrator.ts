@@ -7,7 +7,10 @@
 'use server'
 
 import { auth } from "@/auth";
+import { db } from "@/db";
+import { agentExecutions } from "@/db/schema";
 import { TelemetryService } from "@/lib/telemetry";
+import { and, desc, eq, gte } from "drizzle-orm";
 import type {
     AgentMetadata,
     AgentResult,
@@ -313,14 +316,48 @@ export async function getAgentStats(agentName?: string, _days: number = 7): Prom
     avgConfidence: number;
     topErrors: { error: string; count: number }[];
 }> {
-    // This would query the agent_executions table
-    // For now, returning mock stats
+    const since = new Date();
+    since.setDate(since.getDate() - _days);
+
+    const rows = await db.select({
+        status: agentExecutions.status,
+        executionTimeMs: agentExecutions.executionTimeMs,
+        confidenceScore: agentExecutions.confidenceScore,
+        errorMessage: agentExecutions.errorMessage,
+    })
+        .from(agentExecutions)
+        .where(agentName
+            ? and(eq(agentExecutions.agentName, agentName), gte(agentExecutions.createdAt, since))
+            : gte(agentExecutions.createdAt, since))
+        .orderBy(desc(agentExecutions.createdAt))
+        .limit(500);
+
+    const totalExecutions = rows.length;
+    const successCount = rows.filter((row) => row.status === 'success').length;
+    const avgExecutionTime = rows.filter((row) => row.executionTimeMs !== null).length > 0
+        ? Math.round(rows.reduce((sum, row) => sum + Number(row.executionTimeMs || 0), 0) / rows.filter((row) => row.executionTimeMs !== null).length)
+        : 0;
+    const avgConfidence = rows.filter((row) => row.confidenceScore !== null).length > 0
+        ? Math.round(rows.reduce((sum, row) => sum + Number(row.confidenceScore || 0), 0) / rows.filter((row) => row.confidenceScore !== null).length)
+        : 0;
+
+    const errorCounts = new Map<string, number>();
+    for (const row of rows) {
+        if (!row.errorMessage) continue;
+        errorCounts.set(row.errorMessage, (errorCounts.get(row.errorMessage) || 0) + 1);
+    }
+
+    const topErrors = Array.from(errorCounts.entries())
+        .map(([error, count]) => ({ error, count }))
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 5);
+
     return {
-        totalExecutions: 0,
-        successRate: 0,
-        avgExecutionTime: 0,
-        avgConfidence: 0,
-        topErrors: []
+        totalExecutions,
+        successRate: totalExecutions > 0 ? Math.round((successCount / totalExecutions) * 100) : 0,
+        avgExecutionTime,
+        avgConfidence,
+        topErrors,
     };
 }
 
@@ -338,7 +375,20 @@ async function logAgentExecution(log: {
     userId?: string;
 }): Promise<void> {
     try {
-        // We'll add the actual DB insert once schema is updated
+        await db.insert(agentExecutions).values({
+            agentName: log.agentName,
+            status: (['queued', 'running', 'success', 'failed', 'cancelled'].includes(log.status) ? log.status : 'failed') as 'queued' | 'running' | 'success' | 'failed' | 'cancelled',
+            inputContext: log.inputContext,
+            outputData: log.outputData,
+            confidenceScore: log.confidenceScore,
+            tokenUsage: log.tokenUsage,
+            executionTimeMs: log.executionTimeMs,
+            errorMessage: log.errorMessage,
+            triggeredBy: log.triggeredBy,
+            userId: log.userId,
+            completedAt: new Date(),
+        });
+
         await TelemetryService.trackEvent('AgentExecution', log.agentName, {
             status: log.status,
             executionTimeMs: log.executionTimeMs,

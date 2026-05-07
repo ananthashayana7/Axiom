@@ -12,11 +12,13 @@ import {
     procurementOrders,
     suppliers,
     contracts,
-    paymentOptimizations
+    paymentOptimizations,
+    users,
 } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { TelemetryService } from "@/lib/telemetry";
 import type { AgentResult, PaymentOptimization } from "@/lib/ai/agent-types";
+import { createSystemNotification } from "@/app/actions/notifications";
 
 /**
  * Main payment optimization function
@@ -88,10 +90,19 @@ export async function runPaymentOptimizationAgent(): Promise<AgentResult<Payment
 
         // Notify finance team if significant savings available
         if (totalSavings > 10000) { // > ₹10K
-            const adminUsers = await db
-                .select({ id: suppliers.id })
-                .from(suppliers)
-                .limit(1); // Placeholder - would query finance users
+            const financeUsers = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(sql`${users.role} = 'admin' and ${users.accessProfile} in ('finance_auditor', 'super_admin')`)
+                .limit(10);
+
+            await Promise.all(financeUsers.map((financeUser) => createSystemNotification({
+                userId: financeUser.id,
+                title: "Payment opportunities need finance review",
+                message: `${optimizations.length} payment timing opportunities worth ${Math.round(totalSavings).toLocaleString("en-IN")} are ready for review in Financial Matching.`,
+                type: 'info',
+                link: '/admin/financial-matching',
+            })));
 
             await TelemetryService.trackMetric(
                 "PaymentOptimizerAgent",

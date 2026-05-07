@@ -50,7 +50,7 @@ export function CommentsSection({
             if (result.success) {
                 setText("");
                 setComments((currentComments) => [{
-                    id: Math.random().toString(),
+                    id: globalThis.crypto?.randomUUID?.() || `comment-${Date.now()}`,
                     text,
                     createdAt: new Date(),
                     userName: "You",

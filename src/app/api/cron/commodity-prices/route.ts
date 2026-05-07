@@ -4,7 +4,6 @@ import { marketPriceIndex } from '@/db/schema';
 import { isCronAuthorized } from '@/lib/api-security';
 import { withPgAdvisoryLock } from '@/lib/db-locks';
 
-// Free commodity data sources
 const COMMODITY_ENDPOINTS = [
     {
         name: 'Metals',
@@ -13,37 +12,19 @@ const COMMODITY_ENDPOINTS = [
     },
 ];
 
-// Fallback: generate synthetic but realistic commodity prices
-function generateSyntheticPrices(): { category: string; commodity: string; price: number; source: string }[] {
-    const baseDate = new Date();
-    const dayFactor = Math.sin(baseDate.getDate() / 30 * Math.PI) * 0.05; // ±5% seasonal variation
+function parseFreeMetals(data: unknown): { category: string; commodity: string; price: number; source: string }[] {
+    if (!data || typeof data !== 'object' || !('metals' in data) || typeof data.metals !== 'object' || !data.metals) {
+        return [];
+    }
 
-    return [
-        { category: 'Metals', commodity: 'Copper', price: Number((8500 * (1 + dayFactor)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Metals', commodity: 'Aluminum', price: Number((2400 * (1 + dayFactor * 0.8)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Metals', commodity: 'Steel HRC', price: Number((650 * (1 + dayFactor * 1.2)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Metals', commodity: 'Nickel', price: Number((16000 * (1 + dayFactor * 0.6)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Metals', commodity: 'Zinc', price: Number((2800 * (1 + dayFactor * 0.9)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Plastics', commodity: 'HDPE', price: Number((1200 * (1 + dayFactor * 0.7)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Plastics', commodity: 'Polypropylene', price: Number((1100 * (1 + dayFactor * 0.5)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Plastics', commodity: 'PVC', price: Number((900 * (1 + dayFactor * 0.4)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Electronics', commodity: 'Silicon Wafer', price: Number((3.50 * (1 + dayFactor * 0.3)).toFixed(4)), source: 'Axiom Synthetic Index' },
-        { category: 'Electronics', commodity: 'Rare Earth Oxide', price: Number((45 * (1 + dayFactor * 1.5)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Chemicals', commodity: 'Ethylene', price: Number((1050 * (1 + dayFactor * 0.6)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Chemicals', commodity: 'Sulfuric Acid', price: Number((80 * (1 + dayFactor * 0.3)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Energy', commodity: 'Natural Gas (MMBtu)', price: Number((3.20 * (1 + dayFactor * 2.0)).toFixed(2)), source: 'Axiom Synthetic Index' },
-        { category: 'Energy', commodity: 'Crude Oil (Brent)', price: Number((82 * (1 + dayFactor * 0.8)).toFixed(2)), source: 'Axiom Synthetic Index' },
-    ];
-}
-
-function parseFreeMetals(data: any): { category: string; commodity: string; price: number; source: string }[] {
-    if (!data?.metals) return [];
-    return Object.entries(data.metals).map(([metal, price]) => ({
-        category: 'Metals',
-        commodity: metal.charAt(0).toUpperCase() + metal.slice(1),
-        price: Number(price),
-        source: 'metals.dev',
-    }));
+    return Object.entries(data.metals as Record<string, unknown>)
+        .map(([metal, price]) => ({
+            category: 'Metals',
+            commodity: metal.charAt(0).toUpperCase() + metal.slice(1),
+            price: Number(price),
+            source: 'metals.dev',
+        }))
+        .filter((row) => Number.isFinite(row.price) && row.price > 0);
 }
 
 export async function GET(req: Request) {
@@ -59,30 +40,38 @@ export async function GET(req: Request) {
             const validTo = new Date(validFrom);
             validTo.setDate(validTo.getDate() + 1);
 
-            let allPrices: { category: string; commodity: string; price: number; source: string }[] = [];
+            const allPrices: { category: string; commodity: string; price: number; source: string }[] = [];
 
-            // Try fetching from real APIs first
             for (const endpoint of COMMODITY_ENDPOINTS) {
                 try {
                     const response = await fetch(endpoint.url, {
                         signal: AbortSignal.timeout(5000),
                         next: { revalidate: 0 },
                     });
-                    if (response.ok) {
-                        const data = await response.json();
-                        allPrices.push(...endpoint.parser(data));
+
+                    if (!response.ok) {
+                        continue;
                     }
+
+                    const data = await response.json();
+                    allPrices.push(...endpoint.parser(data));
                 } catch {
-                    // API failed, will use synthetic fallback
+                    // Live feed failed. We intentionally keep the benchmark layer unchanged
+                    // rather than generating synthetic commodity prices.
                 }
             }
 
-            // Fall back to synthetic prices if no real data
             if (allPrices.length === 0) {
-                allPrices = generateSyntheticPrices();
+                return NextResponse.json({
+                    success: false,
+                    degraded: true,
+                    inserted: 0,
+                    totalPrices: 0,
+                    reason: 'live_feeds_unavailable',
+                    timestamp: now.toISOString(),
+                }, { status: 202 });
             }
 
-            // Insert into marketPriceIndex
             let inserted = 0;
             for (const price of allPrices) {
                 try {
@@ -94,9 +83,9 @@ export async function GET(req: Request) {
                         validFrom,
                         validTo,
                     });
-                    inserted++;
+                    inserted += 1;
                 } catch {
-                    // Ignore duplicate insertions
+                    // Ignore duplicate insertions for the same validity window.
                 }
             }
 
@@ -104,7 +93,7 @@ export async function GET(req: Request) {
                 success: true,
                 inserted,
                 totalPrices: allPrices.length,
-                categories: [...new Set(allPrices.map(p => p.category))],
+                categories: [...new Set(allPrices.map((price) => price.category))],
                 timestamp: now.toISOString(),
             });
         });
