@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents } from "@/db/schema";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents, platformSettings } from "@/db/schema";
 import { eq, and, lte, gte, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -714,9 +714,14 @@ export async function validateThreeWayMatch(orderId: string) {
             });
 
             if (matchStatus.isMatched) {
+                // ISSUE-02 FIX: Only update non-terminal invoices. 'paid' invoices must
+                // never be bulk-overwritten back to 'matched' by a goods receipt scan.
                 await db.update(invoices)
                     .set({ status: 'matched', matchedAt: new Date() })
-                    .where(eq(invoices.orderId, orderId));
+                    .where(and(
+                        eq(invoices.orderId, orderId),
+                        inArray(invoices.status, ['pending', 'disputed']),
+                    ));
 
                 revalidatePath('/sourcing/invoices');
                 revalidatePath(`/sourcing/orders/${orderId}`);
@@ -727,12 +732,16 @@ export async function validateThreeWayMatch(orderId: string) {
                 return { success: true, status: 'MATCHED' };
             }
 
+            // ISSUE-02 FIX: Never overwrite invoices that are already paid or reversed.
             await db.update(invoices)
                 .set({
                     status: matchStatus.status,
                     matchedAt: null,
                 })
-                .where(eq(invoices.orderId, orderId));
+                .where(and(
+                    eq(invoices.orderId, orderId),
+                    inArray(invoices.status, ['pending', 'disputed', 'matched']),
+                ));
 
             if (matchStatus.status === 'disputed') {
                 await logActivity('UPDATE', 'order', orderId, `Three-way match disputed due to invoice variance of ${(matchStatus.totalInvoiced - poAmount).toFixed(2)}`);

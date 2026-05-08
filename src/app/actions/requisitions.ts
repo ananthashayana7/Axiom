@@ -1,15 +1,25 @@
 'use server'
 
 import { db } from "@/db";
-import { budgets, requisitions, auditLogs, users } from "@/db/schema";
+import { budgets, requisitions, auditLogs, users, procurementOrders } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function getRequisitions() {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role === 'supplier') {
+        return [];
+    }
+
     try {
-        const result = await db.select().from(requisitions).orderBy(desc(requisitions.createdAt));
+        const result = session.user.role === 'admin'
+            ? await db.select().from(requisitions).orderBy(desc(requisitions.createdAt))
+            : await db.select()
+                .from(requisitions)
+                .where(eq(requisitions.requestedById, session.user.id))
+                .orderBy(desc(requisitions.createdAt));
         return result;
     } catch (error) {
         console.error("Failed to fetch requisitions:", error);
@@ -204,6 +214,15 @@ export async function rejectRequisition(id: string, reason: string) {
                 return { success: false, error: "Requisition was updated by another user. Refresh and try again." };
             }
 
+            // BUG-05 FIX: Release the reserved budget back to the pool on rejection
+            if (requisition.budgetId && requisition.estimatedAmount) {
+                await tx.update(budgets)
+                    .set({
+                        usedAmount: sql`GREATEST(0, CAST(${budgets.usedAmount} AS numeric) - CAST(${requisition.estimatedAmount} AS numeric))`,
+                    })
+                    .where(eq(budgets.id, requisition.budgetId));
+            }
+
             await tx.insert(auditLogs).values({
                 userId: session.user.id,
                 action: 'REJECT',
@@ -236,7 +255,6 @@ export async function rejectRequisition(id: string, reason: string) {
     }
 }
 
-import { procurementOrders } from "@/db/schema";
 
 export async function convertToPO(requisitionId: string, supplierId: string) {
     const session = await auth();

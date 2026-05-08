@@ -10,6 +10,9 @@ import { logActivity } from "./activity";
 // ─── Budget CRUD ──────────────────────────────────────────────────────────────
 
 export async function getBudgets() {
+    const session = await auth();
+    if (!session?.user) return [];
+
     try {
         const allBudgets = await db.select().from(budgets).orderBy(desc(budgets.createdAt));
         return allBudgets;
@@ -107,7 +110,7 @@ export async function checkBudgetAvailability(budgetId: string, requestedAmount:
 
 export async function consumeBudget(budgetId: string, amount: number) {
     const session = await auth();
-    if (!session?.user) return { success: false, error: "Unauthorized" };
+    if (!session?.user || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
         if (!Number.isFinite(amount) || amount <= 0) {

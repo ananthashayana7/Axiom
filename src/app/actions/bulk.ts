@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from "@/db";
-import { procurementOrders, requisitions, auditLogs } from "@/db/schema";
+import { procurementOrders, requisitions, auditLogs, budgets } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createNotification } from "./notifications";
 
 export async function bulkUpdateOrderStatus(
@@ -144,30 +144,60 @@ export async function bulkRejectRequisitions(ids: string[], reason: string) {
 
         for (const id of ids) {
             try {
-                const [req] = await db.select().from(requisitions).where(eq(requisitions.id, id));
-                if (!req) {
-                    errors.push(`Requisition ${id.split('-')[0]}: Not found`);
+                const result = await db.transaction(async (tx) => {
+                    await tx.execute(sql`select ${requisitions.id} from ${requisitions} where ${requisitions.id} = ${id} for update`);
+
+                    const [req] = await tx.select().from(requisitions).where(eq(requisitions.id, id));
+                    if (!req) {
+                        return { error: `Requisition ${id.split('-')[0]}: Not found` };
+                    }
+
+                    if (req.status !== 'pending_approval') {
+                        return { error: `Requisition ${id.split('-')[0]}: Not in pending_approval status` };
+                    }
+
+                    const [updated] = await tx.update(requisitions)
+                        .set({ status: 'rejected' })
+                        .where(and(
+                            eq(requisitions.id, id),
+                            eq(requisitions.status, 'pending_approval'),
+                        ))
+                        .returning({ id: requisitions.id });
+
+                    if (!updated) {
+                        return { error: `Requisition ${id.split('-')[0]}: Updated by another user. Refresh and try again.` };
+                    }
+
+                    if (req.budgetId && req.estimatedAmount) {
+                        await tx.update(budgets)
+                            .set({
+                                usedAmount: sql`GREATEST(0, CAST(${budgets.usedAmount} AS numeric) - CAST(${req.estimatedAmount} AS numeric))`,
+                            })
+                            .where(eq(budgets.id, req.budgetId));
+                    }
+
+                    await tx.insert(auditLogs).values({
+                        userId: session.user.id,
+                        action: 'BULK_REJECT',
+                        entityType: 'requisition',
+                        entityId: id,
+                        details: `Requisition bulk-rejected. Reason: ${reason}`
+                    });
+
+                    return { req };
+                });
+
+                if ('error' in result) {
+                    errors.push(result.error || `Requisition ${id.split('-')[0]}: Failed`);
                     continue;
                 }
 
-                await db.update(requisitions)
-                    .set({ status: 'rejected' })
-                    .where(eq(requisitions.id, id));
-
-                await db.insert(auditLogs).values({
-                    userId: session.user.id,
-                    action: 'BULK_REJECT',
-                    entityType: 'requisition',
-                    entityId: id,
-                    details: `Requisition bulk-rejected. Reason: ${reason}`
-                });
-
                 await createNotification({
-                    userId: req.requestedById,
+                    userId: result.req.requestedById,
                     title: "Requisition Rejected",
-                    message: `Your requisition "${req.title}" was rejected. Reason: ${reason}`,
+                    message: `Your requisition "${result.req.title}" was rejected. Reason: ${reason}`,
                     type: 'warning',
-                    link: `/sourcing/requisitions?id=${req.id}`,
+                    link: `/sourcing/requisitions?id=${result.req.id}`,
                 });
 
                 rejected++;

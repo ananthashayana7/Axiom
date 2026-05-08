@@ -16,6 +16,7 @@ import {
 
 export function ContractActions({ contractId, status }: { contractId: string, status: string }) {
     const [loading, setLoading] = useState(false)
+    const canDelete = status !== 'active'
 
     const handleUpdate = async (newStatus: 'active' | 'expired' | 'terminated') => {
         setLoading(true)
@@ -65,10 +66,17 @@ export function ContractActions({ contractId, status }: { contractId: string, st
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
-                        <Trash className="h-4 w-4 mr-2" />
-                        Delete Permanently
-                    </DropdownMenuItem>
+                    {canDelete ? (
+                        <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+                            <Trash className="h-4 w-4 mr-2" />
+                            Delete Permanently
+                        </DropdownMenuItem>
+                    ) : (
+                        <DropdownMenuItem disabled className="text-muted-foreground">
+                            <Trash className="h-4 w-4 mr-2" />
+                            Terminate before delete
+                        </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>

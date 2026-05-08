@@ -178,6 +178,18 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                     return false;
                 }
 
+                // ISSUE-05 FIX: Block OAuth login if 2FA is enabled on this account.
+                // OAuth providers cannot verify TOTP codes, so allowing SSO would
+                // silently bypass 2FA enforcement entirely.
+                if (existingUser.isTwoFactorEnabled && existingUser.twoFactorSecret) {
+                    console.warn(`[AUTH] OAuth login blocked — 2FA is enabled for ${user.email}. Use email/password login.`);
+                    await TelemetryService.trackEvent("Security", "oauth_blocked_2fa_enabled", {
+                        email: user.email,
+                        provider: account?.provider,
+                    });
+                    return '/login?error=2fa_required';
+                }
+
                 if (existingUser.role === 'supplier') {
                     const portalAccessAllowed = await supplierPortalAccessAllowed(existingUser.supplierId);
                     if (!portalAccessAllowed) {

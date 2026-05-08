@@ -7,6 +7,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { mergeFinanceSettings, parseFinanceSettings } from "@/lib/finance";
+import { withPgAdvisoryLock } from "@/lib/db-locks";
+import { sql } from "drizzle-orm";
 
 type SessionUser = {
     role?: string | null;
@@ -257,12 +259,17 @@ export async function updateSettings(formData: FormData) {
             updatedAt: new Date(),
         };
 
-        const [existing] = await db.select().from(platformSettings).limit(1);
-        if (!existing) {
-            await db.insert(platformSettings).values(updateData);
-        } else {
-            await db.update(platformSettings).set(updateData);
-        }
+        // Use an advisory lock to serialize concurrent settings writes.
+        // This eliminates the TOCTOU race where two concurrent admins could both
+        // see no existing row and double-insert a second settings row.
+        await withPgAdvisoryLock('platform-settings-upsert', async () => {
+            const [existing] = await db.select({ id: platformSettings.id }).from(platformSettings).limit(1);
+            if (!existing) {
+                await db.insert(platformSettings).values(updateData);
+            } else {
+                await db.update(platformSettings).set(updateData).where(eq(platformSettings.id, existing.id));
+            }
+        });
 
         await logActivity(
             'UPDATE',

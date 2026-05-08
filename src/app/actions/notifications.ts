@@ -25,8 +25,9 @@ async function reconcileStaleNotifications(userId: string) {
         )
         .map((notification) => ({
             notificationId: notification.id,
-            requisitionId: notification.link!.split('=')[1],
-        }));
+            requisitionId: new URLSearchParams(notification.link!.split('?')[1] ?? '').get('id') ?? '',
+        }))
+        .filter((item) => item.requisitionId.length > 0);
 
     if (requisitionAlerts.length === 0) return;
 

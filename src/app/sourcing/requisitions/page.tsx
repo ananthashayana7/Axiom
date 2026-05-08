@@ -21,6 +21,10 @@ export default async function RequisitionsPage() {
     const suppliers = await getSuppliers();
     const userRole = (session?.user as any)?.role;
     const isAdmin = userRole === 'admin';
+    const pageTitle = isAdmin ? 'Internal Requisitions' : 'My Requisitions';
+    const pageDescription = isAdmin
+        ? 'P2P Workflow: Manage internal purchase requests and approvals.'
+        : 'Track the purchase requests you have raised and their current approval state.';
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -45,9 +49,9 @@ export default async function RequisitionsPage() {
         <div className="p-4 lg:p-8 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Internal Requisitions</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">{pageTitle}</h1>
                     <p className="text-muted-foreground mt-1">
-                        P2P Workflow: Manage internal purchase requests and approvals.
+                        {pageDescription}
                     </p>
                 </div>
                 <RequisitionDialog />
@@ -59,11 +63,11 @@ export default async function RequisitionsPage() {
                         <ShoppingCart size={64} className="text-primary" />
                     </div>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Requests</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{isAdmin ? 'Total Requests' : 'My Requests'}</CardTitle>
                         <CardTitle className="text-4xl font-bold">{reqs.length}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-muted-foreground">Across all departments</p>
+                        <p className="text-xs text-muted-foreground">{isAdmin ? 'Across all departments' : 'Raised by your account'}</p>
                     </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-white to-amber-50 border-amber-200 shadow-sm overflow-hidden relative">
@@ -77,7 +81,7 @@ export default async function RequisitionsPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-muted-foreground">Awaiting budget verification</p>
+                        <p className="text-xs text-muted-foreground">{isAdmin ? 'Awaiting budget verification' : 'Waiting for admin review'}</p>
                     </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-white to-green-50 border-green-200 shadow-sm overflow-hidden relative">

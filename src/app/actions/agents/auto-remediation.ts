@@ -9,11 +9,11 @@ import { db } from "@/db";
 import { auth } from "@/auth";
 import {
     requisitions, procurementOrders, rfqs, rfqSuppliers,
-    users, auditLogs, notifications, contracts
+    users, contracts
 } from "@/db/schema";
-import { eq, sql, and, lt, ne } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import { TelemetryService } from "@/lib/telemetry";
-import { createNotification } from "@/app/actions/notifications";
+import { createSystemNotification } from "@/app/actions/notifications";
 import type { AgentResult } from "@/lib/ai/agent-types";
 
 interface RemediationAction {
@@ -102,7 +102,7 @@ export async function runAutoRemediation(): Promise<AgentResult<RemediationActio
 
         // Execute each active remediation rule
         for (const rule of REMEDIATION_RULES.filter(r => r.isActive)) {
-            const ruleActions = await executeRule(rule, session.user as { id: string });
+            const ruleActions = await executeRule(rule);
             actions.push(...ruleActions);
         }
 
@@ -145,7 +145,6 @@ export async function runAutoRemediation(): Promise<AgentResult<RemediationActio
  */
 async function executeRule(
     rule: RemediationRule,
-    currentUser: { id: string }
 ): Promise<RemediationAction[]> {
     const actions: RemediationAction[] = [];
 
@@ -195,7 +194,7 @@ async function handleStaleDrafts(): Promise<RemediationAction[]> {
 
     for (const draft of staleDrafts) {
         try {
-            await createNotification({
+            await createSystemNotification({
                 userId: draft.requestedById,
                 title: "📝 Draft Requisition Reminder",
                 message: `Your draft "${draft.title}" has been pending for over 48 hours. Submit it for approval or discard if no longer needed.`,
@@ -253,7 +252,7 @@ async function handlePendingApprovals(): Promise<RemediationAction[]> {
         const notifiedIds: string[] = [];
 
         for (const admin of admins) {
-            await createNotification({
+            await createSystemNotification({
                 userId: admin.id,
                 title: "🚨 Escalation: Approval Overdue",
                 message: `Requisition "${req.title}" has been pending approval for >72 hours. Please review immediately.`,
@@ -326,7 +325,7 @@ async function handleRfqNoResponse(): Promise<RemediationAction[]> {
         for (const supplierId of data.suppliers) {
             const userId = supplierUserMap.get(supplierId);
             if (userId) {
-                await createNotification({
+                await createSystemNotification({
                     userId,
                     title: "📋 RFQ Reminder: Quote Pending",
                     message: `You have been invited to quote on "${data.title}". Please submit your response.`,
@@ -397,12 +396,12 @@ async function handleExpiringContracts(): Promise<RemediationAction[]> {
 
         const notifiedIds: string[] = [];
         for (const admin of admins) {
-            await createNotification({
+            await createSystemNotification({
                 userId: admin.id,
                 title: "📄 Contract Renewal Required",
                 message: `"${contract.title}" expires in ${daysUntilExpiry} days. Review and initiate renewal process.`,
                 type: daysUntilExpiry < 14 ? 'warning' : 'info',
-                link: `/contracts`
+                link: `/sourcing/contracts`
             });
             notifiedIds.push(admin.id);
         }

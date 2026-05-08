@@ -5,7 +5,7 @@ import { invoices, auditLogs, suppliers, fraudAlerts, workflowTasks, invoiceOver
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, desc, and, ilike, gte, lte, inArray, or, sql } from "drizzle-orm";
-import { createNotification } from "./notifications";
+import { createNotification, createSystemNotification } from "./notifications";
 import { canEscalateInvoiceReview, canMarkInvoicePaid, canRunInvoiceRules, isRegionalOperator } from "@/lib/rbac";
 import {
     coerceInvoiceNumber,
@@ -693,14 +693,20 @@ export async function updateInvoiceStatus(id: string, status: 'pending' | 'match
             details: `Invoice status updated to ${status}`
         });
 
-        // Notify Supplier
-        await createNotification({
-            userId: invoice.supplierId, // This might need a supplier-user lookup
-            title: `Invoice ${status.toUpperCase()}`,
-            message: `Your invoice ${invoice.invoiceNumber} has been updated to ${status}.`,
-            type: 'info',
-            link: `/portal/invoices`
-        });
+        // Notify Supplier — look up the user account linked to this supplier
+        const [supplierUser] = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.supplierId, invoice.supplierId))
+            .limit(1);
+        if (supplierUser) {
+            await createSystemNotification({
+                userId: supplierUser.id,
+                title: `Invoice ${status.toUpperCase()}`,
+                message: `Your invoice ${invoice.invoiceNumber} has been updated to ${status}.`,
+                type: 'info',
+                link: `/portal/invoices`,
+            });
+        }
 
         revalidatePath('/sourcing/invoices');
         revalidatePath('/sourcing/exceptions');
@@ -777,13 +783,20 @@ export async function escalateInvoiceToHumanReview(invoiceId: string) {
             details: `Invoice ${invoice.invoiceNumber} escalated to manual review from Financial Matching.`,
         });
 
-        await createNotification({
-            userId: invoice.supplierId,
-            title: 'Invoice under manual review',
-            message: `Invoice ${invoice.invoiceNumber} is being reviewed before it can be marked as paid.`,
-            type: 'warning',
-            link: '/portal/invoices',
-        });
+        // Notify supplier portal user (look up by supplierId)
+        const [supplierUserForEscalation] = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.supplierId, invoice.supplierId))
+            .limit(1);
+        if (supplierUserForEscalation) {
+            await createSystemNotification({
+                userId: supplierUserForEscalation.id,
+                title: 'Invoice under manual review',
+                message: `Invoice ${invoice.invoiceNumber} is being reviewed before it can be marked as paid.`,
+                type: 'warning',
+                link: '/portal/invoices',
+            });
+        }
 
         revalidatePath('/admin/financial-matching');
         revalidatePath('/sourcing/invoices');
@@ -1240,15 +1253,22 @@ export async function reviewInvoiceOverride(data: {
         });
 
         if (data.decision === 'approved' && request.supplierId) {
-            await createNotification({
-                userId: request.supplierId,
-                title: request.requestType === 'payment_reversal' ? 'Invoice payment reversed' : 'Invoice finance hold updated',
-                message: request.requestType === 'payment_reversal'
-                    ? `Invoice ${request.invoiceNumber} now carries a finance reversal record.`
-                    : `Invoice ${request.invoiceNumber} is under controlled finance review.`,
-                type: 'warning',
-                link: '/portal/invoices',
-            });
+            // Look up the supplier portal user by their linked supplierId
+            const [supplierPortalUser] = await db.select({ id: users.id })
+                .from(users)
+                .where(eq(users.supplierId, request.supplierId))
+                .limit(1);
+            if (supplierPortalUser) {
+                await createSystemNotification({
+                    userId: supplierPortalUser.id,
+                    title: request.requestType === 'payment_reversal' ? 'Invoice payment reversed' : 'Invoice finance hold updated',
+                    message: request.requestType === 'payment_reversal'
+                        ? `Invoice ${request.invoiceNumber} now carries a finance reversal record.`
+                        : `Invoice ${request.invoiceNumber} is under controlled finance review.`,
+                    type: 'warning',
+                    link: '/portal/invoices',
+                });
+            }
         }
 
         revalidatePath('/admin/financial-matching');

@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { contracts, documents, suppliers } from "@/db/schema";
+import { contracts, documents, suppliers, auditLogs } from "@/db/schema";
 import { eq, desc, and, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -178,9 +178,33 @@ export async function deleteContract(id: string) {
     if (!session || session.user.role !== 'admin') return { success: false, error: "Unauthorized" };
 
     try {
+        const [contract] = await db.select({
+            id: contracts.id,
+            title: contracts.title,
+            status: contracts.status,
+            supplierId: contracts.supplierId,
+        }).from(contracts)
+            .where(eq(contracts.id, id))
+            .limit(1);
+
+        if (!contract) {
+            return { success: false, error: "Contract not found" };
+        }
+
+        if (contract.status === 'active') {
+            return { success: false, error: "Cannot delete an active contract. Terminate it first." };
+        }
+
         await db.delete(contracts).where(eq(contracts.id, id));
-        await logActivity('DELETE', 'contract', id, `Contract deleted by admin`);
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: 'DELETE',
+            entityType: 'contract',
+            entityId: id,
+            details: `Contract "${contract.title}" (status: ${contract.status}) permanently deleted by admin ${session.user.email || session.user.id}.`,
+        });
         revalidatePath("/sourcing/contracts");
+        revalidatePath(`/suppliers/${contract.supplierId}`);
         return { success: true };
     } catch (error) {
         console.error("Failed to delete contract:", error);

@@ -1,7 +1,6 @@
-// src/app/api/contracts/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { contracts } from '@/db/schema';
+import { contracts, auditLogs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { updateContractStatus } from '@/app/actions/contracts';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -65,7 +64,29 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (limited) return limited;
 
     const { id } = await params;
-    const deleted = await db.delete(contracts).where(eq(contracts.id, id)).returning({ id: contracts.id });
-    if (deleted.length === 0) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+
+    // BUG-04 FIX: Fetch before delete so we can audit and guard active contracts.
+    const [contract] = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
+    if (!contract) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+
+    // Block hard-deletion of active contracts — they may be linked to live orders.
+    if (contract.status === 'active') {
+        return NextResponse.json(
+            { error: 'Cannot delete an active contract. Terminate it first.' },
+            { status: 409 },
+        );
+    }
+
+    await db.delete(contracts).where(eq(contracts.id, id));
+
+    // Write compliance audit trail
+    await db.insert(auditLogs).values({
+        userId: user.id,
+        action: 'DELETE',
+        entityType: 'contract',
+        entityId: id,
+        details: `Contract "${contract.title}" (status: ${contract.status}) permanently deleted by admin ${user.email || user.id}.`,
+    });
+
     return NextResponse.json({ success: true });
 }

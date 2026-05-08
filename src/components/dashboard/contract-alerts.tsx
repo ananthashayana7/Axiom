@@ -78,8 +78,9 @@ export function ContractAlerts() {
                                     </Badge>
                                 </div>
                                 <Link
-                                    href={`/sourcing/contracts/${contract.id}`}
-                                    className="absolute inset-0 opacity-0 group-hover:opacity-10 pointer-events-none"
+                                    href={`/sourcing/contracts?contract=${contract.id}`}
+                                    className="absolute inset-0"
+                                    aria-label={`Open ${contract.title}`}
                                 />
                             </div>
                         );

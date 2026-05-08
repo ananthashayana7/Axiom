@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db";
-import { rfqSuppliers, rfqs, procurementOrders, parts, documents, suppliers, orderItems } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { rfqSuppliers, rfqs, procurementOrders, parts, documents, suppliers, orderItems, supplierRequests } from "@/db/schema";
+import { eq, and, desc, sql, inArray, gte, lte } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
@@ -28,7 +28,10 @@ export async function getSupplierStats() {
 
         const activeOrdersCount = await db.select({ count: sql`count(*)` })
             .from(procurementOrders)
-            .where(and(eq(procurementOrders.supplierId, supplierId), eq(procurementOrders.status, 'sent')));
+            .where(and(
+                eq(procurementOrders.supplierId, supplierId),
+                inArray(procurementOrders.status, ['approved', 'sent']),
+            ));
 
         return {
             invitedRFQs: Number(invitedRFQsCount[0]?.count || 0),
@@ -80,6 +83,7 @@ export async function getSupplierOrders() {
             status: procurementOrders.status,
             totalAmount: procurementOrders.totalAmount,
             createdAt: procurementOrders.createdAt,
+            estimatedArrival: procurementOrders.estimatedArrival,
         })
             .from(procurementOrders)
             .where(eq(procurementOrders.supplierId, supplierId))
@@ -99,7 +103,7 @@ export async function getSupplierOrders() {
         })
             .from(orderItems)
             .leftJoin(parts, eq(orderItems.partId, parts.id))
-            .where(sql`${orderItems.orderId} IN ${orderIds}`);
+            .where(inArray(orderItems.orderId, orderIds));
 
         const allItems = allItemsRaw.map(i => ({
             ...i,
@@ -170,6 +174,145 @@ export async function uploadSupplierDocument(formData: FormData) {
     } catch (error) {
         console.error("Upload error:", error);
         return { success: false, error: "Failed to save document record." };
+    }
+}
+
+export async function getSupplierDashboardSnapshot() {
+    const session = await auth();
+    const supplierId = session?.user?.supplierId;
+
+    if (!supplierId) return null;
+
+    try {
+        const now = new Date();
+        const weekEnd = new Date(now);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
+        const [
+            invitedRFQsCount,
+            activeOrdersCount,
+            dueThisWeekOrdersCount,
+            openRequestsCount,
+            overdueRequestsCount,
+            documentCountRows,
+            recentRfqs,
+            recentOrders,
+            recentDocuments,
+            recentRequests,
+        ] = await Promise.all([
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(rfqSuppliers)
+                .where(and(
+                    eq(rfqSuppliers.supplierId, supplierId),
+                    eq(rfqSuppliers.status, 'invited'),
+                )),
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(procurementOrders)
+                .where(and(
+                    eq(procurementOrders.supplierId, supplierId),
+                    inArray(procurementOrders.status, ['approved', 'sent']),
+                )),
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(procurementOrders)
+                .where(and(
+                    eq(procurementOrders.supplierId, supplierId),
+                    inArray(procurementOrders.status, ['approved', 'sent']),
+                    gte(procurementOrders.estimatedArrival, now),
+                    lte(procurementOrders.estimatedArrival, weekEnd),
+                )),
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(supplierRequests)
+                .where(and(
+                    eq(supplierRequests.supplierId, supplierId),
+                    inArray(supplierRequests.status, ['draft', 'sent', 'acknowledged', 'in_progress', 'overdue']),
+                )),
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(supplierRequests)
+                .where(and(
+                    eq(supplierRequests.supplierId, supplierId),
+                    lte(supplierRequests.dueDate, now),
+                    inArray(supplierRequests.status, ['draft', 'sent', 'acknowledged', 'in_progress', 'overdue']),
+                )),
+            db.select({ count: sql<number>`count(*)::int` })
+                .from(documents)
+                .where(eq(documents.supplierId, supplierId)),
+            db.select({
+                id: rfqs.id,
+                title: rfqs.title,
+                status: rfqSuppliers.status,
+                createdAt: rfqs.createdAt,
+            })
+                .from(rfqSuppliers)
+                .innerJoin(rfqs, eq(rfqSuppliers.rfqId, rfqs.id))
+                .where(eq(rfqSuppliers.supplierId, supplierId))
+                .orderBy(desc(rfqs.createdAt))
+                .limit(5),
+            db.select({
+                id: procurementOrders.id,
+                status: procurementOrders.status,
+                totalAmount: procurementOrders.totalAmount,
+                createdAt: procurementOrders.createdAt,
+                estimatedArrival: procurementOrders.estimatedArrival,
+            })
+                .from(procurementOrders)
+                .where(eq(procurementOrders.supplierId, supplierId))
+                .orderBy(desc(procurementOrders.createdAt))
+                .limit(5),
+            db.select({
+                id: documents.id,
+                name: documents.name,
+                type: documents.type,
+                url: documents.url,
+                createdAt: documents.createdAt,
+            })
+                .from(documents)
+                .where(eq(documents.supplierId, supplierId))
+                .orderBy(desc(documents.createdAt))
+                .limit(3),
+            db.select({
+                id: supplierRequests.id,
+                title: supplierRequests.title,
+                requestType: supplierRequests.requestType,
+                status: supplierRequests.status,
+                dueDate: supplierRequests.dueDate,
+                createdAt: supplierRequests.createdAt,
+            })
+                .from(supplierRequests)
+                .where(eq(supplierRequests.supplierId, supplierId))
+                .orderBy(desc(supplierRequests.createdAt))
+                .limit(5),
+        ]);
+
+        const invitedRFQs = Number(invitedRFQsCount[0]?.count || 0);
+        const activeOrders = Number(activeOrdersCount[0]?.count || 0);
+        const dueThisWeekOrders = Number(dueThisWeekOrdersCount[0]?.count || 0);
+        const openRequests = Number(openRequestsCount[0]?.count || 0);
+        const overdueRequests = Number(overdueRequestsCount[0]?.count || 0);
+        const documentCount = Number(documentCountRows[0]?.count || 0);
+        const healthStatus = overdueRequests > 0
+            ? 'attention'
+            : (openRequests > 0 || invitedRFQs > 0 || dueThisWeekOrders > 0)
+                ? 'watch'
+                : 'healthy';
+
+        return {
+            counts: {
+                invitedRFQs,
+                activeOrders,
+                dueThisWeekOrders,
+                openRequests,
+                overdueRequests,
+                documentCount,
+            },
+            recentRfqs,
+            recentOrders,
+            recentDocuments,
+            recentRequests,
+            healthStatus,
+        };
+    } catch (error) {
+        console.error("Portal dashboard snapshot error:", error);
+        return null;
     }
 }
 
