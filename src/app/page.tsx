@@ -14,6 +14,7 @@ import { CreateOrderDialog } from "@/components/sourcing/create-order-dialog";
 
 import Link from "next/link";
 import { auth } from "@/auth";
+import type { Session } from "next-auth";
 import { CommunicationHub } from "@/components/dashboard/communication-hub";
 import { OperationalFreshnessStrip } from "@/components/dashboard/operational-freshness-strip";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
@@ -43,7 +44,7 @@ export default async function Home() {
 async function DashboardContent({
   session,
 }: {
-  session: Awaited<ReturnType<typeof auth>>;
+  session: Session | null;
 }) {
   const currentUser = session?.user as SessionUser | undefined;
   const userRole = currentUser?.role;

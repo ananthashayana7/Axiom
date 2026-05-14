@@ -342,7 +342,7 @@ export const requisitions = pgTable('requisitions', {
     status: requisitionStatusEnum('status').default('draft'),
     estimatedAmount: decimal('estimated_amount', { precision: 12, scale: 2 }).default('0'),
     department: text('department'),
-    budgetId: uuid('budget_id'), // References budgets table for budget tracking
+    budgetId: uuid('budget_id').references(() => budgets.id), // References budgets table for budget tracking
     purchaseOrderId: uuid('purchase_order_id').references(() => procurementOrders.id),
     createdAt: timestamp('created_at').defaultNow(),
 });

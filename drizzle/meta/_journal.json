@@ -43,6 +43,13 @@
       "when": 1770362361360,
       "tag": "0005_white_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778749857861,
+      "tag": "0006_production_hardening",
+      "breakpoints": true
     }
   ]
 }
