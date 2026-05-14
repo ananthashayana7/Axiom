@@ -1,8 +1,8 @@
-'use server'
+﻿'use server'
 
 import { db } from "@/db";
 import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents, platformSettings } from "@/db/schema";
-import { eq, and, lte, gte, inArray, sql } from "drizzle-orm";
+import { eq, and, lte, gte, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { auth } from "@/auth";
@@ -17,6 +17,7 @@ const orderItemTotals = db.select({
 }).from(orderItems).groupBy(orderItems.orderId).as('order_action_item_totals');
 
 const effectiveOrderTotal = sql<string>`COALESCE(NULLIF(CAST(${procurementOrders.totalAmount} AS numeric), 0), CAST(${orderItemTotals.lineTotal} AS numeric), 0)`;
+const LIST_QUERY_LIMIT = 500;
 
 function toNumber(value: string | number | null | undefined) {
     const parsed = Number(value ?? 0);
@@ -105,7 +106,9 @@ export async function getOrders() {
             .from(procurementOrders)
             .leftJoin(orderItemTotals, eq(orderItemTotals.orderId, procurementOrders.id))
             .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
-            .where(whereCondition);
+            .where(whereCondition)
+            .orderBy(desc(procurementOrders.createdAt))
+            .limit(LIST_QUERY_LIMIT);
 
         return allOrdersRaw.map(order => ({
             ...order,
@@ -225,7 +228,7 @@ export async function createOrder(data: CreateOrderInput) { // Use simpler type 
 }
 export async function updateOrderStatus(orderId: string, status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'fulfilled' | 'cancelled') {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     const role = session.user.role;
     const userSupplierId = session.user.supplierId;
@@ -544,7 +547,7 @@ export async function recordGoodsReceipt(orderId: string, data: {
     documentMatch: boolean
 }) {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     try {
         return await db.transaction(async (tx) => {
@@ -638,7 +641,7 @@ export async function updateOrderLogistics(orderId: string, data: {
 
 export async function addInvoice(data: { orderId: string, supplierId: string, invoiceNumber: string, amount: number }) {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     try {
         // BUG-002: Validate the invoice supplier matches the order's supplier
@@ -678,6 +681,10 @@ export async function addInvoice(data: { orderId: string, supplierId: string, in
 }
 
 export async function validateThreeWayMatch(orderId: string) {
+    // Internal callers (recordGoodsReceipt, addInvoice) are already auth-guarded.
+    // When called directly as a server action the session must still exist.
+    const _session = await auth();
+    if (!_session?.user?.id) return { success: false, error: "Unauthorized" };
     try {
         return await TelemetryService.time("FinancialCompliance", "validateThreeWayMatch", async () => {
             // Fetch original PO
@@ -767,7 +774,7 @@ export async function validateThreeWayMatch(orderId: string) {
 
 export async function getOrderFinanceDetails(orderId: string) {
     const session = await auth();
-    if (!session) return null;
+    if (!session?.user?.id) return null;
 
     try {
         const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.orderId, orderId));
@@ -843,5 +850,65 @@ export async function deleteOrder(id: string) {
     } catch (error) {
         console.error("Failed to delete order:", error);
         return { success: false, error: "Failed to delete" };
+    }
+}
+
+/** Replaces the direct db queries inlined in sourcing/orders/[id]/page.tsx. */
+export async function getOrderById(id: string) {
+    const session = await auth();
+    if (!session?.user?.id) return null;
+
+    try {
+        const [orderBase] = await db
+            .select({
+                id: procurementOrders.id,
+                supplierId: procurementOrders.supplierId,
+                contractId: procurementOrders.contractId,
+                requisitionId: procurementOrders.requisitionId,
+                status: procurementOrders.status,
+                totalAmount: procurementOrders.totalAmount,
+                incoterms: procurementOrders.incoterms,
+                carrier: procurementOrders.carrier,
+                trackingNumber: procurementOrders.trackingNumber,
+                estimatedArrival: procurementOrders.estimatedArrival,
+                createdAt: procurementOrders.createdAt,
+                supplierName: suppliers.name,
+                supplierEmail: suppliers.contactEmail,
+                contractTitle: contracts.title,
+            })
+            .from(procurementOrders)
+            .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
+            .leftJoin(contracts, eq(procurementOrders.contractId, contracts.id))
+            .where(eq(procurementOrders.id, id))
+            .limit(1);
+
+        if (!orderBase) return null;
+
+        if (session.user.role === 'supplier' && orderBase.supplierId !== session.user.supplierId) {
+            return null;
+        }
+
+        const itemsRaw = await db
+            .select({
+                id: orderItems.id,
+                orderId: orderItems.orderId,
+                partId: orderItems.partId,
+                quantity: orderItems.quantity,
+                unitPrice: orderItems.unitPrice,
+                partName: parts.name,
+                partSku: parts.sku,
+            })
+            .from(orderItems)
+            .leftJoin(parts, eq(orderItems.partId, parts.id))
+            .where(eq(orderItems.orderId, id));
+
+        return {
+            ...orderBase,
+            supplier: { name: orderBase.supplierName, contactEmail: orderBase.supplierEmail },
+            contract: orderBase.contractTitle ? { title: orderBase.contractTitle } : null,
+            items: itemsRaw.map((i) => ({ ...i, part: { name: i.partName, sku: i.partSku } })),
+        };
+    } catch {
+        return null;
     }
 }

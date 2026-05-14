@@ -36,6 +36,8 @@ export async function createTypedRecommendation(data: {
     dueDate?: Date;
     expiresAt?: Date;
 }) {
+    await requireAuth();
+
     const [rec] = await db.insert(agentRecommendations).values({
         agentName: data.agentName,
         recommendationType: data.recommendationType,

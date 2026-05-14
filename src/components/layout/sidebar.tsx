@@ -32,6 +32,7 @@ import { auth } from "@/auth";
 import { cn } from "@/lib/utils";
 import { AxiomLogo } from "@/components/shared/axiom-logo";
 import { NavLink } from "@/components/layout/nav-link";
+import { AGENT_REGISTRY } from "@/app/actions/agents/registry";
 import { canAccessAIFleet, canAccessAdminPath } from "@/lib/rbac";
 
 type SessionUser = {
@@ -92,6 +93,7 @@ export async function Sidebar({ className }: { className?: string }) {
             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
             : "border-blue-200 bg-blue-50 text-blue-700";
     const homeLabel = role === "admin" ? "Admin Console" : role === "supplier" ? "Supplier Portal" : "Workspace";
+    const enabledAgentCount = AGENT_REGISTRY.filter((agent) => agent.isEnabled).length;
 
     return (
         <div
@@ -143,7 +145,7 @@ export async function Sidebar({ className }: { className?: string }) {
                             <span className="flex items-center rounded-md border border-emerald-400/25 bg-emerald-500/14 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 transition-all hover:bg-emerald-500/20">
                                 <Layers className="mr-2 h-4 w-4 text-emerald-200" />
                                 AI Agents
-                                <span className="ml-auto rounded-full bg-emerald-300/18 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">10</span>
+                                <span className="ml-auto rounded-full bg-emerald-300/18 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">{enabledAgentCount}</span>
                             </span>
                         </Link>
                     )}

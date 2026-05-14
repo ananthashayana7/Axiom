@@ -13,6 +13,7 @@ import {
     Inbox,
     LayoutDashboard,
     LifeBuoy,
+    LineChart,
     Package,
     PiggyBank,
     Settings,
@@ -23,6 +24,7 @@ import {
     Truck,
     UserCog,
     Users,
+    Warehouse,
 } from "lucide-react";
 import { canAccessAIFleet, canAccessAdminPath, type SessionAccessUser } from "@/lib/rbac";
 
@@ -42,23 +44,23 @@ export type NavigationSection = {
 };
 
 const adminControlLinks: NavigationLink[] = [
-    { label: 'Fraud Alerts', icon: ShieldAlert, href: '/admin/fraud-alerts' },
-    { label: 'Telemetry', icon: History, href: '/admin/telemetry' },
-    { label: 'Financial Matching', icon: CreditCard, href: '/admin/financial-matching' },
-    { label: 'Spend Intelligence', icon: BarChart3, href: '/admin/analytics' },
-    { label: 'Risk Intelligence', icon: ShieldAlert, href: '/admin/risk' },
+    { label: 'Fraud Alerts',       icon: ShieldAlert, href: '/admin/fraud-alerts'      },
+    { label: 'Telemetry',          icon: History,     href: '/admin/telemetry'           },
+    { label: 'Financial Matching', icon: CreditCard,  href: '/admin/financial-matching'  },
+    { label: 'Spend Intelligence', icon: BarChart3,   href: '/admin/analytics'           },
+    { label: 'Risk Intelligence',  icon: ShieldAlert, href: '/admin/risk'                },
 ];
 
 const adminOperationLinks: NavigationLink[] = [
-    { label: 'Task Inbox', icon: Inbox, href: '/admin/tasks' },
-    { label: 'Compliance', icon: ShieldCheck, href: '/admin/compliance' },
-    { label: 'User Management', icon: UserCog, href: '/admin/users' },
-    { label: 'Support Tickets', icon: LifeBuoy, href: '/admin/support' },
-    { label: 'Audit Trail', icon: History, href: '/admin/audit' },
-    { label: 'Import Data', icon: FileUp, href: '/admin/import' },
-    { label: 'Admin Settings', icon: Settings, href: '/admin/settings' },
-    { label: 'Scenario Modeling', icon: BarChart3, href: '/admin/scenarios' },
-    { label: 'Supplier Ecosystem', icon: Users, href: '/admin/ecosystem' },
+    { label: 'Task Inbox',         icon: Inbox,       href: '/admin/tasks'      },
+    { label: 'Compliance',         icon: ShieldCheck, href: '/admin/compliance' },
+    { label: 'User Management',    icon: UserCog,     href: '/admin/users'      },
+    { label: 'Support Tickets',    icon: LifeBuoy,    href: '/admin/support'    },
+    { label: 'Audit Trail',        icon: History,     href: '/admin/audit'      },
+    { label: 'Import Data',        icon: FileUp,      href: '/admin/import'     },
+    { label: 'Admin Settings',     icon: Settings,    href: '/admin/settings'   },
+    { label: 'Scenario Modeling',  icon: BarChart3,   href: '/admin/scenarios'  },
+    { label: 'Supplier Ecosystem', icon: Users,       href: '/admin/ecosystem'  },
 ];
 
 export function getNavigationSections(user: NavigationRole): NavigationSection[] {
@@ -74,9 +76,11 @@ export function getNavigationSections(user: NavigationRole): NavigationSection[]
         {
             id: 'primary',
             links: [
-                { label: workspaceLabel, icon: LayoutDashboard, href: role === 'supplier' ? '/portal' : '/' },
-                ...(role !== 'supplier' ? [{ label: 'Suppliers', icon: Users, href: '/suppliers' }] : []),
-                ...(role !== 'supplier' ? [{ label: 'Axiom Copilot', icon: Sparkles, href: '/copilot', emphasis: 'copilot' as const }] : []),
+                { label: workspaceLabel,    icon: LayoutDashboard, href: role === 'supplier' ? '/portal' : '/' },
+                ...(role !== 'supplier' ? [{ label: 'Suppliers',        icon: Users,       href: '/suppliers'   }] : []),
+                // NEW: Analytics Studio — the selling-point visualization section
+                ...(role !== 'supplier' ? [{ label: 'Analytics Studio', icon: LineChart,   href: '/analytics'   }] : []),
+                ...(role !== 'supplier' ? [{ label: 'Axiom Copilot',    icon: Sparkles,    href: '/copilot', emphasis: 'copilot' as const }] : []),
                 ...(role === 'admin' && canAccessAIFleet(user) ? [{ label: 'AI Agents', icon: Sparkles, href: '/admin/agents', emphasis: 'agents' as const }] : []),
             ],
         },
@@ -85,35 +89,37 @@ export function getNavigationSections(user: NavigationRole): NavigationSection[]
                 id: 'sourcing',
                 title: 'Sourcing',
                 links: [
-                    { label: 'Parts Catalog', icon: Package, href: '/sourcing/parts' },
-                    { label: 'Sourcing Requests', icon: FileText, href: '/sourcing/rfqs' },
-                    { label: 'Requisitions', icon: ShoppingCart, href: '/sourcing/requisitions' },
-                    { label: 'Orders', icon: ShoppingCart, href: '/sourcing/orders' },
-                    { label: 'Goods Receipts', icon: Truck, href: '/sourcing/goods-receipts' },
-                    { label: 'Exception Management', icon: AlertTriangle, href: '/sourcing/exceptions' },
-                    { label: 'Invoice Records', icon: FileText, href: '/sourcing/invoices' },
-                    { label: 'Agreements', icon: FileText, href: '/sourcing/contracts' },
-                    { label: 'Transactions', icon: ArrowRightLeft, href: '/transactions' },
-                    { label: 'Contacts', icon: ContactRound, href: '/contacts' },
-                    { label: 'Savings', icon: PiggyBank, href: '/savings' },
+                    { label: 'Parts Catalog',        icon: Package,       href: '/sourcing/parts'          },
+                    { label: 'Sourcing Requests',    icon: FileText,      href: '/sourcing/rfqs'           },
+                    { label: 'Requisitions',         icon: ShoppingCart,  href: '/sourcing/requisitions'   },
+                    { label: 'Orders',               icon: ShoppingCart,  href: '/sourcing/orders'         },
+                    { label: 'Goods Receipts',       icon: Truck,         href: '/sourcing/goods-receipts' },
+                    { label: 'Exception Management', icon: AlertTriangle, href: '/sourcing/exceptions'     },
+                    { label: 'Invoice Records',      icon: FileText,      href: '/sourcing/invoices'       },
+                    { label: 'Agreements',           icon: FileText,      href: '/sourcing/contracts'      },
+                    // NEW: Inventory (was a hidden route, now surfaced in nav)
+                    { label: 'Inventory',            icon: Warehouse,     href: '/inventory'               },
+                    { label: 'Transactions',         icon: ArrowRightLeft, href: '/transactions'           },
+                    { label: 'Contacts',             icon: ContactRound,  href: '/contacts'                },
+                    { label: 'Savings',              icon: PiggyBank,     href: '/savings'                 },
                 ],
             }]
             : [{
                 id: 'vendor-portal',
                 title: 'Vendor Portal',
                 links: [
-                    { label: 'My Portal', icon: LayoutDashboard, href: '/portal' },
-                    { label: 'Incoming Bids', icon: FileText, href: '/portal/rfqs' },
-                    { label: 'Active Orders', icon: ShoppingCart, href: '/portal/orders' },
-                    { label: 'My Documents', icon: FileText, href: '/portal/documents' },
-                    { label: 'Requests & Tasks', icon: ClipboardList, href: '/portal/requests' },
+                    { label: 'My Portal',        icon: LayoutDashboard, href: '/portal'           },
+                    { label: 'Incoming Bids',    icon: FileText,        href: '/portal/rfqs'      },
+                    { label: 'Active Orders',    icon: ShoppingCart,    href: '/portal/orders'    },
+                    { label: 'My Documents',     icon: FileText,        href: '/portal/documents' },
+                    { label: 'Requests & Tasks', icon: ClipboardList,   href: '/portal/requests'  },
                 ],
             }]),
         {
             id: 'resources',
             title: 'Resources',
             links: [
-                ...(role !== 'supplier' ? [{ label: 'Axiom Playbook', icon: BookOpen, href: '/docs' }] : []),
+                ...(role !== 'supplier' ? [{ label: 'Axiom Playbook', icon: BookOpen, href: '/docs'    }] : []),
                 { label: 'Help & Support', icon: LifeBuoy, href: '/support' },
             ],
         },

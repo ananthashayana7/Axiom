@@ -117,6 +117,11 @@ export async function getUsers() {
 
 export async function getDepartmentLeads() {
     try {
+        const session = await auth();
+        if (!session?.user) {
+            return [];
+        }
+
         return await db.select({
             id: users.id,
             name: users.name,

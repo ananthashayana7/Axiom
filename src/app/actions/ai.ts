@@ -13,6 +13,7 @@ import {
     costCenters,
     contracts,
 } from "@/db/schema";
+import { platformSettings } from "@/db/schema";
 import { eq, sum, desc, sql, count, asc, ilike } from "drizzle-orm";
 import { auth } from "@/auth";
 import { TelemetryService } from "@/lib/telemetry";
@@ -26,6 +27,12 @@ import { createInvoice, getInvoices } from "./invoices";
 import { triggerAgentDispatch } from "./agents";
 
 // Remove hardcoded key, using provider
+
+async function getPlatformCurrency(): Promise<string> {
+    const [row] = await db
+        .select({ defaultCurrency: platformSettings.defaultCurrency }).from(platformSettings).limit(1).catch(() => [undefined]);
+    return row?.defaultCurrency ?? 'USD'; 
+}
 
 async function getDatabaseContext() {
     try {
@@ -69,7 +76,13 @@ async function getDatabaseContext() {
                 suppliers: supCount.count,
                 parts: pCount.count,
                 orders: ordCount.count,
-                totalSpend: Number(totalSpend).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })
+                totalSpend: await (async () => {
+                    const currency = await getPlatformCurrency();
+                    try {
+                        return new Intl.NumberFormat('en', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(totalSpend));
+                    } catch { return `${currency} ${Number(totalSpend).toLocaleString()}`; }
+                })(),
+                platformCurrency: await getPlatformCurrency(),
             },
             topCategories: categorySpend,
             riskySuppliers,
@@ -703,7 +716,7 @@ function formatInvoiceRows(rows: Awaited<ReturnType<typeof getInvoices>>) {
             invoice.invoiceNumber,
             invoice.supplierName || "Unknown supplier",
             invoice.status || "unknown",
-            formatMoneyValue(invoice.amount, invoice.currency || "INR"),
+            formatMoneyValue(invoice.amount, invoice.currency || "USD"),
             formatDateValue(invoice.invoiceDate),
         ]))
     );
@@ -867,7 +880,8 @@ function renderWorkspaceHitDetail(hit: SearchHit, _query: string) {
                 `### Part: ${part.name}`,
                 `- SKU: ${part.sku}`,
                 `- Category: ${part.category}`,
-                `- Price: ${formatMoneyValue(part.price, "INR")}`,
+                `- Price: ${formatMoneyValue(part.price, "USD")}`,
+
                 `- Stock level: ${part.stockLevel}`,
                 `- Reorder point: ${part.reorderPoint ?? "Not set"}`,
                 `- Market trend: ${part.marketTrend || "stable"}`,
@@ -884,7 +898,7 @@ function renderWorkspaceHitDetail(hit: SearchHit, _query: string) {
                 `- Company: ${contact.company || contact.supplierName || "Not set"}`,
                 `- Job title: ${contact.jobTitle || "Not set"}`,
                 `- Region: ${[contact.region, contact.country].filter(Boolean).join(", ") || "Not set"}`,
-                `- Currency lens: ${contact.currency || "INR"}`,
+                `- Currency lens: ${contact.currency || "USD"}`,
                 "(Source: Workspace -> Contacts)",
             ].join("\n");
         }
@@ -906,7 +920,7 @@ function renderWorkspaceHitDetail(hit: SearchHit, _query: string) {
                 `### Invoice: ${invoice.invoiceNumber}`,
                 `- Supplier: ${invoice.supplierName || "Unknown supplier"}`,
                 `- Status: ${invoice.status || "unknown"}`,
-                `- Amount: ${formatMoneyValue(invoice.amount, invoice.currency || "INR")}`,
+                `- Amount: ${formatMoneyValue(invoice.amount, invoice.currency || "USD")}`,
                 `- Invoice date: ${formatDateValue(invoice.invoiceDate)}`,
                 `- Due date: ${formatDateValue(invoice.dueDate)}`,
                 `- PO reference: ${invoice.purchaseOrderRef || "Not set"}`,
@@ -919,7 +933,8 @@ function renderWorkspaceHitDetail(hit: SearchHit, _query: string) {
                 `### Order: ${String(order.id).slice(0, 8).toUpperCase()}`,
                 `- Supplier: ${order.supplierName || "Unknown supplier"}`,
                 `- Status: ${order.status || "unknown"}`,
-                `- Total amount: ${formatMoneyValue(order.totalAmount, "INR")}`,
+                `- Total amount: ${formatMoneyValue(order.totalAmount, "USD")}`,
+
                 `- Carrier: ${order.carrier || "Not set"}`,
                 `- Tracking number: ${order.trackingNumber || "Not set"}`,
                 `- Estimated arrival: ${formatDateValue(order.estimatedArrival)}`,
@@ -944,7 +959,8 @@ function renderWorkspaceHitDetail(hit: SearchHit, _query: string) {
                 `- Supplier: ${contract.supplierName || "Unknown supplier"}`,
                 `- Type: ${contract.type || "one_off"}`,
                 `- Status: ${contract.status || "draft"}`,
-                `- Value: ${formatMoneyValue(contract.value, "INR")}`,
+                `- Value: ${formatMoneyValue(contract.value, "USD")}`,
+
                 `- Validity: ${formatDateValue(contract.validFrom)} to ${formatDateValue(contract.validTo)}`,
                 "(Source: Workspace -> Contracts)",
             ].join("\n");
@@ -1129,12 +1145,16 @@ function maybeAnswerCopilotMetaQuery(
     return null;
 }
 
-function formatOfflineCurrency(value: number) {
-    return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 0,
-    }).format(value);
+function formatOfflineCurrency(value: number, currency = "USD") {
+    try {
+        return new Intl.NumberFormat("en", {
+            style: "currency",
+            currency,
+            maximumFractionDigits: 0,
+        }).format(value);
+    } catch {
+        return `${currency} ${value.toLocaleString()}`;
+    }
 }
 
 function buildOfflineCopilotResponse(
@@ -1376,7 +1396,10 @@ export async function processCopilotQuery(
                    - Supported chartType values: "bar", "pie", "line", "area", "scatter", "radar"
                    - Use "bar" for comparing categories, "pie" for proportions, "line" for trends over time, "area" for cumulative trends, "scatter" for correlations, "radar" for multi-metric comparison.
                    - Choose the most appropriate chart type for the data being visualized.
-                 5. FORMATTING: Use the appropriate currency symbol based on the data context. Default to ₹ for Indian Rupee values.
+                 5. FORMATTING: Use the appropriate currency symbol based on each record's own currency field.
+                    The platform reporting currency is set in Admin → Settings. NEVER assume INR or any single currency.
+                    Always show the currency code alongside amounts (e.g. "USD 50,000" or "€42,000").
+                    When a record has no currency field, use the platform reporting currency from the database context.
                  6. GROUNDING & RELIABILITY: 
                     - Answer using the provided "Database State", "Product Knowledge", uploaded file content (if any), and conversation history.
                     - If a user asks about Axiom features, workflows, modules, support processes, or AI agents, answer from "Product Knowledge" even if the exact live database record is unavailable.
@@ -1805,7 +1828,7 @@ async function processDocumentAttachment(
                     supplierId,
                     invoiceNumber: extracted.invoiceNumber,
                     amount: extracted.amount,
-                    currency: extracted.currency || "INR",
+                    currency: extracted.currency || (await getPlatformCurrency()),
                     invoiceDate: extracted.invoiceDate || undefined,
                     dueDate: extracted.dueDate || undefined,
                     taxAmount: extracted.taxAmount ?? undefined,

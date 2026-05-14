@@ -103,6 +103,9 @@ export async function updateActionPlanStatus(planId: string, status: 'draft' | '
 }
 
 export async function updateActionPlanSteps(planId: string, steps: Array<{ title: string; description: string; status: string; dueDate?: string }>) {
+    const user = await requireAuth();
+    if (user.role !== 'admin' && user.role !== 'user') throw new Error('Access denied');
+
     const [updated] = await db.update(supplierActionPlans)
         .set({ steps: JSON.stringify(steps), updatedAt: new Date() })
         .where(eq(supplierActionPlans.id, planId))

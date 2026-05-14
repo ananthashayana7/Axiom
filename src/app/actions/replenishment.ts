@@ -4,8 +4,11 @@ import { db } from "@/db";
 import { parts, procurementOrders, orderItems } from "@/db/schema";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { getAiModel } from "@/lib/ai-provider";
+import { auth } from "@/auth";
 
 export async function getSuggestedReplenishments() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
     try {
         // 1. Find parts where stockLevel < minStockLevel (or just low)
         const allParts = await db.select().from(parts);
@@ -56,6 +59,8 @@ export async function getSuggestedReplenishments() {
 }
 
 export async function predictReplenishmentAlert(partId: string) {
+    const session = await auth();
+    if (!session?.user?.id) return null;
     try {
         const [part] = await db.select().from(parts).where(eq(parts.id, partId));
         if (!part) return null;

@@ -1,7 +1,4 @@
-import { db } from "@/db";
-import { requisitions, users } from "@/db/schema";
 import { auth } from "@/auth";
-import { desc, eq } from "drizzle-orm";
 import { getRequisitions } from "@/app/actions/requisitions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

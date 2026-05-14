@@ -20,6 +20,7 @@ import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { TelemetryService } from "@/lib/telemetry";
 import { createNotification } from "@/app/actions/notifications";
 import type { AgentResult, FraudAlert } from "@/lib/ai/agent-types";
+import { enforceServerActionRateLimit } from "@/lib/server-action-rate-limit";
 
 /**
  * Main fraud detection function
@@ -31,10 +32,22 @@ export async function runFraudDetectionAgent(
     const startTime = Date.now();
     const session = await auth();
 
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== 'admin') {
         return {
             success: false,
             error: "Unauthorized",
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "fraud-detection",
+            timestamp: new Date()
+        };
+    }
+
+    const rateLimit = await enforceServerActionRateLimit("fraud-detection", session.user.id, { cost: 10 });
+    if (rateLimit) {
+        return {
+            success: false,
+            error: rateLimit.message,
             confidence: 0,
             executionTimeMs: Date.now() - startTime,
             agentName: "fraud-detection",

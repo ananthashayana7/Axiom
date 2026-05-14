@@ -15,6 +15,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AgentResult } from "@/lib/ai/agent-types";
 import { convertCurrencyAmount, parseFinanceSettings, type FinanceSettings } from "@/lib/finance";
 import { canAccessScenarioModeling } from "@/lib/rbac";
+import { enforceServerActionRateLimit } from "@/lib/server-action-rate-limit";
 import { FX_RATE_STALE_HOURS, SUPPLIER_RELEASE_RISK_THRESHOLD } from "@/lib/sourcing-guardrails";
 import { TelemetryService } from "@/lib/telemetry";
 
@@ -821,10 +822,22 @@ export async function runScenarioAnalysis(
     const startTime = Date.now();
     const session = await auth();
 
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== 'admin' || !canAccessScenarioModeling(session.user)) {
         return {
             success: false,
             error: "Unauthorized",
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "scenario-modeling",
+            timestamp: new Date(),
+        };
+    }
+
+    const rateLimit = await enforceServerActionRateLimit("scenario-modeling", session.user.id, { cost: 8 });
+    if (rateLimit) {
+        return {
+            success: false,
+            error: rateLimit.message,
             confidence: 0,
             executionTimeMs: Date.now() - startTime,
             agentName: "scenario-modeling",
@@ -875,6 +888,18 @@ export async function stageScenarioExecutionPlan(
         return {
             success: false,
             error: "Unauthorized",
+            confidence: 0,
+            executionTimeMs: Date.now() - startTime,
+            agentName: "scenario-modeling",
+            timestamp: new Date(),
+        };
+    }
+
+    const rateLimit = await enforceServerActionRateLimit("scenario-execution-plan", session.user.id, { cost: 8 });
+    if (rateLimit) {
+        return {
+            success: false,
+            error: rateLimit.message,
             confidence: 0,
             executionTimeMs: Date.now() - startTime,
             agentName: "scenario-modeling",
@@ -1049,7 +1074,7 @@ export async function compareScenarios(
     const startTime = Date.now();
     const session = await auth();
 
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== 'admin' || !canAccessScenarioModeling(session.user)) {
         return {
             success: false,
             error: "Unauthorized",

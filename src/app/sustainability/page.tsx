@@ -1,6 +1,4 @@
-import { db } from "@/db";
-import { suppliers } from "@/db/schema";
-import { sql, desc } from "drizzle-orm";
+import { getSustainabilityData } from "@/app/actions/risk";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -30,7 +28,7 @@ export default async function SustainabilityPage() {
     const role = (session?.user as SessionUser | undefined)?.role;
     if (role === 'supplier') redirect('/portal');
 
-    const allSuppliers = await db.select().from(suppliers).orderBy(desc(suppliers.esgScore));
+    const allSuppliers = await getSustainabilityData();
 
     // Aggregate carbon data
     const totalScope1 = allSuppliers.reduce((s, sup) => s + parseFloat(sup.carbonFootprintScope1 ?? '0'), 0);

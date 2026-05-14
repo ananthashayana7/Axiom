@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 
 import { auth } from "@/auth";
-import { db } from "@/db";
-import { platformSettings } from "@/db/schema";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -14,8 +13,15 @@ import { VersionShield } from "@/components/shared/version-shield";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getRuntimeVersionSnapshot } from "@/lib/build-info";
 import { Toaster } from "sonner";
+import { getPlatformSettingsForLayout } from "@/app/actions/settings";
 
 import "./globals.css";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Axiom Platform",
@@ -33,19 +39,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
-  const [settings] = await db
-    .select({
-      defaultCurrency: platformSettings.defaultCurrency,
-      exchangeRates: platformSettings.exchangeRates,
-    })
-    .from(platformSettings)
-    .limit(1);
+  const settings = await getPlatformSettingsForLayout();
   const runtimeVersion = getRuntimeVersionSnapshot();
 
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className="min-h-[100dvh] overflow-hidden bg-background text-foreground antialiased"
+        className={`${geistSans.variable} min-h-[100dvh] overflow-hidden bg-background text-foreground antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider

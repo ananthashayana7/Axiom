@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-export const dynamic = 'force-dynamic'
+import { Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Activity, ArrowUpRight, Boxes, CreditCard, Database, Landmark, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,9 @@ import { canAccessAIFleet, canAccessRiskIntelligence, canAccessScenarioModeling,
 import { ProcurementCommandBoard } from "@/components/dashboard/procurement-command-board";
 import { getAllTasks } from "@/app/actions/workflow-tasks";
 import { getAllTickets } from "@/app/actions/support";
+import { RouteLoadingSkeleton } from "@/components/shared/route-loading-skeleton";
+
+export const dynamic = 'force-dynamic'
 
 type SessionUser = {
   id?: string;
@@ -30,6 +33,18 @@ type SessionUser = {
 
 export default async function Home() {
   const session = await auth();
+  return (
+    <Suspense fallback={<RouteLoadingSkeleton cards={4} rows={7} />}>
+      <DashboardContent session={session} />
+    </Suspense>
+  );
+}
+
+async function DashboardContent({
+  session,
+}: {
+  session: Awaited<ReturnType<typeof auth>>;
+}) {
   const currentUser = session?.user as SessionUser | undefined;
   const userRole = currentUser?.role;
   const isAdmin = userRole === 'admin';

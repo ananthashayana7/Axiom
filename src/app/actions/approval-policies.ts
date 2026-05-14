@@ -74,6 +74,8 @@ export async function evaluateApprovalPolicy(entityType: string, context: {
     supplierRiskScore?: number;
     hasContract?: boolean;
 }) {
+    await requireAdmin();
+
     const policies = await db.select()
         .from(approvalPolicies)
         .where(and(
@@ -201,6 +203,8 @@ export async function getMatchingTolerances() {
 }
 
 export async function getToleranceForContext(category?: string, supplierId?: string) {
+    await requireAdmin();
+
     // Find most specific tolerance: supplier-specific > category > global
     const tolerances = await db.select()
         .from(matchingTolerances)

@@ -13,7 +13,18 @@ function buildAppBaseUrl() {
     return process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 }
 
-export async function sendUserEmail(to: string, userName: string) {
+/**
+ * FIX: sendUserEmail now requires subject + body so no email is ever
+ * sent with a blank subject or canned generic body.
+ * Previously: sendUserEmail(to, userName) — auto-sent a canned message.
+ * Now:        sendUserEmail(to, userName, subject, body) — user composes first.
+ */
+export async function sendUserEmail(
+    to: string,
+    userName: string,
+    subject: string,
+    body: string,
+) {
     const session = await auth();
     if (!session) {
         return { success: false, error: "Not authenticated" };
@@ -21,25 +32,22 @@ export async function sendUserEmail(to: string, userName: string) {
 
     const senderName = session.user?.name || "Axiom Admin";
 
+    if (!subject?.trim()) return { success: false, error: "Subject is required" };
+    if (!body?.trim())    return { success: false, error: "Message body is required" };
+
     try {
         const result = await sendEmail({
             to,
-            subject: `Message from ${senderName} via Axiom`,
-            body: `
-Dear ${userName},
-
-You have received a notification from ${senderName} via the Axiom Procurement Platform.
-
-Message content:
---------------------------------------------------
-Please follow up on the latest requisition/supplier updates on your dashboard.
---------------------------------------------------
-
-This is an automated message sent from a no-reply address. Please do not reply directly to this email.
-
-Best regards,
-The Axiom Team
-            `.trim()
+            subject: subject.trim(),
+            body: [
+                `Dear ${userName},`,
+                ``,
+                body.trim(),
+                ``,
+                `—`,
+                `Sent by ${senderName} via Axiom Procurement Platform`,
+                `${buildAppBaseUrl()}`,
+            ].join('\n'),
         });
         if (!result.success) {
             console.error("Failed to send user email:", result.error);
@@ -166,11 +174,9 @@ export async function sendSupplierMessage(data: {
         return { success: false, error: "Supplier not found." };
     }
 
+    // Fetch portal users for this supplier so we can send in-app notifications
     const supplierPortalUsers = await db
-        .select({
-            id: users.id,
-            email: users.email,
-        })
+        .select({ id: users.id, email: users.email })
         .from(users)
         .where(and(eq(users.role, 'supplier'), eq(users.supplierId, supplier.id)));
 
@@ -194,6 +200,7 @@ export async function sendSupplierMessage(data: {
         body,
     ].join('\n');
 
+    // Log primary supplier message thread
     await db.insert(comments).values({
         userId: session.user.id,
         entityType: 'supplier_message',
@@ -201,6 +208,7 @@ export async function sendSupplierMessage(data: {
         text: threadBody,
     });
 
+    // Log context-specific thread entry if applicable
     if (hasContext && data.contextType && data.contextId) {
         await db.insert(comments).values({
             userId: session.user.id,
@@ -216,6 +224,7 @@ export async function sendSupplierMessage(data: {
         });
     }
 
+    // Send in-app notifications to portal users
     const notificationResults = await Promise.allSettled(
         supplierPortalUsers.map((user) =>
             createNotification({
@@ -232,6 +241,7 @@ export async function sendSupplierMessage(data: {
         (result) => result.status === 'fulfilled' && result.value.success,
     ).length;
 
+    // Send outbound email (graceful when SMTP not configured)
     const emailResult = await sendEmail({
         to: supplier.contactEmail,
         replyTo: senderEmail,

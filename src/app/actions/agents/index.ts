@@ -88,6 +88,7 @@ import {
     type AgentName,
     type AgentBundleName,
 } from './registry';
+import { enforceServerActionRateLimit } from "@/lib/server-action-rate-limit";
 
 export {
     runDemandForecastingAgent,
@@ -229,6 +230,16 @@ function parseAiFleetStopMetadata(raw: string | null | undefined) {
 }
 
 export async function getAiFleetEmergencyStopState(): Promise<AiFleetEmergencyStopState> {
+    const session = await auth();
+    if (!session?.user) {
+        return {
+            enabled: false,
+            reason: null,
+            triggeredAt: null,
+            triggeredBy: null,
+        };
+    }
+
     const [latest] = await db.select({
         value: systemTelemetry.value,
         metadata: systemTelemetry.metadata,
@@ -504,6 +515,26 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
         };
     }
 
+    const rateLimit = await enforceServerActionRateLimit("agent-dispatch", session.user.id, { cost: 5 });
+    if (rateLimit) {
+        await safeTrackEvent('AgentDispatch', 'blocked_rate_limited', { agentName, role });
+        return {
+            success: false,
+            error: rateLimit.message,
+            agentName,
+            timestamp: new Date(),
+            executionTimeMs: Date.now() - started,
+            confidence: 0,
+            attempts: 0,
+            dashboardHref: agentMeta.dashboardHref,
+            summary: createFailureSummary(
+                'Launch rate limited',
+                rateLimit.message,
+                agentMeta.dashboardHref,
+            ),
+        };
+    }
+
     const fleetStopState = await getAiFleetEmergencyStopState();
     if (fleetStopState.enabled) {
         await safeTrackEvent('AgentDispatch', 'blocked_emergency_stop', {
@@ -695,9 +726,36 @@ export async function triggerAgentDispatch(agentName: AgentName): Promise<AgentD
 }
 
 export async function triggerAgentBundle(bundleName: AgentBundleName): Promise<AgentBundleDispatchResult> {
+    const session = await auth();
     const bundleMeta = AGENT_BUNDLE_META[bundleName];
     const agents = AGENT_BUNDLES[bundleName];
     const results: AgentBundleDispatchResult['results'] = [];
+
+    if (!session?.user || session.user.role !== 'admin') {
+        return {
+            success: false,
+            bundle: bundleName,
+            displayName: bundleMeta.displayName,
+            description: bundleMeta.description,
+            dashboardHref: bundleMeta.dashboardHref,
+            total: agents.length,
+            succeeded: 0,
+            failed: agents.length,
+            results: agents.map((agent) => ({
+                agent,
+                success: false,
+                error: "Unauthorized",
+                executionTimeMs: 0,
+                attempts: 0,
+                dashboardHref: getAgentMeta(agent)?.dashboardHref ?? bundleMeta.dashboardHref,
+                summary: createFailureSummary(
+                    'Authentication required',
+                    'Sign in as an administrator before launching an agent bundle.',
+                    getAgentMeta(agent)?.dashboardHref ?? bundleMeta.dashboardHref,
+                ),
+            })),
+        };
+    }
 
     for (const agent of agents) {
         const started = Date.now();
@@ -727,6 +785,26 @@ export async function triggerAgentBundle(bundleName: AgentBundleName): Promise<A
 }
 
 export async function getAgentDashboardSnapshot(): Promise<AgentDashboardSnapshot> {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return {
+            generatedAt: new Date().toISOString(),
+            fraudAlerts: 0,
+            criticalFraudAlerts: 0,
+            paymentSavings: 0,
+            pendingPaymentOpportunities: 0,
+            replenishmentAlerts: 0,
+            degradedPanels: ['auth'],
+            systemWarnings: ['Sign in as an administrator to refresh the AI fleet snapshot.'],
+            aiFleetStop: {
+                enabled: false,
+                reason: null,
+                triggeredAt: null,
+                triggeredBy: null,
+            },
+        };
+    }
+
     const panelResults = await Promise.allSettled([
         getOpenFraudAlerts(),
         getPaymentOptimizationSummary(),

@@ -82,6 +82,9 @@ export async function updateBudget(id: string, data: Partial<{
 // ─── Budget Availability Check ─────────────────────────────────────────
 
 export async function checkBudgetAvailability(budgetId: string, requestedAmount: number) {
+    const session = await auth();
+    if (!session?.user) return { available: false, error: "Unauthorized" };
+
     try {
         const [budget] = await db.select().from(budgets).where(eq(budgets.id, budgetId));
         if (!budget) return { available: false, error: "Budget not found" };
@@ -146,6 +149,9 @@ export async function consumeBudget(budgetId: string, amount: number) {
 // ─── Cost Center CRUD ────────────────────────────────────────────────────────
 
 export async function getCostCenters() {
+    const session = await auth();
+    if (!session?.user) return [];
+
     try {
         return await db.select().from(costCenters).orderBy(costCenters.code);
     } catch (error) {

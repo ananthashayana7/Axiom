@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { systemTelemetry, users } from "@/db/schema";
 import { auth } from "@/auth";
 import { desc, eq, sql } from "drizzle-orm";
+import { TelemetryService } from "@/lib/telemetry";
 
 export async function getSystemTelemetry() {
     const session = await auth();
@@ -52,5 +53,26 @@ export async function getTelemetryStats() {
     } catch (error) {
         console.error("Failed to fetch telemetry stats:", error);
         return null;
+    }
+}
+
+export async function trackClientErrorBoundary(input: {
+    scope: string;
+    digest?: string;
+    message?: string;
+}) {
+    try {
+        const session = await auth();
+        await TelemetryService.trackError(
+            "ClientErrorBoundary",
+            input.scope || "unknown_route",
+            new Error(input.message || "Client route error boundary tripped"),
+            {
+                digest: input.digest || null,
+                userId: session?.user?.id || null,
+            },
+        );
+    } catch (error) {
+        console.error("Failed to track client error boundary:", error);
     }
 }

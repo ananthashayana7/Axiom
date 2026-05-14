@@ -460,6 +460,9 @@ async function identifyStaleOrders(): Promise<RemediationAction[]> {
  * Get remediation rules for configuration
  */
 export async function getRemediationRules(): Promise<RemediationRule[]> {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') return [];
+
     return REMEDIATION_RULES;
 }
 
@@ -471,6 +474,15 @@ export async function getRemediationHistory(): Promise<{
     byType: { type: string; count: number }[];
     successRate: number;
 }> {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return {
+            totalActions: 0,
+            byType: [],
+            successRate: 0,
+        };
+    }
+
     // In production, this would query from a dedicated table
     return {
         totalActions: 47,

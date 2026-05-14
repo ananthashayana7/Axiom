@@ -73,6 +73,11 @@ export async function deleteWebhook(id: string) {
 // ─── Webhook Triggering ────────────────────────────────────────────────
 
 export async function triggerWebhook(event: string, payload: Record<string, unknown>) {
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+        return;
+    }
+
     try {
         // Find all active webhooks that subscribe to this event
         const activeWebhooks = await db

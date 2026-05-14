@@ -194,6 +194,26 @@ export async function getSettings() {
     }
 }
 
+/**
+ * Publicly accessible (read-only) settings for the root layout.
+ * Used to initialize the CurrencyProvider without requiring admin privileges.
+ */
+export async function getPlatformSettingsForLayout() {
+    try {
+        const [settings] = await db
+            .select({
+                defaultCurrency: platformSettings.defaultCurrency,
+                exchangeRates: platformSettings.exchangeRates,
+            })
+            .from(platformSettings)
+            .limit(1);
+        return settings || { defaultCurrency: 'INR', exchangeRates: null };
+    } catch (error) {
+        console.error("Layout Settings Fetch Error:", error);
+        return { defaultCurrency: 'INR', exchangeRates: null };
+    }
+}
+
 export async function updateSettings(formData: FormData) {
     try {
         const session = await auth();

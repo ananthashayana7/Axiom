@@ -27,7 +27,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils/currency";
 
-const CHART_COLORS = ["#2563eb", "#7c3aed", "#0f766e", "#f59e0b", "#ef4444", "#14b8a6"];
+const CHART_COLORS = [
+    "hsl(221, 83%, 53%)", // Vibrant Blue
+    "hsl(262, 83%, 58%)", // Rich Purple
+    "hsl(160, 84%, 39%)", // Emerald
+    "hsl(35, 92%, 53%)",  // Amber
+    "hsl(348, 83%, 47%)", // Rose
+    "hsl(199, 89%, 48%)", // Sky Blue
+];
 
 type QuickAction = {
     key: "support" | "suppliers" | "findings" | "tasks";
@@ -73,15 +80,15 @@ function QuickActionIcon({ actionKey }: { actionKey: QuickAction["key"] }) {
 function quickActionTone(actionKey: QuickAction["key"]) {
     switch (actionKey) {
         case "support":
-            return "border-slate-200 bg-slate-50";
+            return "border-slate-200/50 bg-gradient-to-br from-slate-50 to-slate-100 shadow-inner";
         case "suppliers":
-            return "border-blue-200 bg-blue-50";
+            return "border-blue-200/50 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-inner";
         case "findings":
-            return "border-rose-200 bg-rose-50";
+            return "border-rose-200/50 bg-gradient-to-br from-rose-50 to-orange-50 shadow-inner";
         case "tasks":
-            return "border-sky-200 bg-sky-50";
+            return "border-sky-200/50 bg-gradient-to-br from-sky-50 to-blue-50 shadow-inner";
         default:
-            return "border-slate-200 bg-slate-50";
+            return "border-slate-200/50 bg-gradient-to-br from-slate-50 to-slate-100 shadow-inner";
     }
 }
 
@@ -150,19 +157,19 @@ export function ProcurementCommandBoard({
             <div className="grid gap-3 xl:grid-cols-4">
                 {quickActions.map((action) => (
                     <Link key={action.key} href={action.href}>
-                        <Card className="h-full border-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                        <Card className="h-full border-slate-200/60 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/50 group">
                             <CardContent className="flex items-center gap-4 p-4">
-                                <div className={`rounded-2xl border p-4 ${quickActionTone(action.key)}`}>
+                                <div className={`rounded-2xl border p-4 transition-transform duration-300 group-hover:scale-105 ${quickActionTone(action.key)}`}>
                                     <QuickActionIcon actionKey={action.key} />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-3">
-                                        <p className="truncate text-base font-bold text-slate-900">{action.title}</p>
-                                        <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                                        <p className="truncate text-base font-bold text-slate-900 group-hover:text-primary transition-colors">{action.title}</p>
+                                        <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-primary transition-colors" />
                                     </div>
-                                    <p className="mt-1 text-sm text-slate-500">{action.subtitle}</p>
+                                    <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-1">{action.subtitle}</p>
                                     {action.countLabel ? (
-                                        <Badge variant="outline" className="mt-3 border-slate-200 bg-white text-slate-700">
+                                        <Badge variant="outline" className="mt-2.5 border-slate-200/60 bg-white/50 text-[10px] font-bold tracking-wider uppercase text-slate-700 backdrop-blur-sm">
                                             {action.countLabel}
                                         </Badge>
                                     ) : null}
@@ -189,22 +196,23 @@ export function ProcurementCommandBoard({
                             </CardHeader>
                             <CardContent className="min-w-0 pt-2">
                                 {monthlyData.length > 0 ? (
-                                    <div className="h-[300px] min-w-0">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
+                                    <div className="h-[300px] min-w-0 w-full relative">
+                                        <ResponsiveContainer width="100%" height={300}>
                                             <BarChart data={monthlyData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.18} />
-                                                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                                                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} tickMargin={8} />
                                                 <YAxis
                                                     tickLine={false}
                                                     axisLine={false}
-                                                    fontSize={12}
+                                                    fontSize={11}
                                                     tickFormatter={(value) => formatCurrency(value).replace(".00", "")}
                                                     width={80}
+                                                    tickMargin={8}
                                                 />
-                                                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37, 99, 235, 0.06)" }} />
-                                                <Bar dataKey="total" name="Spend" radius={[10, 10, 0, 0]}>
+                                                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37, 99, 235, 0.04)" }} />
+                                                <Bar dataKey="total" name="Spend" radius={[6, 6, 0, 0]} maxBarSize={48}>
                                                     {monthlyData.map((entry, index) => (
-                                                        <Cell key={`${entry.name}-${index}`} fill={index === monthlyData.length - 1 ? "#2563eb" : "#93c5fd"} />
+                                                        <Cell key={`${entry.name}-${index}`} fill={index === monthlyData.length - 1 ? "hsl(221, 83%, 53%)" : "hsl(221, 83%, 85%)"} className="transition-all duration-300 hover:opacity-80" />
                                                     ))}
                                                 </Bar>
                                             </BarChart>
@@ -226,19 +234,20 @@ export function ProcurementCommandBoard({
                             <CardContent className="min-w-0 pt-2">
                                 {topCategories.length > 0 ? (
                                     <>
-                                        <div className="h-[220px] min-w-0">
-                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                                        <div className="h-[220px] min-w-0 w-full relative">
+                                            <ResponsiveContainer width="100%" height={220}>
                                                 <PieChart>
                                                     <Pie
                                                         data={topCategories}
                                                         dataKey="value"
                                                         nameKey="name"
-                                                        innerRadius={48}
+                                                        innerRadius={54}
                                                         outerRadius={86}
-                                                        paddingAngle={3}
+                                                        paddingAngle={4}
+                                                        stroke="none"
                                                     >
                                                         {topCategories.map((entry, index) => (
-                                                            <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                                            <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} className="transition-all duration-300 hover:opacity-80" />
                                                         ))}
                                                     </Pie>
                                                     <Tooltip content={<ChartTooltip />} />

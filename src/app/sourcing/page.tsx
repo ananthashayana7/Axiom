@@ -14,12 +14,15 @@ import {
 import Link from "next/link";
 import { getSpendStats } from "@/app/actions/analytics";
 import { getMarketIntelligenceSummary } from "@/app/actions/cost-intelligence";
+import { getPlatformSettingsForLayout } from "@/app/actions/settings";
 import { RefreshBenchmarksButton } from "@/components/sourcing/refresh-benchmarks-button";
 import { auth } from "@/auth";
 
 export default async function SourcingIntelligencePage() {
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
+    const settings = await getPlatformSettingsForLayout();
+    const currencyCode = settings.defaultCurrency;
     const stats = await getSpendStats();
     const marketSummary = await getMarketIntelligenceSummary().catch(() => ({
         benchmarkCoverage: 0,
@@ -74,7 +77,7 @@ export default async function SourcingIntelligencePage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-emerald-700">INR {stats.realizedSavings.toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-emerald-700">{currencyCode} {stats.realizedSavings.toLocaleString()}</div>
                         <p className="text-[10px] text-stone-500 mt-1 uppercase tracking-wider font-bold">Total Savings Identified</p>
                     </CardContent>
                 </Card>
@@ -121,7 +124,7 @@ export default async function SourcingIntelligencePage() {
                             {leadCategory ? (
                                 <p className="text-sm text-stone-300 leading-relaxed">
                                     <strong>{leadCategory.category}</strong> is the strongest current negotiation target.
-                                    Buyers are paying around <strong>INR {leadCategory.averagePrice.toLocaleString()}</strong> against an internal benchmark of <strong>INR {leadCategory.benchmarkPrice.toLocaleString()}</strong>, leaving a <strong>{leadCategory.gapPercent}%</strong> pricing gap to attack.
+                                    Buyers are paying around <strong>{currencyCode} {leadCategory.averagePrice.toLocaleString()}</strong> against an internal benchmark of <strong>{currencyCode} {leadCategory.benchmarkPrice.toLocaleString()}</strong>, leaving a <strong>{leadCategory.gapPercent}%</strong> pricing gap to attack.
                                 </p>
                             ) : (
                                 <p className="text-sm text-stone-300 leading-relaxed">
@@ -160,8 +163,8 @@ export default async function SourcingIntelligencePage() {
                                         </div>
                                     </div>
                                     <div className="mt-2 text-xs text-muted-foreground flex items-center justify-between">
-                                        <span>Avg buy price: INR {category.averagePrice.toLocaleString()}</span>
-                                        <span>Benchmark: INR {category.benchmarkPrice.toLocaleString()}</span>
+                                        <span>Avg buy price: {currencyCode} {category.averagePrice.toLocaleString()}</span>
+                                        <span>Benchmark: {currencyCode} {category.benchmarkPrice.toLocaleString()}</span>
                                     </div>
                                 </div>
                             ))}

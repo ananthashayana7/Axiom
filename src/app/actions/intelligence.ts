@@ -5,8 +5,11 @@ import { rfqs, suppliers, procurementOrders, contracts } from "@/db/schema";
 import { count, desc, eq, sum } from "drizzle-orm";
 
 import { getAiModel } from "@/lib/ai-provider";
+import { auth } from "@/auth";
 
 export async function getMarketTrend(partName: string, category: string) {
+    const session = await auth();
+    if (!session?.user?.id) return null;
     try {
         const model = await getAiModel();
         if (!model) throw new Error("AI model not available");
@@ -20,6 +23,8 @@ export async function getMarketTrend(partName: string, category: string) {
 }
 
 export async function getDashboardStats() {
+    const session = await auth();
+    if (!session?.user?.id) return null;
     try {
         // Total spend from procurement orders
         const [spendResult] = await db.select({
@@ -64,6 +69,8 @@ export async function getDashboardStats() {
 }
 
 export async function getRecentRFQs() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
     try {
         const data = await db.query.rfqs.findMany({
             orderBy: [desc(rfqs.createdAt)],

@@ -224,6 +224,9 @@ export async function submitComplianceEvidence(obligationId: string, documentUrl
 }
 
 export async function checkExpiringObligations() {
+    const user = await requireAuth();
+    if (user.role !== 'admin') throw new Error('Admin access required');
+
     const now = new Date();
     const expiringObligations = await db.select({
         id: complianceObligations.id,

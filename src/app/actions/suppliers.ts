@@ -30,6 +30,7 @@ const CATEGORY_KEYWORDS: Array<{ category: string; keywords: string[] }> = [
     { category: "Chemicals", keywords: ["chemical", "coating", "adhesive", "solvent"] },
     { category: "Industrial Services", keywords: ["maintenance", "calibration", "field service", "industrial service"] },
 ];
+const LIST_QUERY_LIMIT = 500;
 
 function extractEmailDomain(email: string) {
     return email.split("@")[1]?.trim().toLowerCase() || "";
@@ -291,7 +292,7 @@ export async function getSuppliers(): Promise<Supplier[]> {
     if (!session) return [];
 
     try {
-        const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt);
+        const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt).limit(LIST_QUERY_LIMIT);
         if (!isRegionalOperator(session.user)) {
             return allSuppliers;
         }
@@ -335,7 +336,7 @@ export async function getSupplierWorkspaceRows() {
     if (!session) return [];
 
     try {
-        const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt);
+        const allSuppliers = await db.select().from(suppliers).orderBy(suppliers.createdAt).limit(LIST_QUERY_LIMIT);
         const scopedSuppliers = session.user.role === 'supplier'
             ? allSuppliers.filter((supplier) => supplier.id === session.user.supplierId)
             : isRegionalOperator(session.user)
@@ -578,7 +579,12 @@ export async function getSupplierOrders(supplierId: string) {
             return [];
         }
 
-        const orders = await db.select().from(procurementOrders).where(eq(procurementOrders.supplierId, supplierId));
+        const orders = await db
+            .select()
+            .from(procurementOrders)
+            .where(eq(procurementOrders.supplierId, supplierId))
+            .orderBy(desc(procurementOrders.createdAt))
+            .limit(LIST_QUERY_LIMIT);
         return orders;
     } catch (error) {
         console.error("Failed to fetch supplier orders:", error);

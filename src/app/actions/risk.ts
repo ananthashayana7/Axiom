@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, auditLogs } from "@/db/schema";
-import { count, avg, sql, eq } from "drizzle-orm";
+import { count, avg, sql, eq, desc } from "drizzle-orm";
 import { auth } from "@/auth";
 
 export async function getRiskComplianceStats() {
@@ -85,5 +85,48 @@ export async function mitigateRisk(supplierId: string, plan: MitigationPlanType,
     } catch (error) {
         console.error("Mitigation activation failed:", error);
         return { success: false, error: "System failure during mitigation activation" };
+    }
+}
+
+/**
+ * Returns the supplier rows needed by the Risk Dashboard page.
+ * Replaces the direct `db.select().from(suppliers)` that was in the page file.
+ */
+export async function getSupplierRiskProfiles() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
+    const role = (session.user as any)?.role;
+    if (role !== 'admin' && role !== 'user') return [];
+
+    try {
+        return await db.select({
+            id: suppliers.id,
+            name: suppliers.name,
+            riskScore: suppliers.riskScore,
+            esgScore: suppliers.esgScore,
+            financialScore: suppliers.financialScore,
+            latitude: suppliers.latitude,
+            longitude: suppliers.longitude,
+            countryCode: suppliers.countryCode,
+        }).from(suppliers);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Returns all supplier ESG / carbon data needed by the Sustainability page.
+ * Replaces the direct `db.select().from(suppliers)` in that page file.
+ */
+export async function getSustainabilityData() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
+    const role = (session.user as any)?.role;
+    if (role === 'supplier') return [];
+
+    try {
+        return await db.select().from(suppliers).orderBy(desc(suppliers.esgScore));
+    } catch {
+        return [];
     }
 }

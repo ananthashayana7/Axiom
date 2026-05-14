@@ -360,6 +360,7 @@ export async function getOverdueTasks() {
 }
 
 export async function getTasksByEntity(entityType: string, entityId: string) {
+    await requireAuth();
     await reconcileStaleWorkflowTasks();
     const entityValues: TaskEntityType[] = ['requisition', 'rfq', 'order', 'invoice', 'contract', 'supplier', 'compliance_obligation', 'agent_recommendation'];
     if (!entityValues.includes(entityType as TaskEntityType)) return [];

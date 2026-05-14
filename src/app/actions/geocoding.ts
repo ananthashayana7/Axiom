@@ -4,8 +4,11 @@ import { getAiModel } from "@/lib/ai-provider";
 import { db } from "@/db";
 import { suppliers } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "@/auth";
 
 export async function geocodeSupplier(supplierId: string) {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
     try {
         const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
         if (!supplier) return { success: false, error: "Supplier not found" };
@@ -58,6 +61,8 @@ export async function geocodeSupplier(supplierId: string) {
 }
 
 export async function batchGeocodeSuppliers() {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
     try {
         const allSuppliers = await db.select().from(suppliers);
         const results = [];

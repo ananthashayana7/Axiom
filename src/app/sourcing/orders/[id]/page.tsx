@@ -1,8 +1,7 @@
-import { db } from "@/db";
-import { procurementOrders, suppliers, contracts, orderItems, parts } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+export const dynamic = 'force-dynamic';
+
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getComments, getAuditLogs } from "@/app/actions/activity";
 import { CommentsSection } from "@/components/shared/comments";
@@ -11,8 +10,6 @@ import { auth } from "@/auth";
 import { ArrowLeft, ShoppingCart, Package, Building2, Calendar, FileText, Repeat } from "lucide-react";
 import Link from "next/link";
 
-export const dynamic = 'force-dynamic';
-
 import { OrderStatusStepper } from "@/components/sourcing/order-status-stepper";
 import { ThreeWayMatch } from "@/components/sourcing/three-way-match";
 import { UpdateLogisticsDialog } from "@/components/sourcing/update-logistics-dialog";
@@ -20,68 +17,15 @@ import { Truck, Globe } from "lucide-react";
 
 import { getDocuments } from "@/app/actions/documents";
 import { DocumentList } from "@/components/shared/document-list";
+import { getOrderById } from "@/app/actions/orders";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const session = await auth();
     const isAdmin = (session?.user as any)?.role === 'admin';
 
-    // 1. Fetch Order with Supplier and Contract (Minimal Fields)
-    const [orderBase] = await db
-        .select({
-            id: procurementOrders.id,
-            supplierId: procurementOrders.supplierId,
-            contractId: procurementOrders.contractId,
-            requisitionId: procurementOrders.requisitionId,
-            status: procurementOrders.status,
-            totalAmount: procurementOrders.totalAmount,
-            incoterms: procurementOrders.incoterms,
-            carrier: procurementOrders.carrier,
-            trackingNumber: procurementOrders.trackingNumber,
-            estimatedArrival: procurementOrders.estimatedArrival,
-            createdAt: procurementOrders.createdAt,
-            supplierName: suppliers.name,
-            supplierEmail: suppliers.contactEmail,
-            contractTitle: contracts.title,
-        })
-        .from(procurementOrders)
-        .leftJoin(suppliers, eq(procurementOrders.supplierId, suppliers.id))
-        .leftJoin(contracts, eq(procurementOrders.contractId, contracts.id))
-        .where(eq(procurementOrders.id, id))
-        .limit(1);
-
-    if (!orderBase) {
-        notFound();
-    }
-
-    // 2. Fetch Order Items with Parts (Minimal Fields)
-    const itemsRaw = await db
-        .select({
-            id: orderItems.id,
-            orderId: orderItems.orderId,
-            partId: orderItems.partId,
-            quantity: orderItems.quantity,
-            unitPrice: orderItems.unitPrice,
-            partName: parts.name,
-            partSku: parts.sku,
-        })
-        .from(orderItems)
-        .leftJoin(parts, eq(orderItems.partId, parts.id))
-        .where(eq(orderItems.orderId, id));
-
-    // Remap for component compatibility
-    const order = {
-        ...orderBase,
-        supplier: {
-            name: orderBase.supplierName,
-            contactEmail: orderBase.supplierEmail,
-        },
-        contract: orderBase.contractTitle ? { title: orderBase.contractTitle } : null,
-        items: itemsRaw.map(i => ({
-            ...i,
-            part: { name: i.partName, sku: i.partSku }
-        }))
-    };
+    // Fetches order with supplier-scoped access control via the server action
+    const order = await getOrderById(id);
 
     if (!order) {
         notFound();

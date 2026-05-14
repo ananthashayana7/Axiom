@@ -29,6 +29,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getThreeWayMatchReasonLabel } from "@/lib/utils/three-way-match";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 const CURRENCY_LOCALE: Record<string, string> = {
     INR: 'en-IN',
@@ -72,6 +75,23 @@ export default function FinancialMatchingPage() {
     const [isPending, startTransition] = useTransition();
     const [statusFilter, setStatusFilter] = useState<string>('pending');
     const [search, setSearch] = useState('');
+
+    const [overrideRequestDialog, setOverrideRequestDialog] = useState<{
+        invoiceId: string;
+        requestType: 'place_hold' | 'clear_hold' | 'payment_reversal';
+        actionLabel: string;
+        reason: string;
+    } | null>(null);
+
+    const [overrideDecisionDialog, setOverrideDecisionDialog] = useState<{
+        requestId: string;
+        decision: 'approved' | 'rejected';
+        requestType: string;
+        decisionNotes: string;
+        reversalReference: string;
+        title: string;
+        description: string;
+    } | null>(null);
 
     const fetchInvoices = useCallback(async () => {
         setLoading(true);
@@ -180,17 +200,20 @@ export default function FinancialMatchingPage() {
     };
 
     const handleOverrideRequest = (invoiceId: string, requestType: 'place_hold' | 'clear_hold' | 'payment_reversal') => {
-        startTransition(async () => {
-            const actionLabel = requestType === 'place_hold'
-                ? 'place a release hold'
-                : requestType === 'clear_hold'
-                    ? 'clear the release hold'
-                    : 'reverse the payment';
-            const reason = window.prompt(`Record the reason to ${actionLabel} for this invoice.`);
-            if (!reason) {
-                return;
-            }
+        const actionLabel = requestType === 'place_hold'
+            ? 'place a release hold'
+            : requestType === 'clear_hold'
+                ? 'clear the release hold'
+                : 'reverse the payment';
+        setOverrideRequestDialog({ invoiceId, requestType, actionLabel, reason: '' });
+    };
 
+    const submitOverrideRequest = async () => {
+        if (!overrideRequestDialog || !overrideRequestDialog.reason.trim()) return;
+        const { invoiceId, requestType, reason } = overrideRequestDialog;
+        setOverrideRequestDialog(null);
+
+        startTransition(async () => {
             try {
                 const result = await requestInvoiceOverride({ invoiceId, requestType, reason });
                 if (!result.success) {
@@ -209,16 +232,28 @@ export default function FinancialMatchingPage() {
     };
 
     const handleOverrideDecision = (requestId: string, decision: 'approved' | 'rejected', requestType: string) => {
-        startTransition(async () => {
-            const decisionNotes = window.prompt(
-                decision === 'approved'
-                    ? 'Record the approval note for this dual-approval request.'
-                    : 'Record the rejection reason for this dual-approval request.',
-            ) || "";
-            const reversalReference = requestType === 'payment_reversal' && decision === 'approved'
-                ? window.prompt('Optional reversal reference or accounting journal ID.') || ""
-                : "";
+        const title = decision === 'approved' ? 'Approve Override Request' : 'Reject Override Request';
+        const description = decision === 'approved'
+            ? 'Provide a note for this approval. It will be recorded in the audit trail.'
+            : 'Provide a reason for this rejection.';
 
+        setOverrideDecisionDialog({
+            requestId,
+            decision,
+            requestType,
+            decisionNotes: '',
+            reversalReference: '',
+            title,
+            description
+        });
+    };
+
+    const submitOverrideDecision = async () => {
+        if (!overrideDecisionDialog) return;
+        const { requestId, decision, decisionNotes, reversalReference } = overrideDecisionDialog;
+        setOverrideDecisionDialog(null);
+
+        startTransition(async () => {
             try {
                 const result = await reviewInvoiceOverride({
                     requestId,
@@ -721,6 +756,75 @@ export default function FinancialMatchingPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <Dialog open={!!overrideRequestDialog} onOpenChange={(open) => { if (!open) setOverrideRequestDialog(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Record Override Reason</DialogTitle>
+                        <DialogDescription>
+                            Enter the reason to {overrideRequestDialog?.actionLabel} for this invoice. This will be logged in the audit trail.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="req-reason">Reason <span className="text-destructive">*</span></Label>
+                        <Textarea
+                            id="req-reason"
+                            rows={3}
+                            placeholder="Describe the business justification..."
+                            value={overrideRequestDialog?.reason || ''}
+                            onChange={(e) => setOverrideRequestDialog((prev) => prev ? { ...prev, reason: e.target.value } : null)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOverrideRequestDialog(null)}>Cancel</Button>
+                        <Button onClick={submitOverrideRequest} disabled={isPending || !overrideRequestDialog?.reason.trim()}>
+                            {isPending ? <RefreshCcw className="h-4 w-4 animate-spin" /> : 'Submit Request'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!overrideDecisionDialog} onOpenChange={(open) => { if (!open) setOverrideDecisionDialog(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{overrideDecisionDialog?.title}</DialogTitle>
+                        <DialogDescription>{overrideDecisionDialog?.description}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="dec-notes">Notes {overrideDecisionDialog?.decision === 'rejected' && <span className="text-destructive">*</span>}</Label>
+                            <Textarea
+                                id="dec-notes"
+                                rows={3}
+                                placeholder="Decision notes..."
+                                value={overrideDecisionDialog?.decisionNotes || ''}
+                                onChange={(e) => setOverrideDecisionDialog((prev) => prev ? { ...prev, decisionNotes: e.target.value } : null)}
+                            />
+                        </div>
+                        {overrideDecisionDialog?.requestType === 'payment_reversal' && overrideDecisionDialog?.decision === 'approved' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="rev-ref">Reversal Reference / Journal ID</Label>
+                                <Input
+                                    id="rev-ref"
+                                    placeholder="e.g. JV-2024-001"
+                                    value={overrideDecisionDialog?.reversalReference || ''}
+                                    onChange={(e) => setOverrideDecisionDialog((prev) => prev ? { ...prev, reversalReference: e.target.value } : null)}
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOverrideDecisionDialog(null)}>Cancel</Button>
+                        <Button
+                            variant={overrideDecisionDialog?.decision === 'rejected' ? 'destructive' : 'default'}
+                            onClick={submitOverrideDecision}
+                            disabled={isPending || (overrideDecisionDialog?.decision === 'rejected' && !overrideDecisionDialog.decisionNotes.trim())}
+                        >
+                            {isPending ? <RefreshCcw className="h-4 w-4 animate-spin" /> : 'Submit Decision'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

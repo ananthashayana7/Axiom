@@ -62,8 +62,7 @@ export const users = pgTable('users', {
     supplierId: uuid('supplier_id').references(() => suppliers.id),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
-    // emailIdx: uniqueIndex('email_idx').on(table.email),
-    // roleIdx: index('role_idx').on(table.role),
+    roleIdx: index('user_role_idx').on(table.role),
     employeeIdIdx: uniqueIndex('employee_id_idx').on(table.employeeId),
     accessProfileIdx: index('user_access_profile_idx').on(table.accessProfile),
     countryScopeIdx: index('user_country_scope_idx').on(table.countryScope),

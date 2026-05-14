@@ -1,5 +1,3 @@
-import { db } from "@/db";
-import { suppliers } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { MitigationAction } from "@/components/admin/mitigation-action";
 import { RiskIntelligenceView } from "@/components/admin/risk-intelligence-view";
 import { GeoRiskMap } from "@/components/admin/geo-risk-map";
-import { getRiskComplianceStats } from "@/app/actions/risk";
+import { getRiskComplianceStats, getSupplierRiskProfiles } from "@/app/actions/risk";
 import { batchGeocodeSuppliers } from "@/app/actions/geocoding";
 import { GeocodeTrigger } from "@/components/admin/geocode-trigger";
 import { auth } from "@/auth";
@@ -35,7 +33,7 @@ export default async function RiskDashboardPage() {
 
     if (!stats) return <div className="p-8">Unable to load risk intelligence.</div>;
 
-    const allSuppliers = await db.select().from(suppliers);
+    const allSuppliers = await getSupplierRiskProfiles();
     const highRiskSuppliers = allSuppliers.filter((s) => (s.riskScore || 0) > 60);
     const lowESGSuppliers = allSuppliers.filter((s) => (s.esgScore || 0) < 40);
     const financialWatchlist = allSuppliers.filter((s) => (s.financialScore || 0) < 50);

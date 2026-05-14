@@ -352,6 +352,9 @@ export async function saveScenarioComparison(eventId: string, scenarios: Array<{
     deliveryWeeks: number;
     riskScore: number;
 }>) {
+    const user = await requireAuth();
+    if (user.role !== 'admin' && user.role !== 'user') throw new Error('Access denied');
+
     const [updated] = await db.update(sourcingEvents)
         .set({
             scenarioComparison: JSON.stringify(scenarios),

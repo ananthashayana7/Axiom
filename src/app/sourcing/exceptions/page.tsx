@@ -222,11 +222,6 @@ export default async function ExceptionManagementPage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="rounded-2xl border bg-muted/20 p-4">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">Telemetry</p>
-                                <p className="mt-2 text-sm font-semibold text-foreground">{signals?.telemetry.title || "Telemetry unavailable"}</p>
-                                <p className="mt-1 text-sm text-muted-foreground">{signals?.telemetry.detail || "No telemetry heartbeat is visible yet."}</p>
-                            </div>
-                            <div className="rounded-2xl border bg-muted/20 p-4">
                                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">FX book rates</p>
                                 <p className="mt-2 text-sm font-semibold text-foreground">{signals?.fxRates.title || "FX status unavailable"}</p>
                                 <p className="mt-1 text-sm text-muted-foreground">{signals?.fxRates.detail || "Reporting-book refresh status is not available."}</p>

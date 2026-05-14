@@ -22,6 +22,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const ACTIVE_INVOICE_REVIEW_STATUSES = ['open', 'in_progress', 'blocked', 'escalated'] as const;
 const _ACTIVE_OVERRIDE_TYPES = ['place_hold', 'clear_hold', 'payment_reversal'] as const;
 const OVERRIDE_REVIEWER_PROFILES = ['super_admin', 'finance_auditor'] as const;
+const LIST_QUERY_LIMIT = 500;
 const HIGH_VALUE_RELEASE_THRESHOLDS: Record<string, number> = {
     INR: 500_000,
     USD: 10_000,
@@ -155,6 +156,7 @@ export async function getInvoices(filters?: {
     dateFrom?: string;
     dateTo?: string;
     currency?: string;
+    limit?: number;
 }) {
     const session = await auth();
     if (!session) return [];
@@ -214,6 +216,7 @@ export async function getInvoices(filters?: {
         if (filters?.dateTo) {
             conditions.push(lte(invoices.createdAt, new Date(filters.dateTo)));
         }
+        const rowLimit = Math.min(Math.max(filters?.limit ?? LIST_QUERY_LIMIT, 1), LIST_QUERY_LIMIT);
 
         const rows = await db
             .select({
@@ -249,7 +252,8 @@ export async function getInvoices(filters?: {
             .from(invoices)
             .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
             .where(conditions.length > 0 ? and(...conditions) : undefined)
-            .orderBy(desc(invoices.createdAt));
+            .orderBy(desc(invoices.createdAt))
+            .limit(rowLimit);
 
         const invoiceIds = rows.map((row) => row.id);
 

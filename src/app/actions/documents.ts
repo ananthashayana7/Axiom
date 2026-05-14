@@ -5,8 +5,11 @@ import { documents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
+import { auth } from "@/auth";
 
 export async function getDocuments(entityType: 'supplier' | 'order', entityId: string) {
+    const session = await auth();
+    if (!session?.user?.id) return [];
     try {
         const query = entityType === 'supplier'
             ? eq(documents.supplierId, entityId)
@@ -52,6 +55,8 @@ function isAllowedDocumentUrl(url?: string) {
 }
 
 export async function addDocument(data: AddDocumentInput) {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
     try {
         if (!isAllowedDocumentUrl(data.url)) {
             return { success: false, error: "Unsupported document format" };
@@ -80,6 +85,8 @@ export async function addDocument(data: AddDocumentInput) {
 }
 
 export async function deleteDocument(docId: string, supplierId: string, orderId?: string) {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
     try {
         await db.delete(documents).where(eq(documents.id, docId));
 

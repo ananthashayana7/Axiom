@@ -22,10 +22,14 @@ async function incrementInventoryForOrderTx(tx: DbTransaction, orderId: string) 
 }
 
 export async function getGoodsReceipts(): Promise<GoodsReceipt[]> {
+    const session = await auth();
+    if (!session?.user) return [];
+
     try {
         const result = await db.select()
             .from(goodsReceipts)
-            .orderBy(desc(goodsReceipts.receivedAt));
+            .orderBy(desc(goodsReceipts.receivedAt))
+            .limit(500);
 
         const receiptIds = result.map((receipt) => receipt.id);
         if (receiptIds.length === 0) {

@@ -350,6 +350,8 @@ export async function getCurrentSupplierRFQInvitation(rfqId: string) {
  * Ranks suppliers based on category match, performance, and risk.
  */
 export async function recommendSuppliers(partIds: string[]) {
+    const session = await auth();
+    if (!session?.user?.id) return [];
     try {
         // 1. Get categories of the requested parts
         const requestedParts = await db.select().from(parts).where(inArray(parts.id, partIds));
@@ -391,7 +393,7 @@ export async function recommendSuppliers(partIds: string[]) {
 
 export async function createRFQ(title: string, description: string, items: { partId: string; quantity: number }[]) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const normalizedTitle = normalizeText(title);
@@ -499,7 +501,7 @@ export async function createRFQ(title: string, description: string, items: { par
 
 export async function updateRFQStatus(id: string, status: 'draft' | 'open' | 'closed' | 'cancelled') {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         await db.update(rfqs).set({ status }).where(eq(rfqs.id, id));
@@ -518,7 +520,7 @@ export async function updateRFQStatus(id: string, status: 'draft' | 'open' | 'cl
 
 export async function inviteSupplierToRFQ(rfqId: string, supplierId: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const result = await db.transaction(async (tx) => {
@@ -596,7 +598,7 @@ async function notifyAdminsOfQuoteSubmission(
 
 export async function launchRFQSourcingEvent(rfqId: string) {
     const session = await auth();
-    if (!session || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id || session.user.role === 'supplier') return { success: false, error: "Unauthorized" };
 
     try {
         const result = await db.transaction(async (tx) => {
@@ -694,7 +696,7 @@ export async function submitSupplierQuote(data: {
     notes?: string;
 }) {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     try {
         const [rfqSupplier] = await db.select()
@@ -766,7 +768,7 @@ export async function submitSupplierQuote(data: {
 
 export async function processQuotation(rfqSupplierId: string, quoteText: string) {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     try {
         // 1. Verify access (if supplier, must be their own record)
@@ -866,7 +868,7 @@ export async function processQuotation(rfqSupplierId: string, quoteText: string)
 
 export async function processQuotationFile(rfqSupplierId: string, fileData: string, fileName: string, documentUrl?: string) {
     const session = await auth();
-    if (!session) return { success: false, error: "Unauthorized" };
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     try {
         const [rs] = await db.select().from(rfqSuppliers).where(eq(rfqSuppliers.id, rfqSupplierId));
