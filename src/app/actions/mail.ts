@@ -30,7 +30,6 @@ export async function sendUserEmail(
         return { success: false, error: "Not authenticated" };
     }
 
-    const senderName = session.user?.name || "Axiom Admin";
 
     if (!subject?.trim()) return { success: false, error: "Subject is required" };
     if (!body?.trim())    return { success: false, error: "Message body is required" };
@@ -44,9 +43,8 @@ export async function sendUserEmail(
                 ``,
                 body.trim(),
                 ``,
-                `—`,
-                `Sent by ${senderName} via Axiom Procurement Platform`,
-                `${buildAppBaseUrl()}`,
+                `Best Regards`,
+                `Axiom`,
             ].join('\n'),
         });
         if (!result.success) {
