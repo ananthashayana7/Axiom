@@ -11,8 +11,14 @@ import { AxiomLogo } from "@/components/shared/axiom-logo";
 
 type LoginMode = 'admin' | 'user' | 'supplier';
 
+type AuthActionResult =
+    | { status: 'success'; redirectUrl: string }
+    | { status: 'require-2fa' }
+    | { status: 'setup-2fa'; qrCodeUrl: string; secret?: string }
+    | { status: 'error'; message: string };
+
 export default function LoginPage() {
-    const [errorMessage, formAction, isPending] = useActionState(
+    const [authResult, formAction, isPending] = useActionState(
         authenticate,
         undefined,
     );
@@ -30,29 +36,31 @@ export default function LoginPage() {
 
     useEffect(() => {
         let processedError = '';
-        if (errorMessage) {
-            if (errorMessage.includes('require-2fa')) {
+        if (authResult) {
+            if (authResult.status === 'success') {
+                window.location.assign(authResult.redirectUrl);
+                return;
+            }
+
+            if (authResult.status === 'require-2fa') {
                 setShow2FA(true);
                 setShowSetup2FA(false);
                 processedError = '';
-            } else if (errorMessage.startsWith('setup-2fa:')) {
-                const payload = errorMessage.slice('setup-2fa:'.length);
-                const [qrUrl, secret] = payload.split('|');
-                setQrCodeUrl(qrUrl);
-                if (secret) setSetupSecret(secret);
+            } else if (authResult.status === 'setup-2fa') {
+                setQrCodeUrl(authResult.qrCodeUrl);
+                if (authResult.secret) setSetupSecret(authResult.secret);
                 setShowSetup2FA(true);
                 processedError = '';
-            } else if (errorMessage === 'setup-2fa') {
-                processedError = 'Failed to initialize 2FA setup. Please try again or contact admin.';
-            } else {
-                processedError = errorMessage;
+            } else if (authResult.status === 'error') {
+                processedError = authResult.message;
             }
         }
+
         setDisplayErrorMessage(processedError);
         if (processedError) {
             toast.error(processedError);
         }
-    }, [errorMessage]);
+    }, [authResult]);
 
     const handleVerifySetup = async () => {
         if (setupCode.length !== 6) return;

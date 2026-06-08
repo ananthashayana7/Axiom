@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getAiModel } from '@/lib/ai-provider';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { enforceMutationFirewall } from '@/lib/api-security';
+import { enforceMutationFirewall, enforceRequestSizeLimit } from '@/lib/api-security';
 import { normalizeInvoiceExtraction } from '@/lib/invoices/normalization';
 import { extractInvoiceFromPdfBuffer } from '@/lib/invoices/pdf-fallback';
 import { assessInvoiceReviewSignals } from '@/lib/invoices/review';
-import { storeUploadedFile } from '@/lib/file-storage';
+import { FileValidationError, hasAllowedFileSignature, storeUploadedFile } from '@/lib/file-storage';
 
 export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_MULTIPART_REQUEST_SIZE = MAX_FILE_SIZE + 1024 * 1024;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
     pdf: 'application/pdf',
@@ -22,7 +23,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 function inferSupportedMimeType(file: File): string | null {
     const declaredType = file.type?.toLowerCase();
-    if (declaredType && (declaredType === 'application/pdf' || declaredType.startsWith('image/'))) {
+    if (declaredType && Object.values(MIME_BY_EXTENSION).includes(declaredType)) {
         return declaredType;
     }
 
@@ -132,6 +133,9 @@ export async function POST(req: NextRequest) {
         const blocked = enforceMutationFirewall(req);
         if (blocked) return blocked;
 
+        const tooLarge = enforceRequestSizeLimit(req, MAX_MULTIPART_REQUEST_SIZE);
+        if (tooLarge) return tooLarge;
+
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -156,6 +160,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        if (file.size <= 0) {
+            return NextResponse.json(
+                { error: 'File is empty' },
+                { status: 400 }
+            );
+        }
+
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
                 { error: 'File size exceeds the 10 MB limit' },
@@ -164,7 +175,14 @@ export async function POST(req: NextRequest) {
         }
 
         uploadedBuffer = Buffer.from(await file.arrayBuffer());
-        const storedDocument = await storeUploadedFile(file);
+        if (!hasAllowedFileSignature(mimeType, uploadedBuffer)) {
+            return NextResponse.json(
+                { error: 'File content does not match the declared file type' },
+                { status: 400 }
+            );
+        }
+
+        const storedDocument = await storeUploadedFile(file, { buffer: uploadedBuffer });
         documentUrl = storedDocument.url;
 
         const model = await getAiModel('gemini-2.5-flash', {
@@ -263,6 +281,10 @@ Return ONLY a valid JSON object with these fields (use null for any field you ca
             warnings,
         });
     } catch (error) {
+        if (error instanceof FileValidationError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+
         console.error('[OCR] Invoice extraction failed:', error);
         if (uploadedFile) {
             if (inferSupportedMimeType(uploadedFile) === 'application/pdf') {

@@ -4,29 +4,59 @@ import { signIn, auth } from '@/auth';
 import { AuthError } from 'next-auth';
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq, ilike } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { TotpService } from "@/lib/totp";
 import QRCode from "qrcode";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { headers } from "next/headers";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
+export type AuthenticateResult =
+    | { status: 'success'; redirectUrl: string }
+    | { status: 'require-2fa' }
+    | { status: 'setup-2fa'; qrCodeUrl: string; secret?: string }
+    | { status: 'error'; message: string };
+
+function normalizeIdentifier(identifier: FormDataEntryValue | null) {
+    return String(identifier || '').trim().toLowerCase();
+}
+
+function emailEquals(identifier: string) {
+    return sql`lower(${users.email}) = ${identifier}`;
+}
+
+async function getAuthClientIp() {
+    const headerList = await headers();
+    const forwarded = headerList.get('x-forwarded-for');
+    const forwardedIp = forwarded?.split(',')[0]?.trim();
+    return forwardedIp || headerList.get('x-real-ip') || 'unknown';
+}
+
 export async function authenticate(
-    prevState: string | undefined,
+    prevState: AuthenticateResult | undefined,
     formData: FormData,
-) {
+): Promise<AuthenticateResult> {
     try {
-        const identifier = formData.get('identifier') as string;
-        const password = formData.get('password') as string;
-        const code = formData.get('code') as string;
+        const identifier = normalizeIdentifier(formData.get('identifier'));
+        const password = String(formData.get('password') || '');
+        const code = String(formData.get('code') || '');
         const roleMode = ((formData.get('roleMode') as string) || 'user') as 'admin' | 'user' | 'supplier';
 
-        // Rate limit login attempts by identifier
-        const rateCheck = await consumeRateLimit('auth', identifier.toLowerCase());
-        if (!rateCheck.allowed) {
-            return 'Too many login attempts. Please try again later.';
+        if (!identifier || !password) {
+            return { status: 'error', message: 'Enter your email address and password.' };
+        }
+
+        const clientIp = await getAuthClientIp();
+        const [identifierRateCheck, ipRateCheck] = await Promise.all([
+            consumeRateLimit('auth', `identifier:${identifier}`),
+            consumeRateLimit('auth', `ip:${clientIp}`),
+        ]);
+
+        if (!identifierRateCheck.allowed || !ipRateCheck.allowed) {
+            return { status: 'error', message: 'Too many login attempts. Please try again later.' };
         }
 
         // Determine post-login redirect based on user's role
@@ -35,29 +65,36 @@ export async function authenticate(
             const [userRecord] = await db
                 .select({ role: users.role })
                 .from(users)
-                .where(ilike(users.email, identifier))
+                .where(emailEquals(identifier))
                 .limit(1);
 
             if (userRecord?.role && userRecord.role !== roleMode) {
                 if (roleMode === 'admin') {
-                    return 'Use the Admin Console only with an administrator account.';
+                    return { status: 'error', message: 'Use the Admin Console only with an administrator account.' };
                 }
                 if (roleMode === 'supplier') {
-                    return 'Use the Supplier Portal only with a supplier account.';
+                    return { status: 'error', message: 'Use the Supplier Portal only with a supplier account.' };
                 }
-                return 'Use the Internal Workspace only with an internal user account.';
+                return { status: 'error', message: 'Use the Internal Workspace only with an internal user account.' };
             }
 
             if (userRecord?.role === 'admin') redirectTo = '/admin';
             else if (userRecord?.role === 'supplier') redirectTo = '/portal';
         } catch { /* fallback to '/' */ }
 
-        await signIn('credentials', {
+        const redirectUrl = await signIn('credentials', {
             identifier,
             password,
             code,
+            redirect: false,
             redirectTo,
         });
+
+        if (typeof redirectUrl === 'string') {
+            return { status: 'success', redirectUrl };
+        }
+
+        return { status: 'error', message: 'Authentication failed. Please try again.' };
     } catch (error: unknown) {
         if (isRedirectError(error)) {
             throw error;
@@ -77,30 +114,33 @@ export async function authenticate(
         }
 
         if (errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
-            return 'require-2fa';
+            return { status: 'require-2fa' };
         }
 
         if (errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
             // Set up 2FA server-side using the identifier — no session needed here
-            // because the password was already verified in authorize() before this error was thrown.
-            const identifier = formData.get('identifier') as string;
+            // because the password was already been verified in authorize() before this error was thrown.
+            const identifier = normalizeIdentifier(formData.get('identifier'));
             const setupResult = await setupTwoFactorForLogin(identifier);
             if (setupResult.success && setupResult.qrCodeUrl) {
-                // Embed QR code URL and secret (for manual entry fallback) in the return value
-                return `setup-2fa:${setupResult.qrCodeUrl}|${setupResult.secret || ''}`;
+                return {
+                    status: 'setup-2fa',
+                    qrCodeUrl: setupResult.qrCodeUrl,
+                    secret: setupResult.secret,
+                };
             }
-            return 'setup-2fa';
+            return { status: 'setup-2fa', qrCodeUrl: '', secret: undefined };
         }
 
         if (error instanceof AuthError) {
             const type = error.type as string;
             if (type === 'CredentialsSignin') {
-                return 'Invalid credentials. Please verify your email address and password.';
+                return { status: 'error', message: 'Invalid credentials. Please verify your email address and password.' };
             }
-            return `Authentication Error: ${type}`;
+            return { status: 'error', message: `Authentication Error: ${type}` };
         }
 
-        return err.message || 'An unexpected error occurred. Please try again.';
+        return { status: 'error', message: err.message || 'An unexpected error occurred. Please try again.' };
     }
 }
 

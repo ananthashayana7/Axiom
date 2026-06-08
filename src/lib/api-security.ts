@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const DEFAULT_MAX_JSON_BYTES = 1024 * 1024;
+export const DEFAULT_MAX_JSON_BYTES = 1024 * 1024;
 
 type AllowedRole = "admin" | "user" | "supplier";
 
@@ -17,6 +17,16 @@ export type ApiSessionUser = {
 
 export function jsonError(error: string, status: number = 400) {
     return NextResponse.json({ error }, { status });
+}
+
+export class RequestBodyError extends Error {
+    status: number;
+
+    constructor(message: string, status = 400) {
+        super(message);
+        this.name = "RequestBodyError";
+        this.status = status;
+    }
 }
 
 export async function requireApiUser(roles?: AllowedRole[]) {
@@ -104,19 +114,88 @@ export function enforceMutationFirewall(req: Request): NextResponse | null {
     return null;
 }
 
+function formatBytes(bytes: number) {
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 1) return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`;
+    const kb = bytes / 1024;
+    if (kb >= 1) return `${Number.isInteger(kb) ? kb : kb.toFixed(1)}KB`;
+    return `${bytes} bytes`;
+}
+
+export function getRequestContentLength(req: Request): number | null {
+    const raw = req.headers.get("content-length");
+    if (!raw) return null;
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new RequestBodyError("Invalid content length", 400);
+    }
+
+    return parsed;
+}
+
+export function enforceRequestSizeLimit(req: Request, maxBytes: number): NextResponse | null {
+    try {
+        const contentLength = getRequestContentLength(req);
+        if (contentLength !== null && contentLength > maxBytes) {
+            return jsonError(`Request body is too large. Maximum size is ${formatBytes(maxBytes)}.`, 413);
+        }
+    } catch (error) {
+        if (error instanceof RequestBodyError) {
+            return jsonError(error.message, error.status);
+        }
+        throw error;
+    }
+
+    return null;
+}
+
+async function readRequestTextWithLimit(req: Request, maxBytes: number) {
+    const sizeBlocked = enforceRequestSizeLimit(req, maxBytes);
+    if (sizeBlocked) {
+        throw new RequestBodyError("Request body is too large", 413);
+    }
+
+    if (!req.body) {
+        const text = await req.text();
+        if (Buffer.byteLength(text, "utf8") > maxBytes) {
+            throw new RequestBodyError("Request body is too large", 413);
+        }
+        return text;
+    }
+
+    const reader = req.body.getReader();
+    const decoder = new TextDecoder();
+    const chunks: string[] = [];
+    let totalBytes = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        totalBytes += value.byteLength;
+        if (totalBytes > maxBytes) {
+            await reader.cancel().catch(() => undefined);
+            throw new RequestBodyError("Request body is too large", 413);
+        }
+
+        chunks.push(decoder.decode(value, { stream: true }));
+    }
+
+    chunks.push(decoder.decode());
+    return chunks.join("");
+}
+
 export async function readJsonBody<T>(req: Request, maxBytes = DEFAULT_MAX_JSON_BYTES): Promise<T> {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.toLowerCase().includes("application/json")) {
-        throw new Error("Expected application/json request body");
+        throw new RequestBodyError("Expected application/json request body", 400);
     }
 
-    const text = await req.text();
-    if (Buffer.byteLength(text, "utf8") > maxBytes) {
-        throw new Error("Request body is too large");
-    }
+    const text = await readRequestTextWithLimit(req, maxBytes);
 
     if (!text.trim()) {
-        throw new Error("Request body is required");
+        throw new RequestBodyError("Request body is required", 400);
     }
 
     return JSON.parse(text) as T;

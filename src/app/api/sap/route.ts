@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { dryRunSapImport, executeSapImport } from '@/app/actions/import';
 import { fetchSapEntityData, mapSapRecordToAxiom, mappedRowsToCsv, testSapConnection, type SapEntityType } from '@/lib/services/sap';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { enforceMutationFirewall, readJsonBody } from '@/lib/api-security';
+import { enforceMutationFirewall, readJsonBody, RequestBodyError } from '@/lib/api-security';
 import { db } from '@/db';
 import { importJobs } from '@/db/schema';
 import { desc, sql } from 'drizzle-orm';
@@ -169,7 +169,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ source, mode, entityType, ...result });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'SAP sync failed';
-        const status = message.includes('request body') || message.includes('application/json') || message.includes('JSON')
+        const status = error instanceof RequestBodyError
+            ? error.status
+            : message.includes('request body') || message.includes('application/json') || message.includes('JSON')
             ? 400
             : 500;
         return NextResponse.json({ error: message }, { status });

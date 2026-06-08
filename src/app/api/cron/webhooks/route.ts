@@ -5,6 +5,7 @@ import { eq, and, lte } from 'drizzle-orm';
 import crypto from 'crypto';
 import { isCronAuthorized } from '@/lib/api-security';
 import { withPgAdvisoryLock } from '@/lib/db-locks';
+import { validateWebhookUrl } from '@/lib/webhook-security';
 
 const MAX_ATTEMPTS = 5;
 
@@ -51,12 +52,17 @@ export async function GET(req: Request) {
                 const attempts = (delivery.attempts || 0) + 1;
 
                 try {
+                    const destination = await validateWebhookUrl(webhook.url);
+                    if (!destination.ok) {
+                        throw new Error(destination.error);
+                    }
+
                     const signature = crypto
                         .createHmac('sha256', webhook.secret)
                         .update(delivery.payload)
                         .digest('hex');
 
-                    const response = await fetch(webhook.url, {
+                    const response = await fetch(destination.url, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

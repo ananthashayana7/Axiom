@@ -50,6 +50,65 @@ export type StoredFileResult = {
     type: string;
 };
 
+export class FileValidationError extends Error {
+    status: number;
+
+    constructor(message: string, status = 400) {
+        super(message);
+        this.name = "FileValidationError";
+        this.status = status;
+    }
+}
+
+function hasZipSignature(buffer: Buffer) {
+    if (buffer.length < 4) return false;
+    const signature = buffer.subarray(0, 4).toString("binary");
+    return signature === "PK\u0003\u0004" || signature === "PK\u0005\u0006" || signature === "PK\u0007\u0008";
+}
+
+function looksLikeText(buffer: Buffer) {
+    const sample = buffer.subarray(0, Math.min(buffer.length, 4096));
+    return !sample.includes(0);
+}
+
+export function hasAllowedFileSignature(mimeType: string, buffer: Buffer) {
+    if (buffer.length === 0) return false;
+
+    switch (mimeType) {
+        case "application/pdf":
+            return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+        case "image/png":
+            return buffer.length >= 8
+                && buffer[0] === 0x89
+                && buffer[1] === 0x50
+                && buffer[2] === 0x4e
+                && buffer[3] === 0x47
+                && buffer[4] === 0x0d
+                && buffer[5] === 0x0a
+                && buffer[6] === 0x1a
+                && buffer[7] === 0x0a;
+        case "image/jpeg":
+        case "image/jpg":
+            return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        case "image/webp":
+            return buffer.length >= 12
+                && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+                && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+        case "application/zip":
+        case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            return hasZipSignature(buffer);
+        case "application/vnd.ms-excel":
+            return hasZipSignature(buffer)
+                || buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))
+                || looksLikeText(buffer);
+        case "text/csv":
+        case "text/plain":
+            return looksLikeText(buffer);
+        default:
+            return false;
+    }
+}
+
 export function inferMimeTypeFromName(fileName: string) {
     const extension = fileName.split(".").pop()?.toLowerCase();
     return extension ? MIME_BY_EXTENSION[extension] ?? null : null;
@@ -74,16 +133,20 @@ export function resolveAllowedMimeType(
 
 export async function storeUploadedFile(
     file: File,
-    options?: { allowedMimeTypes?: Set<string> },
+    options?: { allowedMimeTypes?: Set<string>; buffer?: Buffer },
 ): Promise<StoredFileResult> {
     const mimeType = resolveAllowedMimeType(file, options?.allowedMimeTypes || DEFAULT_STORABLE_MIME_TYPES);
 
     if (!mimeType) {
-        throw new Error(`Unsupported file type: ${file.type || file.name}`);
+        throw new FileValidationError(`Unsupported file type: ${file.type || file.name}`, 400);
+    }
+
+    if (file.size <= 0) {
+        throw new FileValidationError("File is empty", 400);
     }
 
     if (file.size > MAX_STORED_FILE_SIZE) {
-        throw new Error(`File too large. Maximum size is ${MAX_STORED_FILE_SIZE / 1024 / 1024}MB`);
+        throw new FileValidationError(`File too large. Maximum size is ${MAX_STORED_FILE_SIZE / 1024 / 1024}MB`, 413);
     }
 
     const now = new Date();
@@ -91,7 +154,11 @@ export async function storeUploadedFile(
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const extension = EXTENSION_BY_MIME[mimeType] || "bin";
     const storedName = `${uuidv4()}.${extension}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = options?.buffer ?? Buffer.from(await file.arrayBuffer());
+
+    if (!hasAllowedFileSignature(mimeType, buffer)) {
+        throw new FileValidationError("File content does not match the declared file type", 400);
+    }
 
     let url = `/uploads/${year}/${month}/${storedName}`;
 

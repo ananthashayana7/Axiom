@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getContracts, createContract } from '@/app/actions/contracts';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { enforceMutationFirewall, readJsonBody, requireApiUser } from '@/lib/api-security';
+import { enforceMutationFirewall, readJsonBody, requireApiUser, RequestBodyError } from '@/lib/api-security';
 import { z } from 'zod';
 
 const createContractSchema = z.object({
@@ -54,6 +54,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: result.error }, { status: 400 });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid contract payload';
-        return NextResponse.json({ error: message }, { status: 400 });
+        const status = error instanceof RequestBodyError ? error.status : 400;
+        return NextResponse.json({ error: message }, { status });
     }
 }

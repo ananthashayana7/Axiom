@@ -6,6 +6,28 @@ import { auth } from "@/auth";
 import { eq, desc } from "drizzle-orm";
 import { logActivity } from "./activity";
 import crypto from "crypto";
+import { validateWebhookUrl } from "@/lib/webhook-security";
+
+const ALLOWED_WEBHOOK_EVENTS = new Set([
+    'order.created',
+    'order.updated',
+    'order.fulfilled',
+    'invoice.created',
+    'invoice.matched',
+    'invoice.disputed',
+    'rfq.created',
+    'rfq.closed',
+    'requisition.approved',
+    'requisition.rejected',
+    'contract.expiring',
+    'contract.expired',
+    'supplier.created',
+    'supplier.updated',
+]);
+
+function normalizeWebhookEvents(events: string[]) {
+    return [...new Set(events.map((event) => event.trim()).filter(Boolean))];
+}
 
 // ─── Webhook CRUD ─────────────────────────────────────────────────────
 
@@ -32,12 +54,27 @@ export async function createWebhook(data: {
     }
 
     try {
+        const urlValidation = await validateWebhookUrl(data.url);
+        if (!urlValidation.ok) {
+            return { success: false, error: urlValidation.error };
+        }
+
+        const events = normalizeWebhookEvents(data.events);
+        if (events.length === 0) {
+            return { success: false, error: "Select at least one webhook event" };
+        }
+
+        const invalidEvents = events.filter((event) => !ALLOWED_WEBHOOK_EVENTS.has(event));
+        if (invalidEvents.length > 0) {
+            return { success: false, error: `Unsupported webhook event: ${invalidEvents[0]}` };
+        }
+
         // Generate a signing secret
         const secret = crypto.randomBytes(32).toString('hex');
 
         const [webhook] = await db.insert(webhooks).values({
-            url: data.url,
-            events: data.events,
+            url: urlValidation.url,
+            events,
             secret,
             description: data.description,
             createdById: session.user.id,

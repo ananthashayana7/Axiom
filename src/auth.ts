@@ -5,15 +5,31 @@ import Google from "next-auth/providers/google"
 import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
 import { db } from "@/db"
 import { suppliers, users } from "@/db/schema"
-import { eq, ilike } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
 import { TotpService } from "@/lib/totp";
+import crypto from "node:crypto";
+
+function normalizeIdentifier(identifier: string) {
+    return identifier.trim().toLowerCase();
+}
+
+function identifierHash(identifier: string) {
+    return crypto.createHash("sha256").update(normalizeIdentifier(identifier)).digest("hex").slice(0, 16);
+}
+
+function emailEquals(identifier: string) {
+    return sql`lower(${users.email}) = ${normalizeIdentifier(identifier)}`;
+}
 
 async function findUser(identifier: string) {
     try {
+        const normalized = normalizeIdentifier(identifier);
+        if (!normalized) return null;
+
         const [user] = await db.select().from(users).where(
-            ilike(users.email, identifier)
+            emailEquals(normalized)
         );
         return user || null;
     } catch (err) {
@@ -40,7 +56,7 @@ async function supplierPortalAccessAllowed(supplierId: string | null | undefined
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
     trustHost: true,
-    secret: process.env.AUTH_SECRET,
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     providers: [
         Credentials({
             credentials: {
@@ -49,9 +65,12 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 code: { label: "2FA Code", type: "text" },
             },
             async authorize(credentials) {
-                console.log("[AUTH] Authorize called for:", credentials?.identifier);
+                const requestedIdentifier = String(credentials?.identifier || "");
+                console.log("[AUTH] Authorize called", {
+                    identifierHash: requestedIdentifier ? identifierHash(requestedIdentifier) : "missing",
+                });
                 try {
-                    const identifier = String(credentials?.identifier || "").trim();
+                    const identifier = normalizeIdentifier(requestedIdentifier);
                     const password = String(credentials?.password || "");
                     const code = String(credentials?.code || "");
 
@@ -62,8 +81,10 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                     const user = await findUser(identifier);
                     if (!user) {
-                        console.warn(`[AUTH] USER_NOT_FOUND | identifier: ${identifier}`);
-                        await TelemetryService.trackEvent("Security", "login_failed_user_not_found", { identifier });
+                        console.warn(`[AUTH] USER_NOT_FOUND | identifierHash: ${identifierHash(identifier)}`);
+                        await TelemetryService.trackEvent("Security", "login_failed_user_not_found", {
+                            identifierHash: identifierHash(identifier),
+                        });
                         return null;
                     }
 
@@ -96,7 +117,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                                 console.warn(`[AUTH] 2FA_FAILED | user: ${user.email}`);
                                 await TelemetryService.trackEvent("Security", "login_failed_invalid_2fa", {
                                     userId: user.id,
-                                    identifier
+                                    identifierHash: identifierHash(identifier),
                                 });
                                 return null;
                             }
@@ -108,7 +129,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             // Edge case: isTwoFactorEnabled=true but secret is missing (corrupt state)
                             // Reset the flag and require fresh setup
                             console.warn(`[AUTH] 2FA_CORRUPT_STATE | user: ${user.email} | enabled but no secret`);
-                            await db.update(users).set({ isTwoFactorEnabled: false }).where(ilike(users.email, identifier));
+                            await db.update(users).set({ isTwoFactorEnabled: false }).where(emailEquals(identifier));
                             throw new Error("setup-2fa");
                         }
 
@@ -130,9 +151,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             supplierId: user.supplierId,
                         }
                     } else {
-                        console.warn(`[AUTH] LOGIN_FAILED_WRONG_PASSWORD | identifier: ${identifier}`);
+                        console.warn(`[AUTH] LOGIN_FAILED_WRONG_PASSWORD | identifierHash: ${identifierHash(identifier)}`);
                         await TelemetryService.trackEvent("Security", "login_failed_wrong_password", {
-                            identifier,
+                            identifierHash: identifierHash(identifier),
                             userId: user.id
                         });
                         return null;
@@ -142,7 +163,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                     if (err.message === 'require-2fa' || err.message === 'setup-2fa') {
                         throw error;
                     }
-                    console.error(`[AUTH] FATAL_ERROR | identifier: ${credentials?.identifier} | error: ${err.message}`);
+                    console.error(`[AUTH] FATAL_ERROR | identifierHash: ${requestedIdentifier ? identifierHash(requestedIdentifier) : "missing"} | error: ${err.message}`);
                     return null;
                 }
             },
@@ -169,7 +190,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             if (account?.provider !== 'credentials' && user?.email) {
                 const [existingUser] = await db.select()
                     .from(users)
-                    .where(ilike(users.email, user.email))
+                    .where(emailEquals(user.email))
                     .limit(1);
 
                 if (!existingUser) {
