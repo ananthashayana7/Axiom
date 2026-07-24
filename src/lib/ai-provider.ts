@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-import { db } from "@/db";
-import { platformSettings } from "@/db/schema";
+import { getCachedApiKeys, invalidateApiKeyCache } from "@/lib/ai-key-cache";
 
 const AI_CIRCUIT_COOLDOWN_MS = 60_000;
 
@@ -12,49 +10,6 @@ type AiCircuitState = {
 };
 
 const aiCircuits = new Map<string, AiCircuitState>();
-
-/**
- * Collect all configured API keys in priority order:
- * 1. Database (primary, fallback1, fallback2)
- * 2. Environment variables
- */
-async function collectApiKeys(): Promise<string[]> {
-    const keys: string[] = [];
-
-    const envKeys = [
-        process.env.GEMINI_API_KEY,
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        process.env.GEMINI_API_KEY_2,
-        process.env.GEMINI_API_KEY_3,
-        process.env.GEMINI_API_KEY_4,
-        process.env.GEMINI_API_KEY_5,
-    ];
-
-    for (const key of envKeys) {
-        if (key && key.trim().length > 0) {
-            keys.push(key.trim());
-        }
-    }
-
-    try {
-        const [settings] = await db.select().from(platformSettings).limit(1);
-        if (settings) {
-            const dbKeys = [
-                settings.geminiApiKey,
-                settings.geminiApiKeyFallback1,
-                settings.geminiApiKeyFallback2,
-            ]
-                .filter((key): key is string => Boolean(key?.trim()))
-                .map((key) => key.trim());
-
-            keys.unshift(...dbKeys);
-        }
-    } catch (error) {
-        console.error("AI Provider: Failed to fetch API keys from DB, using environment fallback.", error);
-    }
-
-    return [...new Set(keys)];
-}
 
 function maskKey(apiKey: string) {
     return apiKey.length > 10
@@ -85,6 +40,9 @@ function openCircuit(modelName: string, error: unknown) {
     };
 
     aiCircuits.set(modelName, circuit);
+    // Bust the key cache so a fresh key fetch happens after the cooldown,
+    // in case the failure was caused by a revoked or rate-limited key.
+    invalidateApiKeyCache();
     return circuit;
 }
 
@@ -93,7 +51,7 @@ function clearCircuit(modelName: string) {
 }
 
 export async function getAiProviderHealth(modelName: string = "gemini-2.5-flash") {
-    const apiKeys = await collectApiKeys();
+    const apiKeys = await getCachedApiKeys();
     const circuit = getActiveCircuit(modelName);
 
     if (apiKeys.length === 0) {
@@ -121,7 +79,7 @@ export async function getAiProviderHealth(modelName: string = "gemini-2.5-flash"
 }
 
 export async function getAiModel(modelName: string = "gemini-2.5-flash", config?: Record<string, unknown>) {
-    const apiKeys = await collectApiKeys();
+    const apiKeys = await getCachedApiKeys();
     const activeCircuit = getActiveCircuit(modelName);
 
     if (apiKeys.length === 0) {

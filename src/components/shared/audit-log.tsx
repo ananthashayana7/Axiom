@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, User, Activity } from "lucide-react";
+import { History } from "lucide-react";
 
 interface AuditLog {
     id: string;

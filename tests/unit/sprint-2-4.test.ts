@@ -78,7 +78,6 @@ test('budget consumption updates used amount', () => {
 
 test('token bucket allows requests within limit', () => {
     let tokens = 10;
-    const maxTokens = 10;
 
     function consume(): boolean {
         if (tokens > 0) {

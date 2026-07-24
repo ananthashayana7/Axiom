@@ -226,86 +226,113 @@ export async function completeAgentExecutionRun(options: {
     }
 }
 
-export async function getAgentExecutionTraceSnapshot(): Promise<AgentExecutionTraceSnapshot> {
-    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+/** Maximum time (ms) we'll wait for the 3 parallel DB queries before returning a safe empty snapshot. */
+const SNAPSHOT_TIMEOUT_MS = 10_000;
 
-    const [executionRows, summaryRows, telemetryRows] = await Promise.all([
-        db.select({
-            id: agentExecutions.id,
-            agentName: agentExecutions.agentName,
-            status: agentExecutions.status,
-            triggeredBy: agentExecutions.triggeredBy,
-            actorName: users.name,
-            createdAt: agentExecutions.createdAt,
-            completedAt: agentExecutions.completedAt,
-            executionTimeMs: agentExecutions.executionTimeMs,
-            confidenceScore: agentExecutions.confidenceScore,
-            outputData: agentExecutions.outputData,
-            errorMessage: agentExecutions.errorMessage,
-        })
-            .from(agentExecutions)
-            .leftJoin(users, eq(agentExecutions.userId, users.id))
-            .orderBy(desc(agentExecutions.createdAt))
-            .limit(12),
-        db.select({
-            totalRuns: sql<number>`count(*)::int`,
-            successfulRuns: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'success' then 1 else 0 end), 0)::int`,
-            failedRuns: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'failed' then 1 else 0 end), 0)::int`,
-            runningNow: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'running' then 1 else 0 end), 0)::int`,
-            avgLatencyMs: sql<number>`coalesce(avg(${agentExecutions.executionTimeMs}), 0)`,
-        })
-            .from(agentExecutions)
-            .where(gte(agentExecutions.createdAt, last24Hours)),
-        db.select({
-            telemetryErrors: sql<number>`count(*)::int`,
-        })
-            .from(systemTelemetry)
-            .where(and(
-                eq(systemTelemetry.type, "error"),
-                gte(systemTelemetry.createdAt, last24Hours),
-                sql`(
-                    lower(${systemTelemetry.scope}) like '%agent%'
-                    or ${systemTelemetry.scope} = 'AgentDispatch'
-                    or ${systemTelemetry.scope} = 'SmartApprovalRouting'
-                )`,
-            )),
-    ]);
-
-    const summary = summaryRows[0] ?? {
+const EMPTY_SNAPSHOT: AgentExecutionTraceSnapshot = {
+    generatedAt: '',
+    rows: [],
+    summary: {
         totalRuns: 0,
         successfulRuns: 0,
         failedRuns: 0,
         runningNow: 0,
         avgLatencyMs: 0,
-    };
-    const telemetry = telemetryRows[0] ?? { telemetryErrors: 0 };
+        telemetryErrors: 0,
+    },
+};
 
-    return {
-        generatedAt: new Date().toISOString(),
-        rows: executionRows.map((row) => ({
-            id: row.id,
-            agentName: row.agentName,
-            status: row.status,
-            triggeredBy: row.triggeredBy,
-            actorName: row.actorName || null,
-            createdAt: row.createdAt ? row.createdAt.toISOString() : null,
-            completedAt: row.completedAt ? row.completedAt.toISOString() : null,
-            executionTimeMs: row.executionTimeMs ?? null,
-            confidenceScore: row.confidenceScore ?? null,
-            summary: summarizeExecutionOutput(
-                row.agentName,
-                row.status,
-                row.outputData,
-                row.errorMessage,
+export async function getAgentExecutionTraceSnapshot(): Promise<AgentExecutionTraceSnapshot> {
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    try {
+        const [executionRows, summaryRows, telemetryRows] = await Promise.race([
+            Promise.all([
+                db.select({
+                    id: agentExecutions.id,
+                    agentName: agentExecutions.agentName,
+                    status: agentExecutions.status,
+                    triggeredBy: agentExecutions.triggeredBy,
+                    actorName: users.name,
+                    createdAt: agentExecutions.createdAt,
+                    completedAt: agentExecutions.completedAt,
+                    executionTimeMs: agentExecutions.executionTimeMs,
+                    confidenceScore: agentExecutions.confidenceScore,
+                    outputData: agentExecutions.outputData,
+                    errorMessage: agentExecutions.errorMessage,
+                })
+                    .from(agentExecutions)
+                    .leftJoin(users, eq(agentExecutions.userId, users.id))
+                    .orderBy(desc(agentExecutions.createdAt))
+                    .limit(12),
+                db.select({
+                    totalRuns: sql<number>`count(*)::int`,
+                    successfulRuns: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'success' then 1 else 0 end), 0)::int`,
+                    failedRuns: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'failed' then 1 else 0 end), 0)::int`,
+                    runningNow: sql<number>`coalesce(sum(case when ${agentExecutions.status} = 'running' then 1 else 0 end), 0)::int`,
+                    avgLatencyMs: sql<number>`coalesce(avg(${agentExecutions.executionTimeMs}), 0)`,
+                })
+                    .from(agentExecutions)
+                    .where(gte(agentExecutions.createdAt, last24Hours)),
+                db.select({
+                    telemetryErrors: sql<number>`count(*)::int`,
+                })
+                    .from(systemTelemetry)
+                    .where(and(
+                        eq(systemTelemetry.type, "error"),
+                        gte(systemTelemetry.createdAt, last24Hours),
+                        sql`(
+                            lower(${systemTelemetry.scope}) like '%agent%'
+                            or ${systemTelemetry.scope} = 'AgentDispatch'
+                            or ${systemTelemetry.scope} = 'SmartApprovalRouting'
+                        )`,
+                    )),
+            ]),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Agent trace snapshot timed out after ${SNAPSHOT_TIMEOUT_MS}ms`)), SNAPSHOT_TIMEOUT_MS)
             ),
-        })),
-        summary: {
-            totalRuns: Number(summary.totalRuns || 0),
-            successfulRuns: Number(summary.successfulRuns || 0),
-            failedRuns: Number(summary.failedRuns || 0),
-            runningNow: Number(summary.runningNow || 0),
-            avgLatencyMs: Math.round(Number(summary.avgLatencyMs || 0)),
-            telemetryErrors: Number(telemetry.telemetryErrors || 0),
-        },
-    };
+        ]);
+
+        const summary = summaryRows[0] ?? {
+            totalRuns: 0,
+            successfulRuns: 0,
+            failedRuns: 0,
+            runningNow: 0,
+            avgLatencyMs: 0,
+        };
+        const telemetry = telemetryRows[0] ?? { telemetryErrors: 0 };
+
+        return {
+            generatedAt: new Date().toISOString(),
+            rows: executionRows.map((row) => ({
+                id: row.id,
+                agentName: row.agentName,
+                status: row.status,
+                triggeredBy: row.triggeredBy,
+                actorName: row.actorName || null,
+                createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+                completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+                executionTimeMs: row.executionTimeMs ?? null,
+                confidenceScore: row.confidenceScore ?? null,
+                summary: summarizeExecutionOutput(
+                    row.agentName,
+                    row.status,
+                    row.outputData,
+                    row.errorMessage,
+                ),
+            })),
+            summary: {
+                totalRuns: Number(summary.totalRuns || 0),
+                successfulRuns: Number(summary.successfulRuns || 0),
+                failedRuns: Number(summary.failedRuns || 0),
+                runningNow: Number(summary.runningNow || 0),
+                avgLatencyMs: Math.round(Number(summary.avgLatencyMs || 0)),
+                telemetryErrors: Number(telemetry.telemetryErrors || 0),
+            },
+        };
+    } catch (error) {
+        console.error('[AgentExecutions] Snapshot query failed or timed out:', error instanceof Error ? error.message : error);
+        return { ...EMPTY_SNAPSHOT, generatedAt: new Date().toISOString() };
+    }
 }
+

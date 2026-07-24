@@ -1,5 +1,4 @@
 'use server';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { db } from "@/db";
 import { agentRecommendations, users, notifications, workflowTasks, auditLogs } from "@/db/schema";
@@ -82,8 +81,7 @@ export async function getRecommendations(filters?: {
 
     const validImpacts = ['low', 'medium', 'high', 'critical'] as const;
     const validStatuses = ['pending', 'approved', 'dismissed'] as const;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const conditions: any[] = [];
+    const conditions: ReturnType<typeof eq>[] = [];
     if (filters?.status && (validStatuses as readonly string[]).includes(filters.status)) {
         conditions.push(eq(agentRecommendations.status, filters.status as 'pending' | 'approved' | 'dismissed'));
     }

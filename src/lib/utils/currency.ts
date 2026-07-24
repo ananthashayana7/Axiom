@@ -1,4 +1,4 @@
-import { formatLocalCurrency, getGeoLocale } from '@/lib/utils/geo-currency';
+import { getGeoLocale } from '@/lib/utils/geo-currency';
 
 /**
  * Format a value as currency using the geo-detected locale.

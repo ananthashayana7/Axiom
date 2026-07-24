@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { auth } from "@/auth";
-import { eq, ilike, or, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getContacts() {
@@ -11,8 +11,8 @@ export async function getContacts() {
     if (!session) return [];
     try {
         return await db.select().from(contacts).orderBy(desc(contacts.createdAt));
-    } catch (e) {
-        console.error("Failed to fetch contacts:", e);
+    } catch (error) {
+        console.error("Failed to fetch contacts:", error);
         return [];
     }
 }
@@ -31,9 +31,9 @@ export async function createContact(data: {
         }).returning();
         revalidatePath('/contacts');
         return { success: true, data: contact };
-    } catch (e) {
-        console.error("Failed to create contact:", e);
-        return { success: false, error: e instanceof Error ? e.message : "Failed to create contact" };
+    } catch (error) {
+        console.error("Failed to create contact:", error);
+        return { success: false, error: error instanceof Error ? error.message : "Failed to create contact" };
     }
 }
 
@@ -44,7 +44,7 @@ export async function updateContactStatus(id: string, status: 'active' | 'inacti
         await db.update(contacts).set({ status }).where(eq(contacts.id, id));
         revalidatePath('/contacts');
         return { success: true };
-    } catch (e) {
+    } catch {
         return { success: false, error: "Failed to update" };
     }
 }
@@ -56,7 +56,7 @@ export async function deleteContact(id: string) {
         await db.delete(contacts).where(eq(contacts.id, id));
         revalidatePath('/contacts');
         return { success: true };
-    } catch (e) {
+    } catch {
         return { success: false, error: "Failed to delete" };
     }
 }

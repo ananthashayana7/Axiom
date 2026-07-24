@@ -6,10 +6,45 @@ import { getAiModel } from "@/lib/ai-provider";
 
 // Providers are now managed by getAiModel()
 
-function safeParseJsonMatch(jsonMatch: RegExpMatchArray | null): { success: true; data: any } | { success: false; error: string } {
+type QuoteItem = {
+    sku?: string;
+    part?: { sku?: string };
+    name?: string;
+    unitPrice?: number | string;
+    price?: number | string;
+    amount?: number | string;
+    totalAmount?: number | string;
+    quantity?: number | string;
+    partId?: string;
+};
+
+type SupplierRiskData = {
+    onTimeDelivery?: number | string | null;
+    onTime?: number | string | null;
+    qualityScore?: number | string | null;
+    quality?: number | string | null;
+    riskScore?: number | string | null;
+    financialRisk?: number | string | null;
+};
+
+type OfferParseData = {
+    items: Array<{ sku: string; name: string; quantity: number; unitPrice: number; currency: string }>;
+    totalAmount: number | null;
+    deliveryLeadTime: string | null;
+    validityPeriod: string | null;
+    supplierName: string | null;
+    paymentTerms: string | null;
+    note?: string;
+};
+
+type OfferParseResult =
+    | { success: true; data: OfferParseData }
+    | { success: false; error: string };
+
+function safeParseJsonMatch<T>(jsonMatch: RegExpMatchArray | null): { success: true; data: T } | { success: false; error: string } {
     if (!jsonMatch) return { success: false, error: "No JSON found in AI response" };
     try {
-        return { success: true, data: JSON.parse(jsonMatch[0]) };
+        return { success: true, data: JSON.parse(jsonMatch[0]) as T };
     } catch {
         return { success: false, error: "AI returned invalid JSON" };
     }
@@ -45,6 +80,27 @@ function riskLevelFromScore(score: number): "low" | "medium" | "high" | "critica
 type ComplianceFinding = { type: "mismatch" | "missing" | "risk"; description: string; severity: "low" | "medium" | "high" };
 type ComplianceStatus = "compliant" | "partial" | "non-compliant";
 type Variance = { sku: string; variancePercentage: number; trend: "up" | "down" | "stable" };
+type ComplianceAnalysisResult = {
+    status: ComplianceStatus;
+    findings: ComplianceFinding[];
+    recommendation: string;
+};
+type CostAnalysisResult = {
+    variances: Variance[];
+    negotiationStrategy: string;
+    potentialSavings: number;
+};
+type RiskAnalysisResult = {
+    overallRiskLevel: "low" | "medium" | "high" | "critical";
+    riskScore: number;
+    mitigationStrategy: string;
+    keyAlerts: string[];
+};
+type SpendAnalysisResult = {
+    totalSavingPotential: number;
+    opportunities: Array<{ type: "consolidation" | "contract" | "arbitrage"; description: string; estimatedSavings: number }>;
+    actionPlan: string;
+};
 type HistoricalPart = {
     id?: string;
     sku?: string;
@@ -68,7 +124,7 @@ const NEW_ITEM_VARIANCE_PERCENTAGE = 100; // sentinel variance when no baseline 
  * Offer Parsing Agent
  * Extracts structured data from quote documents (PDF/Image)
  */
-export async function parseOffer(fileData: string, fileName: string) {
+export async function parseOffer(fileData: string, fileName: string): Promise<OfferParseResult> {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -108,7 +164,7 @@ export async function parseOffer(fileData: string, fileName: string) {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            const parsed = safeParseJsonMatch(jsonMatch);
+            const parsed = safeParseJsonMatch<OfferParseData>(jsonMatch);
             if (parsed.success) return parsed;
         }
 
@@ -142,7 +198,7 @@ export async function parseOffer(fileData: string, fileName: string) {
  * Document Intelligence Agent
  * Cross-references documents for compliance and consistency
  */
-export async function analyzeCompliance(documents: { name: string, content: string }[], rfqRequirements: string) {
+export async function analyzeCompliance(documents: { name: string, content: string }[], rfqRequirements: string): Promise<{ success: true; data: ComplianceAnalysisResult } | { success: false; error: string }> {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -176,7 +232,7 @@ export async function analyzeCompliance(documents: { name: string, content: stri
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            const parsed = safeParseJsonMatch(jsonMatch);
+            const parsed = safeParseJsonMatch<ComplianceAnalysisResult>(jsonMatch);
             if (parsed.success) return parsed;
         }
 
@@ -220,7 +276,7 @@ export async function analyzeCompliance(documents: { name: string, content: stri
  * Cost Analysis Agent
  * Compares quotes with "Should-Cost" data
  */
-export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
+export async function analyzeCosts(quoteItems: QuoteItem[], historicalParts: HistoricalPart[]): Promise<{ success: true; data: CostAnalysisResult } | { success: false; error: string }> {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -256,8 +312,8 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            const parsed = safeParseJsonMatch(jsonMatch);
-            if (parsed.success) return parsed;
+        const parsed = safeParseJsonMatch<CostAnalysisResult>(jsonMatch);
+        if (parsed.success) return parsed;
         }
 
         return { success: false, error: "Failed to parse cost analysis" };
@@ -311,7 +367,7 @@ export async function analyzeCosts(quoteItems: any[], historicalParts: any[]) {
  * Supply Chain Risk Intelligence Agent
  * Deep-dive analysis of supplier risk factors
  */
-export async function analyzeSupplierRisk(supplierData: any, marketNews?: string) {
+export async function analyzeSupplierRisk(supplierData: SupplierRiskData, marketNews?: string): Promise<{ success: true; data: RiskAnalysisResult } | { success: false; error: string }> {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -349,7 +405,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            const parsed = safeParseJsonMatch(jsonMatch);
+            const parsed = safeParseJsonMatch<RiskAnalysisResult>(jsonMatch);
             if (parsed.success) return parsed;
         }
 
@@ -389,7 +445,7 @@ export async function analyzeSupplierRisk(supplierData: any, marketNews?: string
  * Spend Analysis Agent
  * Identifies savings opportunities across the platform
  */
-export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[]) {
+export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[]): Promise<{ success: true; data: SpendAnalysisResult } | { success: false; error: string }> {
     const session = await auth();
     if (!session) return { success: false, error: "Unauthorized" };
 
@@ -425,7 +481,7 @@ export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
-            const parsed = safeParseJsonMatch(jsonMatch);
+            const parsed = safeParseJsonMatch<SpendAnalysisResult>(jsonMatch);
             if (parsed.success) return parsed;
         }
 
@@ -439,7 +495,7 @@ export async function analyzeSpend(orders: OrderLike[], suppliers: SupplierLike[
             if (s.category) overlappingCategories.add(s.category);
         });
 
-        const opportunities = Array.from(overlappingCategories).slice(0, 3).map((cat) => ({
+        const opportunities: SpendAnalysisResult["opportunities"] = Array.from(overlappingCategories).slice(0, 3).map((cat) => ({
             type: "consolidation",
             description: `Consolidate spend in category '${cat}' with 1-2 strategic suppliers.`,
             estimatedSavings: Math.round(avg * ESTIMATED_CONSOLIDATION_SAVINGS_RATE)

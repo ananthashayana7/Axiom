@@ -8,7 +8,6 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";
 import { mergeFinanceSettings, parseFinanceSettings } from "@/lib/finance";
 import { withPgAdvisoryLock } from "@/lib/db-locks";
-import { sql } from "drizzle-orm";
 
 type SessionUser = {
     role?: string | null;

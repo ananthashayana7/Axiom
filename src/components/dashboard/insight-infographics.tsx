@@ -215,8 +215,8 @@ export function InsightInfographics({
                     </CardHeader>
                     <CardContent className="min-w-0 pt-0">
                         {monthlyData.length > 0 ? (
-                            <div className="h-[280px] min-w-0">
-                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
+                            <div className="h-[280px] min-w-0 min-h-0">
+                                <ResponsiveContainer width="100%" height={280} minWidth={0}>
                                     <BarChart data={monthlyData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
@@ -258,8 +258,8 @@ export function InsightInfographics({
                     <CardContent className="min-w-0 pt-0">
                         {categoryMix.length > 0 ? (
                             <>
-                                <div className="h-[220px] min-w-0">
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                                <div className="h-[220px] min-w-0 min-h-0">
+                                    <ResponsiveContainer width="100%" height={220} minWidth={0}>
                                         <PieChart>
                                             <Pie
                                                 data={categoryMix}

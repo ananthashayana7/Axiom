@@ -13,11 +13,9 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-import { MitigationAction } from "@/components/admin/mitigation-action";
 import { RiskIntelligenceView } from "@/components/admin/risk-intelligence-view";
 import { GeoRiskMap } from "@/components/admin/geo-risk-map";
 import { getRiskComplianceStats, getSupplierRiskProfiles } from "@/app/actions/risk";
-import { batchGeocodeSuppliers } from "@/app/actions/geocoding";
 import { GeocodeTrigger } from "@/components/admin/geocode-trigger";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
@@ -27,7 +25,7 @@ export const dynamic = 'force-dynamic';
 export default async function RiskDashboardPage() {
     const session = await auth();
     if (!session?.user) redirect('/login');
-    const role = (session.user as any)?.role;
+    const role = session.user.role;
     if (role !== 'admin' && role !== 'user') redirect('/');
     const stats = await getRiskComplianceStats();
 

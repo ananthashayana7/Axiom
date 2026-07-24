@@ -131,8 +131,6 @@ export async function createSavingsRecord(data: {
     currency?: string;
     notes?: string;
 }) {
-    const user = await requireAuth();
-
     const [record] = await db.insert(savingsRecords).values({
         entityType: data.entityType,
         entityId: data.entityId,
@@ -237,7 +235,7 @@ export async function upsertBenchmark(data: {
 export async function getBenchmarks(category?: string) {
     await requireAuth();
 
-    const conditions: any[] = [];
+    const conditions: Array<ReturnType<typeof eq>> = [];
     if (category) conditions.push(eq(marketPriceIndex.partCategory, category));
 
     const benchmarks = await db.select()

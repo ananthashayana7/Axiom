@@ -54,6 +54,7 @@ docker-build.txt
 lint-output.txt
 lint-json.txt
 eslint-full.json
+.tmp-next-dev.*
 
 
 # local debug and diagnostic scripts
@@ -69,3 +70,7 @@ verify-login.ts
 _gi_check.txt
 _git_tracked.txt
 _git_rm_result*.txt
+
+# generated workshop content
+workshop/
+scratch/

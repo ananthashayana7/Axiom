@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { supplierActionPlans, supplierRequests, suppliers, users, notifications, workflowTasks } from "@/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 
@@ -88,9 +88,9 @@ export async function getSupplierActionPlans(supplierId: string) {
 }
 
 export async function updateActionPlanStatus(planId: string, status: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled') {
-    const user = await requireAuth();
+    await requireAuth();
 
-    const updateData: any = { status, updatedAt: new Date() };
+    const updateData: { status: typeof status; updatedAt: Date; completedAt?: Date } = { status, updatedAt: new Date() };
     if (status === 'completed') updateData.completedAt = new Date();
 
     const [updated] = await db.update(supplierActionPlans)
@@ -183,7 +183,7 @@ export async function getSupplierRequests(supplierId: string) {
 export async function getPortalRequests() {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
-    const user = session.user as any;
+    const user = session.user as { role?: string | null; supplierId?: string | null; id?: string | null };
     if (user.role !== 'supplier' || !user.supplierId) throw new Error('Supplier access required');
 
     const requests = await db.select({

@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { budgets, costCenters, requisitions } from "@/db/schema";
+import { budgets, costCenters } from "@/db/schema";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -64,7 +64,11 @@ export async function updateBudget(id: string, data: Partial<{
     }
 
     try {
-        const updateData: any = {};
+        const updateData: Partial<{
+            name: string;
+            totalAmount: string;
+            status: string;
+        }> = {};
         if (data.name) updateData.name = data.name;
         if (data.totalAmount !== undefined) updateData.totalAmount = data.totalAmount.toFixed(2);
         if (data.status) updateData.status = data.status;

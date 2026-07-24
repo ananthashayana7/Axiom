@@ -1,7 +1,7 @@
 ﻿'use server'
 
 import { db } from "@/db";
-import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents, platformSettings } from "@/db/schema";
+import { procurementOrders, orderItems, rfqs, rfqItems, rfqSuppliers, invoices, goodsReceipts, auditLogs, contracts, suppliers, qcInspections, parts, marketPriceIndex, savingsRecords, sourcingEvents } from "@/db/schema";
 import { eq, and, lte, gte, inArray, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "./activity";

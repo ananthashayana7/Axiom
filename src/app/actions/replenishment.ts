@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { parts, procurementOrders, orderItems } from "@/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getAiModel } from "@/lib/ai-provider";
 import { auth } from "@/auth";
 

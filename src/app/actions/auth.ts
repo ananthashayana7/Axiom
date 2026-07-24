@@ -4,13 +4,14 @@ import { signIn, auth } from '@/auth';
 import { AuthError } from 'next-auth';
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { TotpService } from "@/lib/totp";
 import QRCode from "qrcode";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { enforceServerActionRateLimit } from "@/lib/server-action-rate-limit";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
@@ -155,7 +156,7 @@ async function setupTwoFactorForLogin(identifier: string) {
         const [user] = await db
             .select({ id: users.id, email: users.email, twoFactorSecret: users.twoFactorSecret, isTwoFactorEnabled: users.isTwoFactorEnabled })
             .from(users)
-            .where(ilike(users.email, identifier))
+            .where(emailEquals(identifier))
             .limit(1);
 
         if (!user) return { success: false as const };
@@ -231,11 +232,23 @@ export async function setupTwoFactor() {
 
 
 export async function verifyAndEnableTwoFactor(token: string, identifier?: string) {
+    const clientIp = await getAuthClientIp();
+    const rateLimitKey = identifier ? `2fa-verify:${normalizeIdentifier(identifier)}` : `2fa-verify:session`;
+
+    const [identifierRateCheck, ipRateCheck] = await Promise.all([
+        consumeRateLimit('auth', rateLimitKey),
+        consumeRateLimit('auth', `ip:${clientIp}`),
+    ]);
+
+    if (!identifierRateCheck.allowed || !ipRateCheck.allowed) {
+        return { success: false, error: "Too many verification attempts. Please try again later." };
+    }
+
     let userId: string;
 
     if (identifier) {
         // Called during login flow — no session yet; password was already verified by authorize()
-        const [user] = await db.select({ id: users.id }).from(users).where(ilike(users.email, identifier)).limit(1);
+        const [user] = await db.select({ id: users.id }).from(users).where(emailEquals(identifier)).limit(1);
         if (!user) return { success: false, error: "User not found" };
         userId = user.id;
     } else {
@@ -295,9 +308,20 @@ export async function changePassword(currentPassword: string, newPassword: strin
         return { success: false, error: "Not authenticated" };
     }
 
-    // Server-side password validation
+    // ── Server-side password validation ───────────────────────────────────────
     if (!newPassword || newPassword.length < 8) {
         return { success: false, error: "Password must be at least 8 characters long" };
+    }
+
+    // Complexity: at least one uppercase letter, one digit, one special character
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasDigit = /[0-9]/.test(newPassword);
+    const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+    if (!hasUppercase || !hasDigit || !hasSpecial) {
+        return {
+            success: false,
+            error: "Password must contain at least one uppercase letter, one number, and one special character.",
+        };
     }
 
     try {
@@ -313,8 +337,14 @@ export async function changePassword(currentPassword: string, newPassword: strin
             return { success: false, error: "Current password is incorrect" };
         }
 
+        // Prevent immediate re-use of the current password
+        const isSamePassword = await bcrypt.compare(newPassword, user.password);
+        if (isSamePassword) {
+            return { success: false, error: "New password must be different from your current password" };
+        }
+
         // Hash new password
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
 
         // Update password
         await db.update(users)
@@ -359,13 +389,38 @@ export async function updateProfile(formData: FormData) {
         return { success: false, error: "Not authenticated" };
     }
 
+    // Rate-limit profile updates to prevent enumeration or abuse
+    const rateLimitResult = await enforceServerActionRateLimit('updateProfile', session.user.id, { mode: 'write' });
+    if (rateLimitResult) {
+        return { success: false, error: rateLimitResult.message };
+    }
+
     try {
         const name = formData.get("name") as string;
-        const email = formData.get("email") as string;
+        const newEmail = (formData.get("email") as string)?.trim().toLowerCase();
         const employeeId = formData.get("employeeId") as string;
 
+        // Guard: if the user is changing their email, ensure it is not already
+        // taken by another account. Without this check an attacker could overwrite
+        // another user's email and then trigger a password-reset to take over the
+        // account.
+        if (newEmail && newEmail !== session.user.email?.toLowerCase()) {
+            const [existingWithEmail] = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(and(
+                    sql`lower(${users.email}) = ${newEmail}`,
+                    ne(users.id, session.user.id),
+                ))
+                .limit(1);
+
+            if (existingWithEmail) {
+                return { success: false, error: "That email address is already in use by another account." };
+            }
+        }
+
         await db.update(users)
-            .set({ name, email, employeeId })
+            .set({ name, email: newEmail || undefined, employeeId })
             .where(eq(users.id, session.user.id));
 
         revalidatePath("/profile");

@@ -403,7 +403,7 @@ export default function AnalyticsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <ComposedChart data={trendData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
@@ -426,7 +426,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Spend concentration across categories</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <PieChart>
                                 <Pie data={categoryPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                                     {categoryPieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -446,7 +446,7 @@ export default function AnalyticsPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="h-[320px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                             <BarChart data={supplierBarData} layout="vertical" margin={{ left: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis type="number" hide />
@@ -467,7 +467,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Distribution by status</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <PieChart>
                                 <Pie data={invoicePieData} cx="50%" cy="50%" outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, value }: any) => `${name} (${value})`}>
                                     {invoicePieData.map((entry, i) => <Cell key={i} fill={STATUS_COLORS[entry.name] || COLORS[i % COLORS.length]} />)}
@@ -486,7 +486,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Procurement order distribution</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <PieChart>
                                 <Pie data={orderPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={85} paddingAngle={2} dataKey="value" label={({ name, value }: any) => `${name.replace(/_/g, ' ')} (${value})`} labelLine={false}>
                                     {orderPieData.map((entry, i) => <Cell key={i} fill={STATUS_COLORS[entry.name] || COLORS[i % COLORS.length]} />)}
@@ -504,7 +504,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Geographic spend distribution</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <BarChart data={regionBarData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} angle={-20} height={50} textAnchor="end" />
@@ -525,7 +525,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Average initial quote vs actual price over time — gap represents negotiation savings</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[260px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                             <ComposedChart data={varianceData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
@@ -547,7 +547,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">By negotiation strategy type</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[260px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                             <PieChart>
                                 <Pie data={savingsData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={3} dataKey="value" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                                     {savingsData.map((_, i) => <Cell key={i} fill={COLORS[(i + 4) % COLORS.length]} />)}
@@ -570,7 +570,7 @@ export default function AnalyticsPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                 <XAxis type="number" dataKey="riskScore" name="Risk" domain={[0, 100]} tick={{ fontSize: 10 }} label={{ value: 'Risk Score →', position: 'insideBottom', offset: -5, fontSize: 10 }} />
@@ -604,7 +604,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Multi-dimensional score overlay</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                             <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
                                 <PolarGrid stroke="hsl(var(--border))" />
                                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9 }} />
@@ -626,7 +626,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Top procurement destinations</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                             <BarChart data={countryData} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis type="number" hide />
@@ -647,7 +647,7 @@ export default function AnalyticsPage() {
                         <CardDescription className="text-xs">Regional invoice concentration</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                             <BarChart data={invoiceRegionData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} angle={-15} height={50} textAnchor="end" />

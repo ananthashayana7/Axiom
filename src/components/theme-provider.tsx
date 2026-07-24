@@ -24,7 +24,7 @@ export function ThemeProvider({
     children,
     defaultTheme = "system",
     storageKey = "axiom-theme",
-    ...props
+    ..._props
 }: ThemeProviderProps) {
     const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
 

@@ -14,8 +14,7 @@ import {
     AlertCircle,
     Clock,
     User,
-    Terminal,
-    Zap
+    Terminal
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -23,7 +22,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function TelemetryDashboard() {
     const session = await auth();
-    if ((session?.user as any)?.role !== 'admin') {
+    if (session?.user?.role !== 'admin') {
         redirect("/");
     }
 

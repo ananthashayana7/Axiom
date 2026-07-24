@@ -6,6 +6,24 @@
 
 'use server'
 
+/** Maximum bytes stored in the DB for agent input context. Prevents huge AI
+ *  prompts / context blobs from overflowing the text column. */
+const MAX_STORED_INPUT_BYTES = 8_192;
+
+/**
+ * Serialize a value to JSON and cap it at MAX_STORED_INPUT_BYTES.
+ * Appends a sentinel suffix so operators know the value was trimmed.
+ */
+function truncateForStorage(value: unknown): string {
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value) ?? '';
+    if (Buffer.byteLength(serialized, 'utf8') <= MAX_STORED_INPUT_BYTES) {
+        return serialized;
+    }
+    // Slice to byte limit (approximate — Buffer.from slices by byte)
+    const truncated = Buffer.from(serialized, 'utf8').subarray(0, MAX_STORED_INPUT_BYTES).toString('utf8');
+    return truncated + '...[TRUNCATED]';
+}
+
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agentExecutions } from "@/db/schema";
@@ -143,7 +161,7 @@ export async function executeAgent<T = unknown>(
         await logAgentExecution({
             agentName,
             status: 'failed',
-            inputContext: JSON.stringify(input),
+            inputContext: truncateForStorage(input),
             errorMessage: failedResult.error,
             executionTimeMs: failedResult.executionTimeMs,
             triggeredBy: context.triggeredBy,
@@ -176,8 +194,8 @@ export async function executeAgent<T = unknown>(
             await logAgentExecution({
                 agentName,
                 status: 'success',
-                inputContext: JSON.stringify(sanitizedInput),
-                outputData: JSON.stringify(result.data),
+                inputContext: truncateForStorage(sanitizedInput),
+                outputData: truncateForStorage(result.data),
                 confidenceScore: result.confidence,
                 tokenUsage: result.tokenUsage,
                 executionTimeMs: result.executionTimeMs,
@@ -219,7 +237,7 @@ export async function executeAgent<T = unknown>(
     await logAgentExecution({
         agentName,
         status: 'failed',
-        inputContext: JSON.stringify(sanitizedInput),
+        inputContext: truncateForStorage(sanitizedInput),
         errorMessage: errorResult.error,
         executionTimeMs: errorResult.executionTimeMs,
         triggeredBy: context.triggeredBy,

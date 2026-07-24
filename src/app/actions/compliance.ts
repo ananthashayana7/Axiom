@@ -11,6 +11,8 @@ import { COMPLIANCE_POLICY_PACKS, inferPolicyPackRegion } from "@/lib/compliance
 // COMPLIANCE INTELLIGENCE - Deadline-driven compliance management
 // ============================================================================
 
+type ComplianceStatus = 'active' | 'expiring_soon' | 'expired' | 'waived' | 'not_applicable';
+
 async function requireAuth() {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
@@ -87,15 +89,15 @@ export async function getSupportedPolicyPacks() {
 }
 
 export async function getComplianceObligations(filters?: {
-    status?: string;
+    status?: ComplianceStatus;
     category?: string;
     supplierId?: string;
     policyPack?: string;
 }) {
     await requireAuth();
 
-    const conditions: any[] = [];
-    if (filters?.status) conditions.push(eq(complianceObligations.status, filters.status as any));
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (filters?.status) conditions.push(eq(complianceObligations.status, filters.status));
     if (filters?.category) conditions.push(eq(complianceObligations.category, filters.category));
     if (filters?.supplierId) conditions.push(eq(complianceObligations.supplierId, filters.supplierId));
     if (filters?.policyPack) conditions.push(eq(complianceObligations.policyPack, filters.policyPack));
@@ -182,7 +184,7 @@ export async function getComplianceDashboard() {
     };
 }
 
-export async function updateComplianceStatus(obligationId: string, status: 'active' | 'expiring_soon' | 'expired' | 'waived' | 'not_applicable') {
+export async function updateComplianceStatus(obligationId: string, status: ComplianceStatus) {
     const user = await requireAuth();
     if (user.role !== 'admin') throw new Error('Admin access required');
 

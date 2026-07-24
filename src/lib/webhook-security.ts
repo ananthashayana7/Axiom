@@ -1,4 +1,5 @@
 import dns from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
 import net from "node:net";
 
 type ValidationOptions = {
@@ -124,7 +125,7 @@ export async function validateWebhookUrl(input: string, options?: ValidationOpti
             : format;
     }
 
-    let addresses: dns.LookupAddress[];
+    let addresses: LookupAddress[];
     try {
         addresses = await dns.lookup(hostname, { all: true, verbatim: false });
     } catch {

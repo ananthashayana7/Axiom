@@ -879,14 +879,15 @@ export async function processQuotationFile(rfqSupplierId: string, fileData: stri
 
         const result = await parseOffer(fileData, fileName);
         if (!result.success) return { success: false, error: result.error };
+        const offerData = result.data;
 
         const analysis = {
-            totalAmount: result.data.totalAmount,
-            deliveryWeeks: parseInt(result.data.deliveryLeadTime) || 4,
-            terms: result.data.paymentTerms || "Standard",
+            totalAmount: offerData.totalAmount,
+            deliveryWeeks: parseInt(offerData.deliveryLeadTime ?? "") || 4,
+            terms: offerData.paymentTerms || "Standard",
             highlights: [
-                `Validity: ${result.data.validityPeriod}`,
-                `Supplier Identified: ${result.data.supplierName}`
+                `Validity: ${offerData.validityPeriod ?? "Unknown"}`,
+                `Supplier Identified: ${offerData.supplierName ?? "Unknown"}`
             ],
             aiConfidence: 90
         };

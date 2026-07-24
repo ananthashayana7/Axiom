@@ -65,6 +65,9 @@ services:
       AZURE_STORAGE_CONTAINER: ${AZURE_STORAGE_CONTAINER:-axiom-docs}
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       AXIOM_ALLOWED_ORIGINS: ${AXIOM_ALLOWED_ORIGINS}
+      # Set to the number of trusted reverse-proxy hops in front of this app.
+      # 1 = one proxy (e.g. Azure App Gateway or NGINX). See src/lib/api-rate-limit.ts.
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
     depends_on:
       db:
         condition: service_healthy
@@ -94,6 +97,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      # Check that the Node.js process is alive and has been running for at
+      # least 5 seconds (i.e. not in a crash-loop boot state).
+      test: ["CMD-SHELL", "node -e \"if(process.uptime()<5)process.exit(1)\" || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   axiom_db_data:

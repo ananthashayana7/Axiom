@@ -53,7 +53,6 @@ export function AnalyticsBoard({ monthlyData, categoryData }: AnalyticsBoardProp
             );
         }
 
-        const xKey = view === "trend" ? "name" : "name";
         const yKey = view === "trend" ? "total" : "value";
 
         if (chartType === "pie") {

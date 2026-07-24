@@ -11,12 +11,6 @@ import { AxiomLogo } from "@/components/shared/axiom-logo";
 
 type LoginMode = 'admin' | 'user' | 'supplier';
 
-type AuthActionResult =
-    | { status: 'success'; redirectUrl: string }
-    | { status: 'require-2fa' }
-    | { status: 'setup-2fa'; qrCodeUrl: string; secret?: string }
-    | { status: 'error'; message: string };
-
 export default function LoginPage() {
     const [authResult, formAction, isPending] = useActionState(
         authenticate,

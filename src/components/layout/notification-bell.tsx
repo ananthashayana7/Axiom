@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react";
-import { Bell, Check, Trash2, Info, AlertTriangle, CheckCircle, XCircle, ExternalLink } from "lucide-react";
+import { Bell, Check, Info, AlertTriangle, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";

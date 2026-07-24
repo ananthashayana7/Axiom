@@ -25,11 +25,13 @@ type RedisLike = {
     pexpire(key: string, milliseconds: number): Promise<number>;
     connect(): Promise<void>;
     disconnect(): void;
+    ping(): Promise<string>;
     on(event: "error", handler: (error: Error) => void): RedisLike;
 };
 
 const globalForRateLimit = globalThis as typeof globalThis & {
     __axiomRedisRateLimitClient?: Promise<RedisLike | null>;
+    __axiomRedisRateLimitLastAttempt?: number;
 };
 
 let redisWarningLogged = false;
@@ -130,37 +132,53 @@ async function getRedisClient() {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) return null;
 
-    if (!globalForRateLimit.__axiomRedisRateLimitClient) {
-        globalForRateLimit.__axiomRedisRateLimitClient = (async () => {
-            try {
-                const { default: IORedis } = await import("ioredis");
-                const client = new IORedis(redisUrl, {
-                    enableOfflineQueue: false,
-                    lazyConnect: true,
-                    maxRetriesPerRequest: 1,
-                }) as RedisLike;
+    const now = Date.now();
+    const lastAttempt = globalForRateLimit.__axiomRedisRateLimitLastAttempt || 0;
 
-                client.on("error", (error) => {
-                    if (!redisWarningLogged) {
-                        redisWarningLogged = true;
-                        console.warn("[RateLimit] Redis unavailable; using local fallback.", error.message);
-                    }
-                });
+    // If it failed recently (cooldown = 10 seconds), don't try connecting again yet.
+    if (globalForRateLimit.__axiomRedisRateLimitClient) {
+        const client = await globalForRateLimit.__axiomRedisRateLimitClient;
+        if (client) {
+            return client;
+        }
+        // If it resolved to null, but cooldown has not passed, return null.
+        if (now - lastAttempt < 10_000) {
+            return null;
+        }
+    }
 
-                await client.connect();
-                return client;
-            } catch (error) {
+    globalForRateLimit.__axiomRedisRateLimitLastAttempt = now;
+    globalForRateLimit.__axiomRedisRateLimitClient = (async () => {
+        try {
+            const { default: IORedis } = await import("ioredis");
+            const client = new IORedis(redisUrl, {
+                enableOfflineQueue: false,
+                lazyConnect: true,
+                maxRetriesPerRequest: 1,
+            }) as RedisLike;
+
+            client.on("error", (error) => {
                 if (!redisWarningLogged) {
                     redisWarningLogged = true;
-                    console.warn(
-                        "[RateLimit] Failed to connect to Redis; using local fallback.",
-                        error instanceof Error ? error.message : error,
-                    );
+                    console.warn("[RateLimit] Redis unavailable; using local fallback.", error.message);
                 }
-                return null;
+            });
+
+            await client.connect();
+            return client;
+        } catch (error) {
+            if (!redisWarningLogged) {
+                redisWarningLogged = true;
+                console.warn(
+                    "[RateLimit] Failed to connect to Redis; using local fallback.",
+                    error instanceof Error ? error.message : error,
+                );
             }
-        })();
-    }
+            // Clear the cached client promise so a fresh attempt can be made after cooldown
+            delete globalForRateLimit.__axiomRedisRateLimitClient;
+            return null;
+        }
+    })();
 
     return globalForRateLimit.__axiomRedisRateLimitClient;
 }

@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { suppliers, auditLogs } from "@/db/schema";
-import { count, avg, sql, eq, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { auth } from "@/auth";
 
 export async function getRiskComplianceStats() {
@@ -71,7 +71,7 @@ export async function mitigateRisk(supplierId: string, plan: MitigationPlanType,
             .where(eq(suppliers.id, supplierId));
 
         await db.insert(auditLogs).values({
-            userId: (session.user as any).id,
+            userId: session.user.id,
             action: 'MITIGATE',
             entityType: 'supplier',
             entityId: supplierId,
@@ -95,7 +95,7 @@ export async function mitigateRisk(supplierId: string, plan: MitigationPlanType,
 export async function getSupplierRiskProfiles() {
     const session = await auth();
     if (!session?.user?.id) return [];
-    const role = (session.user as any)?.role;
+    const role = session.user.role;
     if (role !== 'admin' && role !== 'user') return [];
 
     try {
@@ -121,7 +121,7 @@ export async function getSupplierRiskProfiles() {
 export async function getSustainabilityData() {
     const session = await auth();
     if (!session?.user?.id) return [];
-    const role = (session.user as any)?.role;
+    const role = session.user.role;
     if (role === 'supplier') return [];
 
     try {

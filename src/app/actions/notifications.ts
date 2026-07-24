@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db";
-import { notifications, requisitions, type Notification } from "@/db/schema";
+import { notifications, requisitions } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { auth } from "@/auth";

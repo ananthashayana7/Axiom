@@ -227,11 +227,11 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                 </div>
             </div>
 
-            <CardContent className="p-0 h-[450px] relative">
+            <CardContent className="relative h-[450px] min-w-0 min-h-0 overflow-hidden p-0">
                 {currentData.length > 0 ? (
-                    <div className="p-6 h-full">
+                    <div className="flex h-full min-w-0 min-h-0 p-6">
                         {chartType === 'scatter' && dimension === 'supplier' ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={402} minWidth={0}>
                                 <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
                                     <XAxis dataKey="spend" name="Spend" tickFormatter={fmtTick} tick={{ fontSize: 10, fontWeight: 600 }} label={{ value: `Spend (${sym})`, position: 'insideBottom', offset: -10, fontSize: 10 }} />
@@ -244,7 +244,7 @@ export function DataExplorer({ monthlyData, categoryData, supplierData = [] }: D
                                 </ScatterChart>
                             </ResponsiveContainer>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={402} minWidth={0}>
                                 <ComposedChart data={showTrend ? trendData : currentData} margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                                     <defs>
                                         <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">

@@ -9,9 +9,9 @@ import { db } from "@/db";
 import { auth } from "@/auth";
 import {
     requisitions, procurementOrders, rfqs, contracts,
-    users, agentRecommendations
+    agentRecommendations
 } from "@/db/schema";
-import { eq, sql, desc, and, gte, lte, lt } from "drizzle-orm";
+import { eq, sql, and, lt } from "drizzle-orm";
 import { TelemetryService } from "@/lib/telemetry";
 import { createNotification } from "@/app/actions/notifications";
 import type { AgentResult } from "@/lib/ai/agent-types";

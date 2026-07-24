@@ -44,7 +44,7 @@ export async function createSourcingEvent(data: {
 }
 
 export async function launchSourcingEvent(eventId: string) {
-    const user = await requireAuth();
+    await requireAuth();
 
     const [event] = await db.update(sourcingEvents)
         .set({
@@ -89,7 +89,7 @@ export async function launchSourcingEvent(eventId: string) {
 export async function updateSourcingEventStatus(eventId: string, status: 'draft' | 'launched' | 'supplier_qa' | 'bid_submitted' | 'bid_locked' | 'evaluation' | 'negotiation' | 'awarded' | 'closed' | 'cancelled') {
     const user = await requireAuth();
 
-    const updateData: any = { status, updatedAt: new Date() };
+    const updateData: { status: typeof status; updatedAt: Date } = { status, updatedAt: new Date() };
 
     const [updated] = await db.update(sourcingEvents)
         .set(updateData)

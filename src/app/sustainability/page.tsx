@@ -8,7 +8,6 @@ import {
     Factory,
     Globe,
     ShieldCheck,
-    AlertTriangle,
     TrendingUp,
     Award,
     CheckCircle2,

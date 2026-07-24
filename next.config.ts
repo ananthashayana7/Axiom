@@ -25,7 +25,9 @@ const securityHeaders = [
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // 'unsafe-eval' is only permitted in development (needed by Next.js HMR/React DevTools).
+      // It is intentionally excluded from production to harden against XSS escalation.
+      isDev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'",
       isDev
         ? "connect-src 'self' http: https: ws: wss: blob:"
         : "connect-src 'self' https: wss: blob:",

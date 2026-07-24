@@ -40,25 +40,30 @@ export class TelemetryService {
         value: number | null,
         metadata?: any
     ) {
-        try {
-            const userId = metadata?.userId;
+        // Run DB insert in background (fire-and-forget) to not block/delay HTTP responses or database transactions
+        const logPromise = (async () => {
+            try {
+                const userId = metadata?.userId;
 
-            await db.insert(systemTelemetry).values({
-                type,
-                scope,
-                key,
-                value: value !== null ? value.toString() : null,
-                metadata: metadata ? JSON.stringify(metadata) : null,
-                userId: userId || null,
-            });
+                await db.insert(systemTelemetry).values({
+                    type,
+                    scope,
+                    key,
+                    value: value !== null ? value.toString() : null,
+                    metadata: metadata ? JSON.stringify(metadata) : null,
+                    userId: userId || null,
+                });
 
-            if (type === 'error') {
-                console.error(`[Telemetry Error] [${scope}] ${key}:`, metadata);
+                if (type === 'error') {
+                    console.error(`[Telemetry Error] [${scope}] ${key}:`, metadata);
+                }
+            } catch (err) {
+                console.error("Telemetry failed to log in background:", err);
             }
-        } catch (err) {
-            // Fail silently to not impact the main application flow
-            console.error("Telemetry failed to log:", err);
-        }
+        })();
+
+        // Keep it safe by catching any unhandled rejection
+        logPromise.catch(() => {});
     }
 
     /**

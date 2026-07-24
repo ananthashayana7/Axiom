@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { auditLogs, users } from '@/db/schema';
-import { eq, desc, gte, lte, and, type SQL } from 'drizzle-orm';
+import { eq, desc, gte, lte, and } from 'drizzle-orm';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { buildCsv } from '@/lib/csv';
 
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
             );
         }
 
-        const conditions: SQL[] = [
+        const conditions = [
             gte(auditLogs.createdAt, exportFrom),
             lte(auditLogs.createdAt, exportTo),
         ];
