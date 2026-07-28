@@ -115,7 +115,7 @@ export async function authenticate(
         }
 
         const authErr = error as AuthError & { type?: string };
-        const errType = authErr.type || '';
+        const errType = (authErr.type as string) || '';
 
         if (errType === 'require-2fa' || errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
             return { status: 'require-2fa' };
