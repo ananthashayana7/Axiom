@@ -114,11 +114,14 @@ export async function authenticate(
             causeMsg = causeErr?.message || (cause.message as string) || '';
         }
 
-        if (errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
+        const authErr = error as AuthError & { type?: string };
+        const errType = authErr.type || '';
+
+        if (errType === 'require-2fa' || errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
             return { status: 'require-2fa' };
         }
 
-        if (errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
+        if (errType === 'setup-2fa' || errorMsg.includes('setup-2fa') || causeMsg.includes('setup-2fa')) {
             // Set up 2FA server-side using the identifier — no session needed here
             // because the password was already been verified in authorize() before this error was thrown.
             const identifier = normalizeIdentifier(formData.get('identifier'));
