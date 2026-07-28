@@ -19,10 +19,7 @@ import bcrypt from "bcryptjs"
 import { TelemetryService } from "./lib/telemetry"
 import { TotpService } from "@/lib/totp";
 import crypto from "node:crypto";
-
-function normalizeIdentifier(identifier: string) {
-    return identifier.trim().toLowerCase();
-}
+import { normalizeIdentifier, verifyPassword } from "./lib/auth-credentials";
 
 function identifierHash(identifier: string) {
     return crypto.createHash("sha256").update(normalizeIdentifier(identifier)).digest("hex").slice(0, 16);
@@ -97,7 +94,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                         return null;
                     }
 
-                    const passwordsMatch = await bcrypt.compare(password, user.password);
+                    const passwordsMatch = await verifyPassword(password, user.password);
 
                     if (passwordsMatch) {
                         if (user.role === 'supplier') {

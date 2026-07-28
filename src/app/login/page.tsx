@@ -37,15 +37,22 @@ export default function LoginPage() {
             }
 
             if (authResult.status === 'require-2fa') {
+                console.log('[LOGIN] 2FA required - showing code entry screen');
                 setShow2FA(true);
                 setShowSetup2FA(false);
                 processedError = '';
             } else if (authResult.status === 'setup-2fa') {
+                console.log('[LOGIN] 2FA setup needed', { 
+                    hasQrCode: !!authResult.qrCodeUrl, 
+                    qrCodeLength: authResult.qrCodeUrl?.length || 0,
+                    hasSecret: !!authResult.secret 
+                });
                 setQrCodeUrl(authResult.qrCodeUrl);
                 if (authResult.secret) setSetupSecret(authResult.secret);
                 setShowSetup2FA(true);
                 processedError = '';
             } else if (authResult.status === 'error') {
+                console.log('[LOGIN] Auth error:', authResult.message);
                 processedError = authResult.message;
             }
         }
@@ -283,9 +290,12 @@ export default function LoginPage() {
                                     <div className="space-y-4">
                                         <div className="flex flex-col items-center justify-center space-y-4">
                                             <p className="text-center text-xs text-muted-foreground">Scan this QR code with your Authenticator app (Google or Microsoft Authenticator).</p>
-                                            <div className="rounded-xl border bg-white p-3 shadow-inner">
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img src={qrCodeUrl} alt="2FA QR Code" className="h-40 w-40" />
+                                            <div className="rounded-xl border bg-white p-4 shadow-inner flex items-center justify-center min-h-[180px]">
+                                                {qrCodeUrl ? (
+                                                    <img src={qrCodeUrl} alt="2FA QR Code" className="h-48 w-48 object-contain" />
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground text-center">Loading QR code...</p>
+                                                )}
                                             </div>
                                             {setupSecret && (
                                                 <div className="w-full">

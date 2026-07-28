@@ -12,6 +12,7 @@ import QRCode from "qrcode";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { enforceServerActionRateLimit } from "@/lib/server-action-rate-limit";
+import { normalizeIdentifier as normalizeAuthIdentifier, verifyPassword } from "@/lib/auth-credentials";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 
@@ -22,7 +23,7 @@ export type AuthenticateResult =
     | { status: 'error'; message: string };
 
 function normalizeIdentifier(identifier: FormDataEntryValue | null) {
-    return String(identifier || '').trim().toLowerCase();
+    return normalizeAuthIdentifier(String(identifier || ''));
 }
 
 function emailEquals(identifier: string) {
@@ -114,8 +115,8 @@ export async function authenticate(
             causeMsg = causeErr?.message || (cause.message as string) || '';
         }
 
-        const authErr = error as AuthError & { type?: string };
-        const errType = (authErr.type as string) || '';
+        const authErr = error as AuthError & { type?: string; code?: string };
+        const errType = (authErr.type as string) || (authErr.code as string) || '';
 
         if (errType === 'require-2fa' || errorMsg.includes('require-2fa') || causeMsg.includes('require-2fa')) {
             return { status: 'require-2fa' };
@@ -126,22 +127,37 @@ export async function authenticate(
             // because the password was already been verified in authorize() before this error was thrown.
             const identifier = normalizeIdentifier(formData.get('identifier'));
             const setupResult = await setupTwoFactorForLogin(identifier);
-            if (setupResult.success && setupResult.qrCodeUrl) {
+            if (!setupResult.success) {
+                console.warn('[2FA] Setup failed or 2FA already enabled, returning error');
+                return { status: 'error', message: 'Two-factor authentication is already enabled for this account. Please use the authenticator app to log in.' };
+            }
+            if (setupResult.qrCodeUrl) {
                 return {
                     status: 'setup-2fa',
                     qrCodeUrl: setupResult.qrCodeUrl,
                     secret: setupResult.secret,
                 };
             }
-            return { status: 'setup-2fa', qrCodeUrl: '', secret: undefined };
+            return { status: 'error', message: 'Failed to generate 2FA setup. Please contact support.' };
         }
 
         if (error instanceof AuthError) {
             const type = error.type as string;
-            if (type === 'CredentialsSignin') {
+            const code = (error as any).code as string;
+            if (type === 'CredentialsSignin' || code === 'CredentialsSignin') {
+                const identifier = normalizeIdentifier(formData.get('identifier'));
+                const password = String(formData.get('password') || '');
+                const [existingUser] = await db.select({ id: users.id, email: users.email, password: users.password, isTwoFactorEnabled: users.isTwoFactorEnabled }).from(users).where(emailEquals(identifier)).limit(1);
+                if (existingUser?.email && password && await verifyPassword(password, existingUser.password)) {
+                    if (existingUser.isTwoFactorEnabled) {
+                        return { status: 'require-2fa' };
+                    } else {
+                        return { status: 'setup-2fa', qrCodeUrl: '', secret: undefined };
+                    }
+                }
                 return { status: 'error', message: 'Invalid credentials. Please verify your email address and password.' };
             }
-            return { status: 'error', message: `Authentication Error: ${type}` };
+            return { status: 'error', message: `Authentication Error: ${type || code}` };
         }
 
         return { status: 'error', message: err.message || 'An unexpected error occurred. Please try again.' };
@@ -162,25 +178,41 @@ async function setupTwoFactorForLogin(identifier: string) {
             .where(emailEquals(identifier))
             .limit(1);
 
-        if (!user) return { success: false as const };
+        if (!user) {
+            console.warn(`[2FA] User not found for identifier: ${identifier}`);
+            return { success: false as const, qrCodeUrl: '', secret: undefined };
+        }
 
         // If 2FA is already fully enabled, don't overwrite — user should be using require-2fa flow
         if (user.isTwoFactorEnabled && user.twoFactorSecret) {
-            return { success: false as const };
+            console.log(`[2FA] User ${user.email} already has 2FA enabled, skipping setup`);
+            return { success: false as const, qrCodeUrl: '', secret: undefined };
         }
 
         // Reuse existing secret from a previous incomplete setup, or generate a new one
         const secret = user.twoFactorSecret || TotpService.generateSecret();
+        console.log(`[2FA] Generated/reused secret for ${user.email}, length: ${secret.length}`);
+        
         const otpauthUrl = TotpService.getOtpAuthUrl(secret, user.email);
+        console.log(`[2FA] OTP auth URL generated: ${otpauthUrl.substring(0, 50)}...`);
 
         // Only write to DB if we generated a new secret
         if (!user.twoFactorSecret) {
             await db.update(users)
                 .set({ twoFactorSecret: secret })
                 .where(eq(users.id, user.id));
+            console.log(`[2FA] Saved new secret for user ${user.email}`);
         }
 
-        const qrCodeUrl = await QRCode.toDataURL(otpauthUrl, { width: 200 });
+        let qrCodeUrl = '';
+        try {
+            qrCodeUrl = await QRCode.toDataURL(otpauthUrl, { width: 200, margin: 1 });
+            console.log(`[2FA] QR code generated successfully, length: ${qrCodeUrl.length}`);
+        } catch (qrError) {
+            console.error(`[2FA] QR code generation failed: ${qrError}`);
+            console.log(`[2FA] Returning setup data with manual entry secret as fallback`);
+        }
+        
         return {
             success: true as const,
             qrCodeUrl,
@@ -188,7 +220,7 @@ async function setupTwoFactorForLogin(identifier: string) {
         };
     } catch (error) {
         console.error("Failed to set up 2FA during login:", error);
-        return { success: false as const };
+        return { success: false as const, qrCodeUrl: '', secret: undefined };
     }
 }
 
