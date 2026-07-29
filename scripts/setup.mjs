@@ -3,23 +3,26 @@
  * 
  * Run: npm run setup
  * 
- * This script handles everything a new developer needs:
+ * Prerequisites: Node.js, Docker Desktop (running)
+ * 
+ * This script handles everything:
  *   1. Creates .env.local from .env.example (if missing)
- *   2. Starts the PostgreSQL Docker container
+ *   2. Starts PostgreSQL via Docker Compose
  *   3. Waits for the database to be ready
- *   4. Pushes the schema (drizzle-kit push)
- *   5. Seeds the database with default admin account
+ *   4. Ensures the procurement_db database exists
+ *   5. Pushes the schema (drizzle-kit push)
+ *   6. Seeds the database with default admin account
  */
 
-import { execSync, spawn } from "node:child_process";
-import { existsSync, copyFileSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, copyFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const ENV_EXAMPLE = join(ROOT, ".env.example");
 const ENV_LOCAL = join(ROOT, ".env.local");
 
-// ANSI colors for pretty output
+// ANSI colors
 const log = {
     step: (msg) => console.log(`\n\x1b[36m▸\x1b[0m ${msg}`),
     ok: (msg) => console.log(`  \x1b[32m✔\x1b[0m ${msg}`),
@@ -28,13 +31,20 @@ const log = {
     info: (msg) => console.log(`  \x1b[90m${msg}\x1b[0m`),
 };
 
+function runSilent(cmd) {
+    try {
+        return execSync(cmd, { cwd: ROOT, stdio: "pipe", timeout: 15_000 }).toString().trim();
+    } catch {
+        return "";
+    }
+}
+
 function run(cmd, opts = {}) {
     try {
         return execSync(cmd, {
             cwd: ROOT,
             stdio: opts.silent ? "pipe" : "inherit",
             timeout: opts.timeout || 60_000,
-            ...opts,
         });
     } catch (err) {
         if (opts.ignoreError) return null;
@@ -42,12 +52,8 @@ function run(cmd, opts = {}) {
     }
 }
 
-function runSilent(cmd) {
-    try {
-        return execSync(cmd, { cwd: ROOT, stdio: "pipe", timeout: 30_000 }).toString().trim();
-    } catch {
-        return "";
-    }
+function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
 }
 
 // ── Step 1: Environment file ────────────────────────────────────────────────
@@ -68,32 +74,25 @@ function ensureEnvLocal() {
     log.ok("Created .env.local from .env.example with local dev defaults.");
 }
 
-// ── Step 2: Docker ──────────────────────────────────────────────────────────
-function isDockerRunning() {
-    const result = runSilent("docker info");
-    return result.length > 0;
-}
-
-function isDbContainerRunning() {
-    const result = runSilent('docker ps --filter "name=procurement_db" --filter "status=running" -q');
-    return result.length > 0;
-}
-
+// ── Step 2: Start PostgreSQL via Docker ─────────────────────────────────────
 function startDatabase() {
-    log.step("Starting PostgreSQL database via Docker...");
+    log.step("Starting PostgreSQL via Docker...");
 
-    if (!isDockerRunning()) {
-        log.error("Docker is not running! Please start Docker Desktop and try again.");
-        log.info("Download Docker Desktop: https://www.docker.com/products/docker-desktop");
+    // Check Docker is running
+    if (!runSilent("docker info")) {
+        log.error("Docker is not running!");
+        log.info("Please start Docker Desktop and re-run: npm run setup");
+        log.info("Download: https://www.docker.com/products/docker-desktop");
         process.exit(1);
     }
 
-    if (isDbContainerRunning()) {
+    // Check if container is already running
+    const running = runSilent('docker ps --filter "name=procurement_db" --filter "status=running" -q');
+    if (running) {
         log.ok("PostgreSQL container is already running.");
         return;
     }
 
-    // Start only the db service from docker-compose
     log.info("Starting PostgreSQL container...");
     run("docker compose up -d db", { timeout: 120_000 });
     log.ok("PostgreSQL container started.");
@@ -104,16 +103,12 @@ async function waitForDatabase(maxRetries = 30) {
     log.step("Waiting for database to accept connections...");
 
     for (let i = 1; i <= maxRetries; i++) {
-        const result = runSilent('docker exec procurement_db pg_isready -U postgres');
-        if (result.includes("accepting connections")) {
-            log.ok("Database is ready.");
-            return;
-        }
+        const ready =
+            runSilent("docker exec procurement_db pg_isready -U postgres").includes("accepting") ||
+            runSilent("docker exec procurement_db_dev pg_isready -U postgres").includes("accepting");
 
-        // Also check the dev container name
-        const resultDev = runSilent('docker exec procurement_db_dev pg_isready -U postgres');
-        if (resultDev.includes("accepting connections")) {
-            log.ok("Database is ready (dev container).");
+        if (ready) {
+            log.ok("Database is ready.");
             return;
         }
 
@@ -124,34 +119,47 @@ async function waitForDatabase(maxRetries = 30) {
     }
 
     log.error(`Database did not become ready after ${maxRetries} attempts.`);
-    log.info("Check Docker logs: docker compose logs db");
+    log.info("Check logs: docker compose logs db");
     process.exit(1);
 }
 
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+// ── Step 4: Ensure database exists ──────────────────────────────────────────
+function ensureDatabaseExists() {
+    log.step("Ensuring 'procurement_db' database exists...");
+
+    const check = runSilent(
+        `docker exec procurement_db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'procurement_db'"`
+    );
+
+    if (check.includes("1")) {
+        log.ok("Database 'procurement_db' exists.");
+        return;
+    }
+
+    runSilent(`docker exec procurement_db createdb -U postgres procurement_db`);
+    log.ok("Database 'procurement_db' created.");
 }
 
-// ── Step 4: Schema push ─────────────────────────────────────────────────────
+// ── Step 5: Schema push ─────────────────────────────────────────────────────
 function pushSchema() {
     log.step("Pushing database schema (drizzle-kit push)...");
     try {
         run("npx drizzle-kit push", { timeout: 120_000 });
         log.ok("Schema pushed successfully.");
-    } catch (err) {
+    } catch {
         log.error("Schema push failed. Check the error above.");
-        log.info("You can retry manually: npm run db:push");
+        log.info("Retry manually: npm run db:push");
         process.exit(1);
     }
 }
 
-// ── Step 5: Seed ────────────────────────────────────────────────────────────
+// ── Step 6: Seed ────────────────────────────────────────────────────────────
 function seedDatabase() {
     log.step("Seeding database with default admin account...");
     try {
         run("npx tsx src/db/seed.ts", { timeout: 60_000 });
         log.ok("Database seeded.");
-    } catch (err) {
+    } catch {
         log.warn("Seeding had issues (database may already contain data — this is OK).");
     }
 }
@@ -165,6 +173,7 @@ async function main() {
     ensureEnvLocal();
     startDatabase();
     await waitForDatabase();
+    ensureDatabaseExists();
     pushSchema();
     seedDatabase();
 
@@ -172,8 +181,8 @@ async function main() {
     console.log("\x1b[1m\x1b[32m  ✔ Setup complete!\x1b[0m");
     console.log("\x1b[1m\x1b[32m══════════════════════════════════════\x1b[0m");
     console.log(`
-  \x1b[1mNext steps:\x1b[0m
-    \x1b[36mnpm run dev\x1b[0m        Start the development server
+  \x1b[1mStart the app:\x1b[0m
+    \x1b[36mnpm run dev\x1b[0m
     \x1b[90mOpen http://localhost:3001\x1b[0m
 
   \x1b[1mDefault admin login:\x1b[0m

@@ -24,9 +24,10 @@ services:
     container_name: procurement_app_dev
     restart: always
     ports:
-      - "3000:3000"
+      - "3001:3000"
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:admin@db:5432/procurement_db}
       AUTH_SECRET: ${AUTH_SECRET}

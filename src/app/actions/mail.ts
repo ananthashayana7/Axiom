@@ -10,7 +10,7 @@ import { logActivity } from "./activity";
 import { revalidatePath } from "next/cache";
 
 function buildAppBaseUrl() {
-    return process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    return process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3001';
 }
 
 /**

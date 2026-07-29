@@ -124,9 +124,14 @@ export async function enqueueSupplierScore(supplierId: string) {
         return;
     }
 
-    await queue.add('compute-supplier-score', { supplierId }, {
-        jobId: `supplier-score:${supplierId}`,
-    });
+    try {
+        await queue.add('compute-supplier-score', { supplierId }, {
+            jobId: `supplier-score:${supplierId}`,
+        });
+    } catch (error) {
+        console.error('[Queue] Failed to enqueue job, falling back to sync execution:', error);
+        await computeSupplierScore(supplierId);
+    }
 }
 
 export async function startSupplierScoreWorker() {

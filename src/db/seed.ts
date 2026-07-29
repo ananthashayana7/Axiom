@@ -29,10 +29,11 @@ async function seed() {
         });
         console.log("Created default admin: admin@axiomprocure.com / password");
         console.log("Seeding complete! Import real data via Admin → Import Data.");
+        process.exit(0);
     } catch (error) {
         console.error("Seeding failed:", error);
+        process.exit(1);
     }
-    process.exit(0);
 }
 
 seed();

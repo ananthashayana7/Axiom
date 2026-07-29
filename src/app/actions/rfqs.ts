@@ -57,7 +57,7 @@ async function acquireWriteLock(executor: { execute: (query: ReturnType<typeof s
 }
 
 function getAppBaseUrl() {
-    return (process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+    return (process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3001").replace(/\/$/, "");
 }
 
 function formatDeadline(deadline: Date | null | undefined) {
