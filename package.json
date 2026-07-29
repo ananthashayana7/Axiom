@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "node -e \"const{existsSync:e,copyFileSync:c}=require('fs');if(!e('.env.local')&&e('.env.example')){c('.env.example','.env.local');console.log('\\x1b[32m✔ Created .env.local from .env.example\\x1b[0m')}\"",
     "dev": "next dev -p 3001 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
