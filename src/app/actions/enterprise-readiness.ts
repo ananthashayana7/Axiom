@@ -38,6 +38,7 @@ import {
 import { canManageSuppliers } from "@/lib/rbac";
 import { generateSupplierPortalWelcomeEmail, sendEmail } from "@/lib/services/email";
 import { logActivity } from "./activity";
+import { notifySupplierStatusChange, notifySupplierApproved } from "./supplier-notifications";
 
 type UserSession = {
     id?: string | null;
@@ -1152,6 +1153,9 @@ export async function approveSupplierOnboarding(supplierId: string) {
         subject: welcome.subject,
         body: welcome.body,
     });
+
+    // Notify supplier of approval
+    await notifySupplierApproved(supplierId, portalUser.email, portalPassword);
 
     await logActivity(
         'APPROVE',

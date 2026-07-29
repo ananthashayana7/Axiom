@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { getSupplierDashboardSnapshot } from "@/app/actions/portal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,14 @@ import {
     ShoppingCart,
     Sparkles,
     TriangleAlert,
+    ShieldAlert,
 } from "lucide-react";
 import { openOrDownloadFile } from "@/lib/client/download";
 
 type SupplierDashboardSnapshot = NonNullable<Awaited<ReturnType<typeof getSupplierDashboardSnapshot>>>;
 
 export default function SupplierDashboard() {
+    const { data: session } = useSession();
     const [snapshot, setSnapshot] = useState<SupplierDashboardSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -108,6 +111,19 @@ export default function SupplierDashboard() {
                     </Button>
                 </div>
             </div>
+
+            {session?.user && !session.user.isTwoFactorEnabled && (
+                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 flex gap-3 items-start">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-2">
+                        <p className="text-sm font-medium text-amber-900">Secure your account with two-factor authentication</p>
+                        <p className="text-xs text-amber-800">Two-factor authentication (2FA) adds an extra security layer to your account. You'll be prompted to set it up on your next login.</p>
+                        <Link href="/portal/security">
+                            <Button size="sm" variant="outline" className="h-7 mt-1">Learn more</Button>
+                        </Link>
+                    </div>
+                </div>
+            )}
 
             <div className="grid gap-6 md:grid-cols-3">
                 <Card className="border-none bg-gradient-to-br from-amber-600 to-amber-700 text-white shadow-lg">

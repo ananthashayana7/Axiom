@@ -65,7 +65,7 @@ export async function authenticate(
         let redirectTo = '/';
         try {
             const [userRecord] = await db
-                .select({ role: users.role })
+                .select({ role: users.role, onboardingCompleted: users.onboardingCompleted })
                 .from(users)
                 .where(emailEquals(identifier))
                 .limit(1);
@@ -82,6 +82,7 @@ export async function authenticate(
 
             if (userRecord?.role === 'admin') redirectTo = '/admin';
             else if (userRecord?.role === 'supplier') redirectTo = '/portal';
+            else if (!userRecord?.onboardingCompleted) redirectTo = '/onboarding';
         } catch { /* fallback to '/' */ }
 
         const redirectUrl = await signIn('credentials', {
@@ -152,7 +153,12 @@ export async function authenticate(
                     if (existingUser.isTwoFactorEnabled) {
                         return { status: 'require-2fa' };
                     } else {
-                        return { status: 'setup-2fa', qrCodeUrl: '', secret: undefined };
+                        // Generate the QR code — don't return an empty URL
+                        const setupResult = await setupTwoFactorForLogin(identifier);
+                        if (setupResult.success && setupResult.qrCodeUrl) {
+                            return { status: 'setup-2fa', qrCodeUrl: setupResult.qrCodeUrl, secret: setupResult.secret };
+                        }
+                        return { status: 'error', message: 'Failed to generate 2FA setup. Please contact support.' };
                     }
                 }
                 return { status: 'error', message: 'Invalid credentials. Please verify your email address and password.' };

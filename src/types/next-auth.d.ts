@@ -9,6 +9,8 @@ declare module "next-auth" {
             countryScope?: string | null;
             regionScope?: string | null;
             supplierId?: string | null;
+            onboardingCompleted?: boolean | null;
+            isTwoFactorEnabled?: boolean | null;
         } & DefaultSession["user"];
     }
 
@@ -19,6 +21,8 @@ declare module "next-auth" {
         countryScope?: string | null;
         regionScope?: string | null;
         supplierId?: string | null;
+        onboardingCompleted?: boolean | null;
+        isTwoFactorEnabled?: boolean | null;
     }
 }
 
@@ -30,5 +34,7 @@ declare module "next-auth/jwt" {
         countryScope?: string | null;
         regionScope?: string | null;
         supplierId?: string | null;
+        onboardingCompleted?: boolean | null;
+        isTwoFactorEnabled?: boolean | null;
     }
 }

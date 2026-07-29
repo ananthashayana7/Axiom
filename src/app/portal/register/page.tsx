@@ -60,18 +60,17 @@ export default function SupplierRegistrationPage() {
     if (submitted) {
         return (
             <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-background via-background to-primary/5">
-                <Card className="w-full max-w-lg border-green-500/30 bg-green-500/5">
+                <Card className="w-full max-w-lg border-blue-500/30 bg-blue-500/5">
                     <CardContent className="p-12 text-center space-y-6">
-                        <div className="mx-auto w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
-                            <CheckCircle2 className="h-10 w-10 text-green-500" />
+                        <div className="mx-auto w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center">
+                            <CheckCircle2 className="h-10 w-10 text-blue-500" />
                         </div>
-                        <h2 className="text-2xl font-bold">Registration Submitted!</h2>
+                        <h2 className="text-2xl font-bold">Check Your Email!</h2>
                         <p className="text-muted-foreground">
-                            Thank you for registering. An Axiom administrator and onboarding workflow
-                            will review your application and guide the next evidence requests.
+                            A verification link has been sent to your email address. Please click the link to verify your email and continue with the registration process.
                         </p>
                         <p className="text-xs text-muted-foreground/60">
-                            Typical review time: 1-2 business days
+                            The verification link will expire in 24 hours.
                         </p>
                     </CardContent>
                 </Card>

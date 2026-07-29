@@ -60,6 +60,12 @@ export const users = pgTable('users', {
     countryScope: text('country_scope'),
     regionScope: text('region_scope'),
     supplierId: uuid('supplier_id').references(() => suppliers.id),
+    // Password Reset
+    resetToken: text('reset_token'),
+    resetTokenExpiresAt: timestamp('reset_token_expires_at'),
+    // Onboarding
+    onboardingCompleted: boolean('onboarding_completed').default(false),
+    onboardingCompletedAt: timestamp('onboarding_completed_at'),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     roleIdx: index('user_role_idx').on(table.role),
@@ -105,6 +111,10 @@ export const suppliers = pgTable('suppliers', {
     countryCode: text('country_code'), // ISO 2-char code
     city: text('city'),
     segment: supplierSegmentEnum('segment'), // Kraljic matrix: strategic, bottleneck, leverage, routine, high_risk
+    // Email Verification
+    emailVerified: boolean('email_verified').default(false),
+    emailVerificationToken: text('email_verification_token'),
+    emailVerificationExpiresAt: timestamp('email_verification_expires_at'),
     createdAt: timestamp('created_at').defaultNow(),
 }, (table: any) => ({
     statusIdx: index('supplier_status_idx').on(table.status),

@@ -1,6 +1,9 @@
 'use server'
 
 import { createRegistrationOnboardingPack, notifyAdminsAboutRegistration } from "@/app/actions/enterprise-readiness";
+import { generateVerificationToken, getVerificationTokenExpiresAt, getVerificationLink } from "@/lib/email-verification";
+import { generateSupplierEmailVerificationEmail } from "@/lib/services/email";
+import { sendEmail } from "@/lib/services/email";
 import { db } from "@/db";
 import { suppliers } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -38,63 +41,48 @@ export async function registerSupplier(data: SupplierRegistrationData) {
             return { success: false, error: "A supplier with this email already exists" };
         }
 
-        // Insert supplier with pending status
+        // Generate verification token and expiration
+        const verificationToken = generateVerificationToken();
+        const verificationExpiresAt = getVerificationTokenExpiresAt();
+
+        // Insert supplier with UNVERIFIED email status
         const [newSupplier] = await db.insert(suppliers).values({
             name: data.companyName.trim(),
             contactEmail: data.contactEmail.trim(),
-            status: 'inactive', // Pending admin approval
+            status: 'inactive', // Pending admin approval (after email verification)
             lifecycleStatus: 'onboarding',
             categories: data.categories || [],
             city: data.city?.trim(),
             countryCode: normalizedCountryCode,
             isoCertifications: data.certifications || [],
             tierLevel: 'tier_3', // Default tier for new suppliers
+            emailVerified: false, // Email not yet verified
+            emailVerificationToken: verificationToken,
+            emailVerificationExpiresAt: verificationExpiresAt,
         }).returning();
 
-        const onboardingPack = await createRegistrationOnboardingPack({
-            supplierId: newSupplier.id,
-            supplierName: data.companyName.trim(),
-            submissionContext: {
-                contactEmail: data.contactEmail.trim(),
-                contactPhone: data.contactPhone?.trim(),
-                website: data.website?.trim(),
-                description: data.description?.trim(),
-                city: data.city?.trim(),
-                country: data.country?.trim(),
-                countryCode: normalizedCountryCode,
-                categories: data.categories || [],
-                certifications: data.certifications || [],
-            },
-        });
+        // Generate verification link
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+        const verificationLink = getVerificationLink(verificationToken, baseUrl);
 
-        // Notify admins about the new registration
+        // Send verification email
         try {
-            await notifyAdminsAboutRegistration({
-                supplierId: newSupplier.id,
-                supplierName: data.companyName.trim(),
-                contactEmail: data.contactEmail.trim(),
+            const emailData = generateSupplierEmailVerificationEmail(data.companyName.trim(), verificationLink);
+            await sendEmail({
+                to: data.contactEmail.trim(),
+                subject: emailData.subject,
+                body: emailData.body,
             });
-
-            /*
-                admins.map(admin =>
-                    createNotification({
-                        userId: admin.id,
-                        title: '🆕 New Supplier Registration',
-                        message: `${data.companyName} (${data.contactEmail}) has registered and is pending approval.`,
-                        type: 'info',
-                        link: `/suppliers/${newSupplier.id}`,
-                    })
-                )
-            */
-        } catch {
-            // Notification failure should not block registration.
+        } catch (emailError) {
+            console.error('Failed to send verification email:', emailError);
+            // Delete the supplier record if email fails
+            await db.delete(suppliers).where(eq(suppliers.id, newSupplier.id));
+            return { success: false, error: "Failed to send verification email. Please try again." };
         }
 
         return {
             success: true,
-            message: onboardingPack.ownerId
-                ? "Registration submitted. Your onboarding pack is now open for review."
-                : "Registration submitted! An admin will review your application shortly.",
+            message: "Registration submitted! Please check your email to verify your address. This link will expire in 24 hours.",
             supplierId: newSupplier.id,
         };
     } catch (error) {

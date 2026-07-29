@@ -155,6 +155,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                             countryScope: user.countryScope,
                             regionScope: user.regionScope,
                             supplierId: user.supplierId,
+                            onboardingCompleted: user.onboardingCompleted,
+                            isTwoFactorEnabled: user.isTwoFactorEnabled,
                         }
                     } else {
                         console.warn(`[AUTH] LOGIN_FAILED_WRONG_PASSWORD | identifierHash: ${identifierHash(identifier)}`);
@@ -237,6 +239,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 user.countryScope = existingUser.countryScope;
                 user.regionScope = existingUser.regionScope;
                 user.supplierId = existingUser.supplierId;
+                user.onboardingCompleted = existingUser.onboardingCompleted;
+                user.isTwoFactorEnabled = existingUser.isTwoFactorEnabled;
             }
             return true;
         },

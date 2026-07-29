@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { authenticate, verifyAndEnableTwoFactor } from '@/app/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,7 +84,6 @@ export default function LoginPage() {
 
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
-        toast.info("Please contact your administrator (admin@axiomprocure.com) to reset your password.");
     };
 
     const features = [
@@ -245,13 +245,12 @@ export default function LoginPage() {
                                         <div className="space-y-1.5">
                                             <div className="flex items-center justify-between">
                                                 <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleForgotPassword}
+                                                <Link
+                                                    href="/forgot-password"
                                                     className="text-xs font-medium text-primary hover:underline"
                                                 >
                                                     Forgot password?
-                                                </button>
+                                                </Link>
                                             </div>
                                             <div className="relative">
                                                 <Input
